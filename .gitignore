@@ -1,6 +1,10 @@
 .env
 node_modules/
-dist/
-public/
+web/dist/
+server/public/
+server/public.novo/
 *.log
+*.db
+*.db-wal
+*.db-shm
 .DS_Store

@@ -1,17 +1,32 @@
-// Configuração lida das variáveis de ambiente (.env)
+// Configuração lida do arquivo .env (na raiz do app) e das variáveis de ambiente
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+// Raiz do app = pasta "app/" no SSD (onde ficam .env, server/, web/)
+export const RAIZ_APP = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
+
+try {
+  process.loadEnvFile(path.join(RAIZ_APP, '.env'));
+} catch {
+  // sem .env: usa só as variáveis de ambiente (ex.: testes)
+}
 
 const numero = (valor, padrao) => {
   const n = Number(valor);
   return valor === undefined || valor === '' || Number.isNaN(n) ? padrao : n;
 };
 
+// Caminhos relativos no .env são relativos à pasta do app
+const caminho = (valor, padrao) => path.resolve(RAIZ_APP, valor || padrao);
+
 export const config = {
-  port: numero(process.env.PORT, 3000),
+  host: process.env.HOST || '127.0.0.1',
+  port: numero(process.env.APP_PORT ?? process.env.PORT, 3000),
   version: process.env.APP_VERSION || 'dev',
-  isProd: process.env.NODE_ENV === 'production',
   sessionSecret: process.env.SESSION_SECRET || '',
   publicUrl: (process.env.PUBLIC_URL || '').replace(/\/+$/, ''),
-  filesDir: process.env.FILES_DIR || './data/arquivos',
+  dbFile: caminho(process.env.DB_FILE, '../dados/crm.db'),
+  filesDir: caminho(process.env.FILES_DIR, '../arquivos'),
   followupHours: numero(process.env.FOLLOWUP_HORAS, 24),
   yayforms: {
     token: process.env.YAYFORMS_WEBHOOK_TOKEN || '',

@@ -2,9 +2,9 @@
 // URL para colar no Yay! Forms: <PUBLIC_URL>/webhooks/yayforms/<YAYFORMS_WEBHOOK_TOKEN>  (formato V2)
 import { Router } from 'express';
 import crypto from 'node:crypto';
-import { query, tx } from '../../db.js';
+import { get, all, run, tx, agora } from '../../db.js';
 import { config } from '../../config.js';
-import { registrarEvento } from '../../events.js';
+import { registrarEvento, lerJson } from '../../events.js';
 import { exigirLogin, exigirAdmin } from '../auth/middleware.js';
 import { criarLead, encontrarExistente } from '../leads/service.js';
 import { interpretarPayload } from './parser.js';
@@ -20,8 +20,7 @@ function iguaisSeguro(a, b) {
 // Aceita qualquer cabeçalho com "signature" no nome, em hex ou base64, com ou sem prefixo "sha256=".
 function assinaturaValida(req) {
   if (!config.yayforms.secret) return true;
-  const hmac = crypto.createHmac('sha256', config.yayforms.secret).update(req.rawBody || Buffer.alloc(0));
-  const digest = hmac.digest();
+  const digest = crypto.createHmac('sha256', config.yayforms.secret).update(req.rawBody || Buffer.alloc(0)).digest();
   const hex = digest.toString('hex');
   const base64 = digest.toString('base64');
   return Object.entries(req.headers)
@@ -32,45 +31,30 @@ function assinaturaValida(req) {
     });
 }
 
-async function processar(body) {
+function processar(body) {
   const dados = interpretarPayload(body, {
     campoNome: config.yayforms.fieldName,
     campoTelefone: config.yayforms.fieldPhone,
     campoEmail: config.yayforms.fieldEmail,
   });
+  const detalhes = { formulario: dados.formulario, respostas: dados.respostas, utm: dados.utm };
 
-  return tx(async (client) => {
-    const existente = await encontrarExistente({ phone: dados.phone, email: dados.email }, client);
+  return tx(() => {
+    const existente = encontrarExistente({ phone: dados.phone, email: dados.email });
     if (existente) {
       // Mesmo lead respondeu de novo: completa dados que faltavam e registra no histórico
-      await client.query(
+      run(
         `UPDATE leads SET
-           name = COALESCE(name, $2), phone = COALESCE(phone, $3), email = COALESCE(email, $4),
-           updated_at = now()
-         WHERE id = $1`,
-        [existente, dados.name, dados.phone, dados.email]
+           name = COALESCE(name, ?), phone = COALESCE(phone, ?), email = COALESCE(email, ?), updated_at = ?
+         WHERE id = ?`,
+        [dados.name, dados.phone, dados.email, agora(), existente]
       );
-      await registrarEvento(
-        { leadId: existente, type: 'form_resubmitted', data: { formulario: dados.formulario, respostas: dados.respostas, utm: dados.utm } },
-        client
-      );
+      registrarEvento({ leadId: existente, type: 'form_resubmitted', data: detalhes });
       return { leadId: existente, novo: false };
     }
 
-    const leadId = await criarLead(
-      {
-        name: dados.name,
-        phone: dados.phone,
-        email: dados.email,
-        source: 'yayforms',
-        extra: { formulario: dados.formulario, respostas: dados.respostas, utm: dados.utm },
-      },
-      { executor: client }
-    );
-    await registrarEvento(
-      { leadId, type: 'form_submitted', data: { formulario: dados.formulario, respostas: dados.respostas, utm: dados.utm } },
-      client
-    );
+    const leadId = criarLead({ name: dados.name, phone: dados.phone, email: dados.email, source: 'yayforms', extra: detalhes });
+    registrarEvento({ leadId, type: 'form_submitted', data: detalhes });
     return { leadId, novo: true };
   });
 }
@@ -80,7 +64,7 @@ export default {
   register(app) {
     const r = Router();
 
-    r.post('/:token', async (req, res) => {
+    r.post('/:token', (req, res) => {
       if (!config.yayforms.token || !iguaisSeguro(req.params.token, config.yayforms.token)) {
         return res.status(404).json({ erro: 'Não encontrado' });
       }
@@ -91,20 +75,16 @@ export default {
       const body = req.body && typeof req.body === 'object' ? req.body : {};
 
       // 1) Guarda o payload bruto antes de qualquer coisa: nenhum lead se perde
-      const { rows } = await query(
-        'INSERT INTO webhook_events (source, payload) VALUES ($1, $2) RETURNING id',
-        ['yayforms', JSON.stringify(body)]
-      );
-      const eventoId = rows[0].id;
+      const eventoId = Number(run('INSERT INTO webhook_events (source, payload) VALUES (?, ?)', ['yayforms', JSON.stringify(body)]).lastInsertRowid);
 
       // 2) Processa
       try {
-        const { leadId, novo } = await processar(body);
-        await query("UPDATE webhook_events SET status = 'processed', lead_id = $2 WHERE id = $1", [eventoId, leadId]);
+        const { leadId, novo } = processar(body);
+        run("UPDATE webhook_events SET status = 'processed', lead_id = ? WHERE id = ?", [leadId, eventoId]);
         console.log(`[yayforms] ${novo ? 'novo lead' : 'lead existente atualizado'} #${leadId}`);
         res.json({ ok: true, lead_id: leadId, novo });
       } catch (err) {
-        await query("UPDATE webhook_events SET status = 'error', error = $2 WHERE id = $1", [eventoId, err.message]);
+        run("UPDATE webhook_events SET status = 'error', error = ? WHERE id = ?", [err.message, eventoId]);
         console.error('[yayforms] erro ao processar:', err.message);
         // Responde 200 mesmo assim: o payload está salvo e pode ser reprocessado
         res.json({ ok: false, guardado: true });
@@ -117,22 +97,20 @@ export default {
     const adm = Router();
     adm.use(exigirLogin, exigirAdmin);
 
-    adm.get('/eventos', async (req, res) => {
-      const { rows } = await query(
+    adm.get('/eventos', (req, res) => {
+      const eventos = all(
         `SELECT id, status, error, lead_id, received_at FROM webhook_events
-          WHERE source = 'yayforms' ORDER BY received_at DESC LIMIT 50`
+          WHERE source = 'yayforms' ORDER BY received_at DESC, id DESC LIMIT 50`
       );
-      res.json({ eventos: rows });
+      res.json({ eventos });
     });
 
-    adm.post('/eventos/:id/reprocessar', async (req, res) => {
+    adm.post('/eventos/:id/reprocessar', (req, res) => {
       const id = idValido(req.params.id);
-      const { rows } = id
-        ? await query("SELECT payload FROM webhook_events WHERE id = $1 AND source = 'yayforms'", [id])
-        : { rows: [] };
-      if (!rows[0]) return res.status(404).json({ erro: 'Evento não encontrado' });
-      const { leadId, novo } = await processar(rows[0].payload);
-      await query("UPDATE webhook_events SET status = 'processed', error = NULL, lead_id = $2 WHERE id = $1", [id, leadId]);
+      const evento = id ? get("SELECT payload FROM webhook_events WHERE id = ? AND source = 'yayforms'", [id]) : null;
+      if (!evento) return res.status(404).json({ erro: 'Evento não encontrado' });
+      const { leadId, novo } = processar(lerJson(evento.payload));
+      run("UPDATE webhook_events SET status = 'processed', error = NULL, lead_id = ? WHERE id = ?", [leadId, id]);
       res.json({ ok: true, lead_id: leadId, novo });
     });
 

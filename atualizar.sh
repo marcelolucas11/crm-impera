@@ -1,46 +1,54 @@
 #!/usr/bin/env bash
 # Atualiza o CRM sem apagar dados:
-#   1) backup do banco  2) baixa a versão nova do GitHub  3) reconstrói só o app  4) confere se subiu
-# O banco não é reiniciado nem apagado. Mudanças de estrutura entram por migrações automáticas.
+#   1) backup do banco  2) baixa a versão nova do GitHub  3) prepara a nova versão com o CRM ainda ligado
+#   4) reinicia (poucos segundos fora do ar)  5) confere
+# Mudanças na estrutura do banco entram por migrações automáticas, que só acrescentam.
 set -euo pipefail
-cd "$(dirname "$0")"
-. scripts/_comum.sh
-
-checar_docker
+. "$(dirname "$0")/scripts/_comum.sh"
 checar_env
+usar_node
 criar_pastas
 
-ANTERIOR=$(versao_git)
 ULTIMO_BACKUP=""
+ANTERIOR=$(git rev-parse HEAD 2>/dev/null || echo "")
 
-passo "1/4 Backup do banco"
-if banco_rodando; then
-  ./scripts/backup.sh
-  ULTIMO_BACKUP=$(ls -1t "$(env_get BACKUP_DIR ../backups)"/crm_*.dump 2>/dev/null | head -n 1 || true)
-else
-  aviso "Banco ainda não está rodando — backup pulado."
-fi
+passo "1/5 Backup do banco"
+fazer_backup
 
-passo "2/4 Baixando a versão nova"
+passo "2/5 Baixando a versão nova"
 if git remote get-url origin >/dev/null 2>&1; then
-  git pull --ff-only
+  if ! git pull --ff-only --quiet; then
+    falha "Não consegui baixar a versão nova. O CRM continua ligado na versão atual ($(versao_git))."
+    echo "  Se você editou arquivos dentro de app/, rode 'git status' para ver quais foram."
+    exit 1
+  fi
 else
   aviso "Sem repositório remoto configurado — usando os arquivos desta pasta."
 fi
-export APP_VERSION
-APP_VERSION=$(versao_git)
+NOVA=$(versao_git)
+[ -n "$ANTERIOR" ] && echo "$ANTERIOR" > "$BACKUP_DIR/versao-anterior.txt"
 
-passo "3/4 Reconstruindo o app ($ANTERIOR → $APP_VERSION)"
-docker compose up -d db
-docker compose build app
-docker compose up -d --no-deps app
+passo "3/5 Preparando a versão $NOVA"
+compilar_interface
+PRECISA_SERVIDOR=0
+servidor_precisa_instalar && PRECISA_SERVIDOR=1
 
-passo "4/4 Conferindo"
-if aguardar_app; then
-  ok "CRM atualizado para a versão $APP_VERSION. Pode continuar trabalhando."
+passo "4/5 Reiniciando"
+"$APP_DIR/parar.sh" >/dev/null
+if [ "$PRECISA_SERVIDOR" = "1" ]; then
+  echo "  instalando dependências do servidor"
+  instalar_servidor
+fi
+
+if "$APP_DIR/iniciar.sh" >/dev/null 2>&1; then
+  passo "5/5 Conferindo"
+  ok "CRM atualizado para a versão $NOVA: http://localhost:$(env_get APP_PORT 3000)"
 else
-  falha "A versão nova não respondeu. Seus dados continuam no banco."
+  falha "A versão $NOVA não ligou. Seus dados estão intactos."
   [ -n "$ULTIMO_BACKUP" ] && echo "  Backup feito antes da atualização: $ULTIMO_BACKUP"
-  echo "  Veja o erro com: docker compose logs app --tail 50"
+  echo "  Últimas linhas do log:"
+  tail -n 15 "$LOG_FILE" >&2
+  echo
+  echo "  Para voltar à versão anterior agora: ./scripts/voltar-versao.sh"
   exit 1
 fi

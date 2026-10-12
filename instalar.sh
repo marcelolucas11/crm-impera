@@ -1,71 +1,108 @@
 #!/usr/bin/env bash
 # Primeira instalação do CRM (rodar uma vez só, no Mac ou na VPS).
-# Cria o .env com senhas aleatórias, cria as pastas de dados, sobe o sistema e cria o primeiro administrador.
+# Baixa o Node.js portátil, cria o .env com senhas aleatórias, prepara o banco,
+# compila a interface, cria o primeiro administrador e liga o CRM.
 set -euo pipefail
-cd "$(dirname "$0")"
-. scripts/_comum.sh
+. "$(dirname "$0")/scripts/_comum.sh"
 
-checar_docker
+# --- 1. Pastas ---
+passo "Criando as pastas em $BASE_DIR"
+criar_pastas
+ok "dados/, backups/, arquivos/ e logs/ prontos"
 
-if [ -f .env ]; then
-  aviso "Já existe um .env aqui — mantendo as configurações atuais."
+# --- 2. Node.js portátil ---
+if [ -x "$NODE_DIR/bin/node" ]; then
+  ok "Node.js portátil já existe ($("$NODE_DIR/bin/node" --version))"
 else
-  passo "Gerando o arquivo .env com senhas aleatórias"
+  case "$(uname -s)-$(uname -m)" in
+    Darwin-arm64) PLATAFORMA="darwin-arm64" ;;
+    Darwin-x86_64) PLATAFORMA="darwin-x64" ;;
+    Linux-x86_64) PLATAFORMA="linux-x64" ;;
+    Linux-aarch64) PLATAFORMA="linux-arm64" ;;
+    *) falha "Sistema não suportado: $(uname -s) $(uname -m)"; exit 1 ;;
+  esac
+  passo "Baixando o Node.js ${NODE_MAJOR} portátil ($PLATAFORMA) para $NODE_DIR"
+  URL_BASE="https://nodejs.org/dist/latest-v${NODE_MAJOR}.x"
+  TEMP=$(mktemp -d)
+  curl -fsSL "$URL_BASE/SHASUMS256.txt" -o "$TEMP/SHASUMS256.txt"
+  ARQUIVO=$(grep -E "node-v[0-9.]+-${PLATAFORMA}\.tar\.gz$" "$TEMP/SHASUMS256.txt" | awk '{print $2}' | head -n 1)
+  [ -n "$ARQUIVO" ] || { falha "Não encontrei o Node para $PLATAFORMA"; exit 1; }
+  curl -fSL --progress-bar "$URL_BASE/$ARQUIVO" -o "$TEMP/$ARQUIVO"
+  ESPERADO=$(grep " $ARQUIVO\$" "$TEMP/SHASUMS256.txt" | awk '{print $1}')
+  OBTIDO=$(cat "$TEMP/$ARQUIVO" | hash_de)
+  if [ "$ESPERADO" != "$OBTIDO" ]; then
+    falha "O arquivo baixado não confere com a assinatura oficial. Instalação cancelada."; rm -rf "$TEMP"; exit 1
+  fi
+  tar -xzf "$TEMP/$ARQUIVO" -C "$TEMP"
+  rm -rf "$NODE_DIR"
+  mv "$TEMP/${ARQUIVO%.tar.gz}" "$NODE_DIR"
+  rm -rf "$TEMP"
+  ok "Node.js $("$NODE_DIR/bin/node" --version) instalado (assinatura conferida)"
+fi
+usar_node
+
+# --- 3. Configuração ---
+if [ -f "$APP_DIR/.env" ]; then
+  aviso "Já existe um .env — mantendo as configurações atuais."
+else
+  passo "Gerando o .env com senhas aleatórias"
   aleatorio() { openssl rand -hex "$1"; }
-  cat > .env <<EOF
+  cat > "$APP_DIR/.env" <<EOF
 # Gerado por instalar.sh em $(date). NÃO envie este arquivo para o GitHub.
 
-POSTGRES_USER=crm
-POSTGRES_PASSWORD=$(aleatorio 24)
-POSTGRES_DB=crm
+# Endereço e porta do CRM
+APP_PORT=3000
+HOST=127.0.0.1
+# Endereço público (Tailscale Funnel no Mac, domínio na VPS). Usado para mostrar a URL do webhook.
+PUBLIC_URL=
 
-HOST_DATA_DIR=../dados
-HOST_FILES_DIR=../arquivos
+SESSION_SECRET=$(aleatorio 32)
+
+# Pastas (relativas a esta pasta)
+DB_FILE=../dados/crm.db
+FILES_DIR=../arquivos
 BACKUP_DIR=../backups
 
-APP_PORT=3000
-SESSION_SECRET=$(aleatorio 32)
-PUBLIC_URL=
+# DDI colocado na frente de telefones com DDD + número
 DDI_PADRAO=55
-
+# Horas sem contato até o lead ficar marcado como atrasado
 FOLLOWUP_HORAS=24
 
+# Yay! Forms
 YAYFORMS_WEBHOOK_TOKEN=$(aleatorio 16)
 YAYFORMS_WEBHOOK_SECRET=
 YAYFORMS_CAMPO_NOME=
 YAYFORMS_CAMPO_TELEFONE=
 YAYFORMS_CAMPO_EMAIL=
 EOF
-  chmod 600 .env
+  chmod 600 "$APP_DIR/.env"
   ok ".env criado"
 fi
 
-passo "Criando as pastas de dados"
-criar_pastas
-ok "Pastas prontas: $(env_get HOST_DATA_DIR ../dados), $(env_get HOST_FILES_DIR ../arquivos), $(env_get BACKUP_DIR ../backups)"
+# --- 4. Dependências e interface ---
+passo "Instalando as dependências do servidor"
+instalar_servidor
+ok "Servidor pronto"
+passo "Compilando a interface"
+compilar_interface --forcar
+ok "Interface pronta"
 
-passo "Construindo e subindo o CRM (a primeira vez demora alguns minutos)"
-export APP_VERSION
-APP_VERSION=$(versao_git)
-docker compose up -d --build
-
-passo "Aguardando o CRM responder"
-if ! aguardar_app; then
-  falha "O CRM não respondeu. Veja o motivo com: docker compose logs app --tail 50"
-  exit 1
-fi
-ok "CRM no ar"
-
-USUARIOS=$(docker compose exec -T app node src/cli.js contar-usuarios 2>/dev/null | tr -d '[:space:]' || echo 0)
-if [ "${USUARIOS:-0}" = "0" ]; then
+# --- 5. Primeiro administrador ---
+USUARIOS=$(node_crm server/src/cli.js contar-usuarios | tail -n 1)
+if [ "$USUARIOS" = "0" ]; then
   passo "Criando o primeiro administrador"
-  docker compose exec app node src/cli.js criar-usuario --admin
+  node_crm server/src/cli.js criar-usuario --admin || true
+  if [ "$(node_crm server/src/cli.js contar-usuarios | tail -n 1)" = "0" ]; then
+    falha "Nenhum administrador foi criado. Rode: ./scripts/criar-usuario.sh --admin"
+    exit 1
+  fi
 fi
 
-PORTA=$(env_get APP_PORT 3000)
-TOKEN=$(env_get YAYFORMS_WEBHOOK_TOKEN)
+# --- 6. Ligar ---
+"$APP_DIR/iniciar.sh"
+
 echo
 ok "Instalação concluída."
-echo "  Acesse:            http://localhost:${PORTA}"
-echo "  Webhook Yay! Forms: <endereço público>/webhooks/yayforms/${TOKEN}"
-echo "  Para atualizar:    ./atualizar.sh"
+echo "  Abra:               http://localhost:$(env_get APP_PORT 3000)"
+echo "  Dia a dia:          ./iniciar.sh  |  ./parar.sh  |  ./atualizar.sh"
+echo "  Lead de teste:      ./scripts/lead-teste.sh"

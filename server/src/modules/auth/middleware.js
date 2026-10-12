@@ -1,14 +1,10 @@
-import { query } from '../../db.js';
+import { get } from '../../db.js';
 
 // Exige usuário logado e ativo. Disponibiliza req.user.
-export async function exigirLogin(req, res, next) {
+export function exigirLogin(req, res, next) {
   const userId = req.session?.userId;
   if (!userId) return res.status(401).json({ erro: 'Faça login para continuar' });
-  const { rows } = await query(
-    'SELECT id, name, email, role, active FROM users WHERE id = $1',
-    [userId]
-  );
-  const user = rows[0];
+  const user = get('SELECT id, name, email, role, active FROM users WHERE id = ?', [userId]);
   if (!user || !user.active) {
     req.session.destroy(() => {});
     return res.status(401).json({ erro: 'Sessão inválida, faça login de novo' });

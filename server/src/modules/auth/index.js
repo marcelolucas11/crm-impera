@@ -2,7 +2,7 @@
 import { Router } from 'express';
 import bcrypt from 'bcryptjs';
 import rateLimit from 'express-rate-limit';
-import { query } from '../../db.js';
+import { get, run, agora } from '../../db.js';
 import { exigirLogin } from './middleware.js';
 
 const limiteLogin = rateLimit({
@@ -25,14 +25,13 @@ export default {
       const senha = String(req.body?.senha || '');
       if (!email || !senha) return res.status(400).json({ erro: 'Informe e-mail e senha' });
 
-      const { rows } = await query('SELECT * FROM users WHERE lower(email) = $1', [email]);
-      const user = rows[0];
+      const user = get('SELECT * FROM users WHERE lower(email) = ?', [email]);
       const valido = user && user.active && (await bcrypt.compare(senha, user.password_hash));
       if (!valido) return res.status(401).json({ erro: 'E-mail ou senha incorretos' });
 
       await new Promise((resolve, reject) => req.session.regenerate((e) => (e ? reject(e) : resolve())));
       req.session.userId = user.id;
-      await query('UPDATE users SET last_login_at = now() WHERE id = $1', [user.id]);
+      run('UPDATE users SET last_login_at = ? WHERE id = ?', [agora(), user.id]);
       res.json({ user: publico(user) });
     });
 
@@ -49,11 +48,11 @@ export default {
       const atual = String(req.body?.atual || '');
       const nova = String(req.body?.nova || '');
       if (nova.length < 8) return res.status(400).json({ erro: 'A nova senha precisa ter pelo menos 8 caracteres' });
-      const { rows } = await query('SELECT password_hash FROM users WHERE id = $1', [req.user.id]);
-      if (!(await bcrypt.compare(atual, rows[0].password_hash))) {
+      const { password_hash } = get('SELECT password_hash FROM users WHERE id = ?', [req.user.id]);
+      if (!(await bcrypt.compare(atual, password_hash))) {
         return res.status(400).json({ erro: 'Senha atual incorreta' });
       }
-      await query('UPDATE users SET password_hash = $1 WHERE id = $2', [await bcrypt.hash(nova, 12), req.user.id]);
+      run('UPDATE users SET password_hash = ? WHERE id = ?', [await bcrypt.hash(nova, 12), req.user.id]);
       res.json({ ok: true });
     });
 

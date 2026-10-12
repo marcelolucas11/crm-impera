@@ -1,11 +1,13 @@
 // Módulo de equipe: listar, criar e editar usuários
 import { Router } from 'express';
 import bcrypt from 'bcryptjs';
-import { query } from '../../db.js';
+import { get, all, run } from '../../db.js';
 import { exigirLogin, exigirAdmin } from '../auth/middleware.js';
 import { normalizarEmail, texto, idValido } from '../../util.js';
 
 const CAMPOS = 'id, name, email, role, active, last_login_at, created_at';
+const mapear = (u) => (u ? { ...u, active: Boolean(u.active) } : null);
+const buscar = (id) => mapear(get(`SELECT ${CAMPOS} FROM users WHERE id = ?`, [id]));
 
 export default {
   name: 'users',
@@ -13,9 +15,8 @@ export default {
     const r = Router();
     r.use(exigirLogin);
 
-    r.get('/', async (req, res) => {
-      const { rows } = await query(`SELECT ${CAMPOS} FROM users ORDER BY active DESC, name`);
-      res.json({ users: rows });
+    r.get('/', (req, res) => {
+      res.json({ users: all(`SELECT ${CAMPOS} FROM users ORDER BY active DESC, name`).map(mapear) });
     });
 
     r.post('/', exigirAdmin, async (req, res) => {
@@ -25,23 +26,22 @@ export default {
       const role = req.body?.role === 'admin' ? 'admin' : 'member';
       if (!name || !email) return res.status(400).json({ erro: 'Nome e e-mail válidos são obrigatórios' });
       if (senha.length < 8) return res.status(400).json({ erro: 'A senha precisa ter pelo menos 8 caracteres' });
-
-      const existe = await query('SELECT 1 FROM users WHERE lower(email) = $1', [email]);
-      if (existe.rowCount) return res.status(409).json({ erro: 'Já existe um usuário com esse e-mail' });
-
-      const { rows } = await query(
-        `INSERT INTO users (name, email, password_hash, role) VALUES ($1, $2, $3, $4) RETURNING ${CAMPOS}`,
-        [name, email, await bcrypt.hash(senha, 12), role]
-      );
-      res.status(201).json({ user: rows[0] });
+      if (get('SELECT 1 FROM users WHERE lower(email) = ?', [email])) {
+        return res.status(409).json({ erro: 'Já existe um usuário com esse e-mail' });
+      }
+      const hash = await bcrypt.hash(senha, 12);
+      const { lastInsertRowid } = run('INSERT INTO users (name, email, password_hash, role) VALUES (?, ?, ?, ?)', [name, email, hash, role]);
+      res.status(201).json({ user: buscar(Number(lastInsertRowid)) });
     });
 
     r.patch('/:id', exigirAdmin, async (req, res) => {
       const id = idValido(req.params.id);
       if (!id) return res.status(400).json({ erro: 'ID inválido' });
+      if (!get('SELECT 1 FROM users WHERE id = ?', [id])) return res.status(404).json({ erro: 'Usuário não encontrado' });
+
       const sets = [];
       const vals = [];
-      const add = (col, val) => { vals.push(val); sets.push(`${col} = $${vals.length}`); };
+      const add = (col, val) => { sets.push(`${col} = ?`); vals.push(val); };
 
       if (req.body?.name !== undefined) {
         const name = texto(req.body.name, 120);
@@ -63,13 +63,8 @@ export default {
       }
       if (!sets.length) return res.status(400).json({ erro: 'Nada para alterar' });
 
-      vals.push(id);
-      const { rows } = await query(
-        `UPDATE users SET ${sets.join(', ')} WHERE id = $${vals.length} RETURNING ${CAMPOS}`,
-        vals
-      );
-      if (!rows[0]) return res.status(404).json({ erro: 'Usuário não encontrado' });
-      res.json({ user: rows[0] });
+      run(`UPDATE users SET ${sets.join(', ')} WHERE id = ?`, [...vals, id]);
+      res.json({ user: buscar(id) });
     });
 
     app.use('/api/users', r);

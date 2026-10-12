@@ -1,22 +1,19 @@
-// Ponto de entrada do servidor: aplica migrações, liga os módulos e serve a interface
+// Ponto de entrada do servidor: abre o banco, aplica migrações, liga os módulos e serve a interface
 import express from 'express';
 import session from 'express-session';
-import connectPg from 'connect-pg-simple';
 import helmet from 'helmet';
 import path from 'node:path';
 import fs from 'node:fs';
-import { fileURLToPath } from 'node:url';
-import { config, validarConfig } from './config.js';
-import { pool, aguardarBanco } from './db.js';
-import { aplicarMigracoes } from './migrate.js';
+import { config, validarConfig, RAIZ_APP } from './config.js';
+import { abrirBanco, fecharBanco, get } from './db.js';
+import { aplicarMigracoes } from './migrar.js';
+import { LojaSessoes } from './sessoes.js';
 import { modulos } from './modules/index.js';
 
-const raiz = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-
-async function iniciar() {
+function iniciar() {
   validarConfig();
-  await aguardarBanco();
-  await aplicarMigracoes(pool, path.join(raiz, 'migrations'));
+  abrirBanco();
+  aplicarMigracoes(path.join(RAIZ_APP, 'server', 'migrations'));
   fs.mkdirSync(config.filesDir, { recursive: true });
 
   const app = express();
@@ -25,9 +22,7 @@ async function iniciar() {
 
   app.use(
     helmet({
-      contentSecurityPolicy: {
-        directives: { upgradeInsecureRequests: null },
-      },
+      contentSecurityPolicy: { directives: { upgradeInsecureRequests: null } },
     })
   );
 
@@ -41,11 +36,10 @@ async function iniciar() {
     })
   );
 
-  const PgStore = connectPg(session);
   app.use(
     session({
       name: 'crm.sid',
-      store: new PgStore({ pool, tableName: 'sessions', pruneSessionInterval: 60 * 60 }),
+      store: new LojaSessoes(),
       secret: config.sessionSecret,
       resave: false,
       saveUninitialized: false,
@@ -59,8 +53,8 @@ async function iniciar() {
     })
   );
 
-  app.get('/api/health', async (_req, res) => {
-    await pool.query('SELECT 1');
+  app.get('/api/health', (_req, res) => {
+    get('SELECT 1');
     res.json({ ok: true, versao: config.version });
   });
 
@@ -72,13 +66,13 @@ async function iniciar() {
   app.use('/api', (_req, res) => res.status(404).json({ erro: 'Rota não encontrada' }));
   app.use('/webhooks', (_req, res) => res.status(404).json({ erro: 'Não encontrado' }));
 
-  // Interface (React compilado)
-  const pastaPublica = path.join(raiz, 'public');
+  // Interface (React compilado em server/public)
+  const pastaPublica = path.join(RAIZ_APP, 'server', 'public');
   const indexHtml = path.join(pastaPublica, 'index.html');
   app.use(express.static(pastaPublica, { index: false, maxAge: '1h' }));
   app.use((req, res, next) => {
-    if (req.method !== 'GET') return next();
-    if (!fs.existsSync(indexHtml)) return res.status(503).send('Interface não compilada.');
+    if (req.method !== 'GET' && req.method !== 'HEAD') return next();
+    if (!fs.existsSync(indexHtml)) return res.status(503).send('Interface não compilada. Rode ./atualizar.sh');
     res.setHeader('Cache-Control', 'no-cache');
     res.sendFile(indexHtml);
   });
@@ -91,19 +85,26 @@ async function iniciar() {
     res.status(status).json({ erro: status >= 500 ? 'Erro interno no servidor' : err.message });
   });
 
-  app.listen(config.port, () => {
-    console.log(`[crm] versão ${config.version} rodando na porta ${config.port}`);
+  const servidor = app.listen(config.port, config.host, () => {
+    console.log(`[crm] versão ${config.version} rodando em http://${config.host}:${config.port}`);
+    console.log(`[crm] banco: ${config.dbFile}`);
   });
+
+  const encerrar = (sinal) => {
+    console.log(`[crm] recebido ${sinal}, encerrando...`);
+    servidor.close(() => {
+      fecharBanco();
+      process.exit(0);
+    });
+    setTimeout(() => process.exit(0), 5000).unref();
+  };
+  process.on('SIGTERM', () => encerrar('SIGTERM'));
+  process.on('SIGINT', () => encerrar('SIGINT'));
 }
 
-iniciar().catch((err) => {
+try {
+  iniciar();
+} catch (err) {
   console.error('[crm] falha ao iniciar:', err.message);
   process.exit(1);
-});
-
-for (const sinal of ['SIGTERM', 'SIGINT']) {
-  process.on(sinal, () => {
-    console.log(`[crm] recebido ${sinal}, encerrando...`);
-    pool.end().finally(() => process.exit(0));
-  });
 }

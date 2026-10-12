@@ -1,9 +1,10 @@
 # Impera CRM
 
-CRM da agência: leads do Yay! Forms caindo direto num kanban, alerta de follow-up, login da equipe.
-Roda em Docker — o mesmo pacote funciona no Mac (SSD externo) e na VPS da Contabo.
+CRM da agência: leads do Yay! Forms caindo direto num kanban, alerta de follow-up e login da equipe.
+Roda direto no Mac, a partir do SSD externo, sem Docker e sem instalar nada no sistema.
+A mesma pasta funciona depois na VPS da Contabo.
 
-**Versão 0.1:** login e senha · kanban com arrastar e soltar · alerta de leads sem contato · webhook do Yay! Forms · histórico do lead · equipe com permissões · backup automático antes de cada atualização.
+**Versão 0.2:** login e senha · kanban com arrastar e soltar · alerta de leads sem contato · webhook do Yay! Forms · histórico do lead · equipe com permissões · backup automático antes de cada atualização · volta de versão com um comando.
 
 **Próximos módulos:** WhatsApp (vários números) · Calendly · Google Agenda · notificações de follow-up.
 
@@ -13,48 +14,52 @@ Roda em Docker — o mesmo pacote funciona no Mac (SSD externo) e na VPS da Cont
 
 ```
 /Volumes/SEU-SSD/crm-impera/
-├── app/        ← este repositório (código)
-├── dados/      ← banco de dados (nunca é apagado por atualizações)
+├── app/        ← este repositório (código, vem do GitHub)
+├── node/       ← Node.js portátil (o instalar.sh baixa e confere a assinatura)
+├── dados/      ← crm.db: o banco inteiro num arquivo
+├── backups/    ← cópia do banco antes de cada atualização (guarda as 30 últimas)
 ├── arquivos/   ← mídias e anexos
-└── backups/    ← backup automático antes de cada atualização
+└── logs/       ← crm.log
 ```
+
+Nada é instalado no Mac. Para "desinstalar", basta apagar a pasta `crm-impera`.
 
 ## Primeira instalação (uma vez só)
 
 ```bash
 cd /Volumes/SEU-SSD/crm-impera
-git clone https://github.com/ORGANIZACAO/crm-impera.git app
+git clone https://github.com/marcelolucas11/crm-impera.git app
 cd app
 ./instalar.sh
 ```
 
-O `instalar.sh` gera o `.env` com senhas aleatórias, sobe o sistema e pede nome, e-mail e senha do primeiro administrador.
-Depois acesse **http://localhost:3000**.
+O `instalar.sh` baixa o Node.js portátil para `../node`, gera o `.env` com senhas aleatórias, compila a interface,
+pede nome, e-mail e senha do primeiro administrador e liga o CRM. Depois, abra **http://localhost:3000**.
 
-## Atualizar (sempre que houver versão nova)
+## Dia a dia
 
-```bash
-cd /Volumes/SEU-SSD/crm-impera/app
-./atualizar.sh
-```
-
-O que ele faz: backup do banco → baixa a versão nova → reconstrói só o app → confere se subiu.
-O banco não é reiniciado nem apagado. A pausa é de alguns segundos.
-
-## Comandos do dia a dia
-
-| Para… | Comando |
+| Para… | Comando (dentro de `app/`) |
 |---|---|
-| Atualizar | `./atualizar.sh` |
+| Ligar o CRM | `./iniciar.sh` |
+| Desligar (sempre antes de ejetar o SSD) | `./parar.sh` |
+| Atualizar para a versão nova | `./atualizar.sh` |
+| Voltar para a versão anterior | `./scripts/voltar-versao.sh` |
 | Fazer backup agora | `./scripts/backup.sh` |
-| Restaurar um backup | `./scripts/restaurar.sh ../backups/crm_AAAA-MM-DD_HHMMSS.dump` |
+| Restaurar um backup | `./scripts/restaurar.sh ../backups/crm_AAAA-MM-DD_HHMMSS.db` |
 | Criar usuário pelo terminal | `./scripts/criar-usuario.sh` (ou `--admin`) |
 | Redefinir senha | `./scripts/redefinir-senha.sh email@exemplo.com` |
-| Ver o que está acontecendo | `docker compose logs app --tail 50` |
-| Parar tudo (antes de ejetar o SSD) | `docker compose stop` |
-| Ligar de novo | `docker compose start` |
+| Simular leads do Yay! Forms | `./scripts/lead-teste.sh 5` |
+| Ver o log | `tail -f ../logs/crm.log` |
 
-> ⚠️ Nunca rode `docker compose down -v`. Com os dados em `../dados` eles não seriam apagados, mas o hábito é perigoso em outros projetos.
+### O que o `./atualizar.sh` faz
+
+1. Copia o banco para `backups/` (funciona com o CRM ligado).
+2. Baixa a versão nova do GitHub.
+3. Prepara a versão nova com o CRM ainda ligado.
+4. Reinicia: fica fora do ar por menos de um segundo. Ninguém precisa fazer login de novo.
+5. Aplica as mudanças de banco (migrações) e confere se subiu.
+
+Se a versão nova não ligar, o banco continua intacto e `./scripts/voltar-versao.sh` volta para a anterior.
 
 ## Ligar o Yay! Forms
 
@@ -63,16 +68,12 @@ O banco não é reiniciado nem apagado. A pausa é de alguns segundos.
 3. Use **Test** no Yay! Forms e confira o lead no kanban.
 
 O CRM detecta nome, telefone e e-mail sozinho. Se errar em algum formulário, preencha no `.env` os IDs das perguntas
-(`YAYFORMS_CAMPO_NOME`, `YAYFORMS_CAMPO_TELEFONE`, `YAYFORMS_CAMPO_EMAIL`) e rode `./atualizar.sh`.
+(`YAYFORMS_CAMPO_NOME`, `YAYFORMS_CAMPO_TELEFONE`, `YAYFORMS_CAMPO_EMAIL`) e rode `./parar.sh && ./iniciar.sh`.
 Todo webhook recebido fica salvo; os que derem erro podem ser reprocessados na tela de integrações.
 
-**Enquanto roda no Mac**, o Yay! Forms precisa de um endereço público. Com Tailscale:
-
-```bash
-tailscale funnel --bg 3000
-```
-
-Use a URL `https://….ts.net` que aparecer como `PUBLIC_URL` no `.env`. Leads só chegam com o Mac ligado e o SSD conectado.
+**Enquanto o CRM roda só no Mac**, o Yay! Forms não alcança a sua máquina pela internet. Use `./scripts/lead-teste.sh`
+para testar. Para receber leads reais no Mac (opcional), rode `tailscale funnel --bg 3000` e coloque a URL `https://….ts.net`
+em `PUBLIC_URL` no `.env`. Na Contabo isso não é necessário.
 
 ## Configurações (`.env`)
 
@@ -80,25 +81,28 @@ Use a URL `https://….ts.net` que aparecer como `PUBLIC_URL` no `.env`. Leads s
 |---|---|
 | `FOLLOWUP_HORAS` | Depois de quantas horas sem contato o lead fica vermelho (padrão 24) |
 | `DDI_PADRAO` | DDI colocado em telefones digitados só com DDD (padrão 55) |
+| `HOST` | `127.0.0.1` = só este Mac acessa; `0.0.0.0` = libera para a rede do escritório |
 | `PUBLIC_URL` | Endereço público do CRM |
 | `YAYFORMS_WEBHOOK_SECRET` | Opcional: o "Secret" do webhook no Yay! Forms, para conferir a assinatura |
 
-Depois de mudar o `.env`, rode `./atualizar.sh`.
+Depois de mudar o `.env`, rode `./parar.sh && ./iniciar.sh`.
 
 ## Migrar para a Contabo
 
-1. Na VPS: instalar Docker e clonar este repositório em `/opt/crm-impera/app`.
-2. Copiar o `.env` e o último arquivo de `backups/` para a VPS.
-3. `./instalar.sh` e depois `./scripts/restaurar.sh <backup>`.
-4. Apontar um subdomínio da GoDaddy para o IP da VPS e colocar um proxy HTTPS na frente (será adicionado ao projeto nessa etapa).
+1. Na VPS (Ubuntu): `git clone` deste repositório em `/opt/crm-impera/app` e `./instalar.sh`.
+2. Copie o arquivo mais recente de `backups/` e o `.env` para a VPS.
+3. `./scripts/restaurar.sh <backup>`.
+4. Aponte um subdomínio da GoDaddy para o IP da VPS. O HTTPS e o início automático com o servidor entram no projeto nessa etapa.
 
 ## Para quem for mexer no código
 
 ```
 server/src/modules/   ← cada integração é um módulo (auth, users, stages, leads, followup, yayforms)
+server/src/db.js      ← toda a conversa com o banco (SQLite embutido no Node)
 server/migrations/    ← mudanças no banco, numeradas (001_, 002_...). Só acrescentam, nunca apagam dados.
 web/src/              ← interface React
 ```
 
 Novo módulo: criar `server/src/modules/<nome>/index.js` exportando `{ name, register(app) }` e registrar em `modules/index.js`.
 Mudança no banco: criar `server/migrations/00X_descricao.sql`. Ela roda sozinha na próxima atualização, dentro de uma transação.
+Nunca reescreva o histórico do Git (`push --force`) no repositório: o `atualizar.sh` só avança versões.
