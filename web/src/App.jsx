@@ -122,7 +122,7 @@ function Painel({ user, irParaEquipe, sair }) {
           users={users}
           user={user}
           horas={horas}
-          onFechar={() => setAberto(null)}
+          onFechar={() => { setAberto(null); carregarLeads(); }}
           onAtualizado={aoAtualizar}
           onExcluido={() => { setAberto(null); carregarLeads(); }}
         />

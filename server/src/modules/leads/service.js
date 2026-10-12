@@ -2,6 +2,7 @@
 import { get, all, run } from '../../db.js';
 import { config } from '../../config.js';
 import { registrarEvento, lerJson } from '../../events.js';
+import { variantesTelefone } from '../../util.js';
 
 // 1º parâmetro (?) = horas de follow-up. Calcula a última atividade e se o lead está atrasado.
 export const BASE_LEADS = `
@@ -13,7 +14,10 @@ export const BASE_LEADS = `
     u.name AS owner_name,
     COALESCE(l.last_contact_at, l.created_at) AS last_activity_at,
     (s.kind = 'open'
-      AND (julianday('now') - julianday(COALESCE(l.last_contact_at, l.created_at))) * 24 > ?) AS followup_overdue
+      AND (julianday('now') - julianday(COALESCE(l.last_contact_at, l.created_at))) * 24 > ?) AS followup_overdue,
+    (SELECT count(*) FROM wa_messages m WHERE m.lead_id = l.id AND m.from_me = 0 AND m.read_at IS NULL) AS unread_count,
+    (SELECT min(c.start_time) FROM calendly_events c
+      WHERE c.lead_id = l.id AND c.status = 'active' AND c.start_time > strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) AS next_meeting_at
   FROM leads l
   JOIN stages s ON s.id = l.stage_id
   LEFT JOIN users u ON u.id = l.owner_id`;
@@ -47,17 +51,33 @@ export function primeiraEtapa() {
   return get("SELECT id FROM stages WHERE kind = 'open' ORDER BY position, id LIMIT 1")?.id;
 }
 
-// Procura um lead existente pelo telefone ou e-mail (evita duplicados)
+// Procura um lead existente pelo telefone (com e sem o 9º dígito) ou e-mail (evita duplicados)
 export function encontrarExistente({ phone, email }) {
-  if (!phone && !email) return null;
-  const r = get(
-    `SELECT id FROM leads
-      WHERE (? IS NOT NULL AND phone = ?)
-         OR (? IS NOT NULL AND lower(email) = ?)
-      ORDER BY created_at DESC LIMIT 1`,
-    [phone || null, phone || null, email || null, email || null]
-  );
+  const telefones = variantesTelefone(phone);
+  const condicoes = [];
+  const valores = [];
+  if (telefones.length) {
+    condicoes.push(`phone IN (${telefones.map(() => '?').join(', ')})`);
+    valores.push(...telefones);
+  }
+  if (email) {
+    condicoes.push('lower(email) = ?');
+    valores.push(String(email).toLowerCase());
+  }
+  if (!condicoes.length) return null;
+  const r = get(`SELECT id FROM leads WHERE ${condicoes.join(' OR ')} ORDER BY created_at DESC LIMIT 1`, valores);
   return r?.id || null;
+}
+
+// Move o lead para a etapa indicada só se ele ainda estiver numa etapa anterior (nunca volta)
+export function avancarEtapa(leadId, etapaId, userId = null) {
+  const lead = get('SELECT l.stage_id, s.position, s.kind, s.name FROM leads l JOIN stages s ON s.id = l.stage_id WHERE l.id = ?', [leadId]);
+  const alvo = get('SELECT id, position, name FROM stages WHERE id = ?', [etapaId]);
+  if (!lead || !alvo || lead.kind !== 'open' || lead.position >= alvo.position) return false;
+  const agoraIso = new Date().toISOString();
+  run('UPDATE leads SET stage_id = ?, stage_changed_at = ?, updated_at = ? WHERE id = ?', [alvo.id, agoraIso, agoraIso, leadId]);
+  registrarEvento({ leadId, userId, type: 'stage_changed', data: { de: lead.name, para: alvo.name } });
+  return true;
 }
 
 export function criarLead(dados, { userId = null } = {}) {

@@ -4,9 +4,9 @@ CRM da agência: leads do Yay! Forms caindo direto num kanban, alerta de follow-
 Roda direto no Mac, a partir do SSD externo, sem Docker e sem instalar nada no sistema.
 A mesma pasta funciona depois na VPS da Contabo.
 
-**Versão 0.2:** login e senha · kanban com arrastar e soltar · alerta de leads sem contato · webhook do Yay! Forms · histórico do lead · equipe com permissões · backup automático antes de cada atualização · volta de versão com um comando.
+**Versão 0.3:** login e senha · kanban com arrastar e soltar · alerta de leads sem contato · webhook do Yay! Forms · **WhatsApp por QR code com vários números** · **Calendly** · histórico do lead · equipe com permissões · backup automático antes de cada atualização · volta de versão com um comando.
 
-**Próximos módulos:** WhatsApp (vários números) · Calendly · Google Agenda · notificações de follow-up.
+**Próximos módulos:** Google Agenda · notificações de follow-up.
 
 ---
 
@@ -49,6 +49,7 @@ pede nome, e-mail e senha do primeiro administrador e liga o CRM. Depois, abra *
 | Criar usuário pelo terminal | `./scripts/criar-usuario.sh` (ou `--admin`) |
 | Redefinir senha | `./scripts/redefinir-senha.sh email@exemplo.com` |
 | Simular leads do Yay! Forms | `./scripts/lead-teste.sh 5` |
+| Conectar o Calendly | `./scripts/configurar-calendly.sh` |
 | Ver o log | `tail -f ../logs/crm.log` |
 
 ### O que o `./atualizar.sh` faz
@@ -74,6 +75,34 @@ Todo webhook recebido fica salvo; os que derem erro podem ser reprocessados na t
 **Enquanto o CRM roda só no Mac**, o Yay! Forms não alcança a sua máquina pela internet. Use `./scripts/lead-teste.sh`
 para testar. Para receber leads reais no Mac (opcional), rode `tailscale funnel --bg 3000` e coloque a URL `https://….ts.net`
 em `PUBLIC_URL` no `.env`. Na Contabo isso não é necessário.
+
+## WhatsApp (QR code, vários números)
+
+1. Menu do avatar → **Equipe e integrações** → dê um nome ao número (ex.: Comercial) → **Conectar novo número**.
+2. No celular desse número: WhatsApp → **Configurações → Aparelhos conectados → Conectar um aparelho** → leia o QR code.
+3. Repita para cada número. Todos ficam conectados ao mesmo tempo.
+
+O que acontece depois:
+- Mensagem de um número desconhecido vira lead novo (desligue com `WHATSAPP_CRIAR_LEADS=0`).
+- Mensagem de um número que já é lead (do Yay! Forms, por exemplo) entra na conversa desse lead.
+- A conversa aparece no painel do lead, e dá para responder por ali escolhendo o número.
+- Qualquer resposta para o lead, pelo CRM ou pelo celular, zera o contador de follow-up.
+- O cartão mostra quantas mensagens novas o lead mandou.
+
+As sessões ficam em `../dados/whatsapp/` (nunca vão para o GitHub). Não rode o CRM no Mac e na VPS com o mesmo número
+ao mesmo tempo: o WhatsApp derruba uma das conexões.
+
+⚠️ A conexão por QR code não é oficial. O WhatsApp pode banir números que mandam mensagens em massa ou automáticas.
+O CRM só envia o que alguém da equipe digita, com intervalo mínimo entre envios.
+
+## Calendly
+
+1. No Calendly: **Integrações → API e webhooks → Personal access tokens** → gere um token.
+2. No Terminal, dentro de `app/`: `./scripts/configurar-calendly.sh` e cole o token (ele não aparece na tela).
+
+O CRM consulta o Calendly a cada 5 minutos (`CALENDLY_INTERVALO_MIN`). Cada reunião é ligada ao lead pelo e-mail ou telefone
+(ou cria o lead), e o lead avança para **Reunião agendada**. Cancelamentos e reagendamentos entram no histórico, e o cartão
+mostra a data da próxima reunião. Funciona em qualquer plano do Calendly e não precisa de endereço público.
 
 ## Configurações (`.env`)
 

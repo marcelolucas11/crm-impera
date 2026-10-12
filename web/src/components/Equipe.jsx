@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '../api.js';
 import { dataHora, tempoDesde } from '../utils.js';
+import WhatsAppNumeros from './WhatsAppNumeros.jsx';
+import CalendlyStatus from './CalendlyStatus.jsx';
 
 export default function Equipe({ user, voltar, sair }) {
   const [users, setUsers] = useState([]);
@@ -100,6 +102,9 @@ export default function Equipe({ user, voltar, sair }) {
             <button className="btn btn-ouro">Adicionar</button>
           </form>
         </section>
+
+        <WhatsAppNumeros aoMensagem={setMsg} aoErro={setErro} />
+        <CalendlyStatus aoMensagem={setMsg} aoErro={setErro} />
 
         <section className="cartao-secao">
           <h2>Yay! Forms</h2>

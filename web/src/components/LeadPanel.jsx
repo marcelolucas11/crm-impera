@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '../api.js';
-import { formatarTelefone, linkWhatsApp, tempoDesde, dataHora } from '../utils.js';
+import { formatarTelefone, linkWhatsApp, tempoDesde, dataHora, dataCurta } from '../utils.js';
+import Conversa from './Conversa.jsx';
 
 const DESCRICAO = {
   created: () => 'Lead criado',
@@ -11,6 +12,9 @@ const DESCRICAO = {
   contact: (d) => `Contato registrado (${d.canal})${d.nota ? `: ${d.nota}` : ''}`,
   note: (d) => d.texto,
   updated: (d) => `Editou ${d.campos?.join(', ')}`,
+  meeting_scheduled: (d) => `📅 Agendou “${d.evento}” para ${dataHora(d.inicio)}`,
+  meeting_rescheduled: (d) => `📅 Reagendou “${d.evento}” para ${dataHora(d.inicio)}`,
+  meeting_canceled: (d) => `Cancelou “${d.evento}”${d.motivo ? ` (${d.motivo})` : ''}`,
 };
 
 const valoresIniciais = (l) => ({
@@ -24,23 +28,33 @@ const valoresIniciais = (l) => ({
 export default function LeadPanel({ leadId, stages, users, user, horas, onFechar, onAtualizado, onExcluido }) {
   const [lead, setLead] = useState(null);
   const [eventos, setEventos] = useState([]);
+  const [reunioes, setReunioes] = useState([]);
   const [form, setForm] = useState({});
   const [nota, setNota] = useState('');
   const [erro, setErro] = useState('');
   const [salvando, setSalvando] = useState(false);
 
-  const carregar = useCallback(async () => {
+  // Recarrega o lead. Edições ainda não salvas nos campos de dados são mantidas, a não ser que resetarForm seja pedido.
+  const leadAtual = useRef(null);
+  const formAtual = useRef(form);
+  formAtual.current = form;
+
+  const carregar = useCallback(async ({ resetarForm = false } = {}) => {
     try {
       const d = await api(`/leads/${leadId}`);
+      const anterior = leadAtual.current;
+      const sujo = anterior && Object.entries(valoresIniciais(anterior)).some(([k, v]) => (formAtual.current[k] || '') !== v);
+      leadAtual.current = d.lead;
       setLead(d.lead);
       setEventos(d.eventos);
-      setForm(valoresIniciais(d.lead));
+      if (resetarForm || !sujo) setForm(valoresIniciais(d.lead));
+      api(`/leads/${leadId}/reunioes`).then((r) => setReunioes(r.reunioes)).catch(() => {});
     } catch (e) {
       setErro(e.message);
     }
   }, [leadId]);
 
-  useEffect(() => { carregar(); }, [carregar]);
+  useEffect(() => { carregar({ resetarForm: true }); }, [carregar]);
 
   useEffect(() => {
     const esc = (e) => e.key === 'Escape' && onFechar();
@@ -48,13 +62,13 @@ export default function LeadPanel({ leadId, stages, users, user, horas, onFechar
     return () => window.removeEventListener('keydown', esc);
   }, [onFechar]);
 
-  const aplicar = async (caminho, opcoes) => {
+  const aplicar = async (caminho, opcoes, { resetarForm = false } = {}) => {
     setErro('');
     setSalvando(true);
     try {
       const d = await api(caminho, opcoes);
       if (d?.lead) onAtualizado(d.lead);
-      await carregar();
+      await carregar({ resetarForm });
       return true;
     } catch (e) {
       setErro(e.message);
@@ -65,7 +79,12 @@ export default function LeadPanel({ leadId, stages, users, user, horas, onFechar
   };
 
   const mudou = lead && Object.entries(valoresIniciais(lead)).some(([k, v]) => (form[k] || '') !== v);
-  const salvarDados = () => aplicar(`/leads/${leadId}`, { method: 'PATCH', body: form });
+  const salvarDados = () => aplicar(`/leads/${leadId}`, { method: 'PATCH', body: form }, { resetarForm: true });
+  const aposEnviarMensagem = async () => {
+    await carregar();
+    if (leadAtual.current) onAtualizado(leadAtual.current);
+  };
+  const proximaReuniao = reunioes.find((r) => r.status === 'active' && new Date(r.start_time) > new Date());
   const registrarContato = () => aplicar(`/leads/${leadId}/contato`, { method: 'POST', body: { canal: 'whatsapp' } });
   const adicionarNota = async (e) => {
     e.preventDefault();
@@ -100,11 +119,21 @@ export default function LeadPanel({ leadId, stages, users, user, horas, onFechar
               </div>
             )}
 
+            {proximaReuniao && (
+              <div className="aviso-reuniao">
+                📅 {proximaReuniao.event_name} — <b>{dataCurta(proximaReuniao.start_time)}</b>
+                {proximaReuniao.join_url && <> · <a href={proximaReuniao.join_url} target="_blank" rel="noreferrer">link da reunião</a></>}
+              </div>
+            )}
+
+            <h4>WhatsApp</h4>
+            <Conversa leadId={leadId} onEnviado={aposEnviarMensagem} />
+
             <div className="acoes">
+              <button className="btn btn-ouro" onClick={registrarContato} disabled={salvando} title="Para contatos fora do WhatsApp do CRM (ligação, e-mail…)">✓ Registrar outro contato</button>
               {lead.phone && (
-                <a className="btn btn-whats" href={linkWhatsApp(lead.phone)} target="_blank" rel="noreferrer">Abrir WhatsApp</a>
+                <a className="btn" href={linkWhatsApp(lead.phone)} target="_blank" rel="noreferrer">Abrir no WhatsApp Web</a>
               )}
-              <button className="btn btn-ouro" onClick={registrarContato} disabled={salvando}>✓ Registrar contato</button>
             </div>
             <p className="suave pequeno">
               {lead.last_contact_at ? `Último contato ${tempoDesde(lead.last_contact_at)} (${dataHora(lead.last_contact_at)})` : 'Nenhum contato registrado ainda'}

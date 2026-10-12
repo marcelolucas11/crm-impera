@@ -88,18 +88,34 @@ function iniciar() {
   const servidor = app.listen(config.port, config.host, () => {
     console.log(`[crm] versão ${config.version} rodando em http://${config.host}:${config.port}`);
     console.log(`[crm] banco: ${config.dbFile}`);
+    for (const modulo of modulos) {
+      try {
+        modulo.start?.();
+      } catch (err) {
+        console.error(`[módulo] ${modulo.name} não iniciou:`, err.message);
+      }
+    }
   });
 
+  let encerrando = false;
   const encerrar = (sinal) => {
+    if (encerrando) return;
+    encerrando = true;
     console.log(`[crm] recebido ${sinal}, encerrando...`);
+    for (const modulo of modulos) {
+      try { modulo.stop?.(); } catch { /* ignora */ }
+    }
     servidor.close(() => {
       fecharBanco();
       process.exit(0);
     });
+    servidor.closeAllConnections?.();
     setTimeout(() => process.exit(0), 5000).unref();
   };
   process.on('SIGTERM', () => encerrar('SIGTERM'));
   process.on('SIGINT', () => encerrar('SIGINT'));
+  // Fechar a janela do Terminal manda SIGHUP; o Node ignora o "nohup", então o CRM ignora aqui
+  process.on('SIGHUP', () => console.log('[crm] Terminal fechado — o CRM continua ligado'));
 }
 
 try {

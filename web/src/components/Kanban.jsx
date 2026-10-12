@@ -1,5 +1,7 @@
 import { useState } from 'react';
-import { formatarTelefone, tempoDesde, iniciais } from '../utils.js';
+import { formatarTelefone, tempoDesde, iniciais, dataCurta } from '../utils.js';
+
+const ORIGENS = { yayforms: 'Yay! Forms', whatsapp: 'WhatsApp', calendly: 'Calendly', manual: 'Manual' };
 
 export default function Kanban({ stages, leads, onMover, onAbrir }) {
   const [sobre, setSobre] = useState(null);
@@ -52,7 +54,9 @@ function Cartao({ lead, onAbrir }) {
       {lead.name && lead.phone && <div className="cartao-linha">{formatarTelefone(lead.phone)}</div>}
       {lead.company && <div className="cartao-linha suave">{lead.company}</div>}
       <div className="cartao-tags">
-        <span className={`tag tag-${lead.source}`}>{lead.form_name || (lead.source === 'yayforms' ? 'Yay! Forms' : 'Manual')}</span>
+        <span className={`tag tag-${lead.source}`}>{lead.form_name || ORIGENS[lead.source] || 'Manual'}</span>
+        {lead.next_meeting_at && <span className="tag tag-reuniao">📅 {dataCurta(lead.next_meeting_at)}</span>}
+        {lead.unread_count > 0 && <span className="tag tag-mensagens">💬 {lead.unread_count} {lead.unread_count === 1 ? 'nova' : 'novas'}</span>}
       </div>
       <div className="cartao-rodape">
         <span className={lead.followup_overdue ? 'alerta' : 'suave'}>

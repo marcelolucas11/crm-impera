@@ -28,17 +28,16 @@ fi
 NOVA=$(versao_git)
 [ -n "$ANTERIOR" ] && echo "$ANTERIOR" > "$BACKUP_DIR/versao-anterior.txt"
 
-passo "3/5 Preparando a versão $NOVA"
+passo "3/5 Preparando a versão $NOVA (o CRM continua ligado)"
 compilar_interface
-PRECISA_SERVIDOR=0
-servidor_precisa_instalar && PRECISA_SERVIDOR=1
+if servidor_precisa_instalar; then
+  echo "  instalando bibliotecas novas do servidor"
+  preparar_servidor
+fi
 
 passo "4/5 Reiniciando"
 "$APP_DIR/parar.sh" >/dev/null
-if [ "$PRECISA_SERVIDOR" = "1" ]; then
-  echo "  instalando dependências do servidor"
-  instalar_servidor
-fi
+trocar_servidor
 
 if "$APP_DIR/iniciar.sh" >/dev/null 2>&1; then
   passo "5/5 Conferindo"

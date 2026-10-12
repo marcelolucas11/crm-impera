@@ -8,3 +8,5 @@ server/public.novo/
 *.db-wal
 *.db-shm
 .DS_Store
+server/.instalando/
+server/node_modules.antigo/

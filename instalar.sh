@@ -68,6 +68,15 @@ DDI_PADRAO=55
 # Horas sem contato até o lead ficar marcado como atrasado
 FOLLOWUP_HORAS=24
 
+# Calendly (grave o token com ./scripts/configurar-calendly.sh)
+CALENDLY_TOKEN=
+CALENDLY_INTERVALO_MIN=5
+
+# WhatsApp por QR code (0 desliga)
+WHATSAPP_ATIVO=1
+# Conversa nova de um número desconhecido vira lead (0 desliga)
+WHATSAPP_CRIAR_LEADS=1
+
 # Yay! Forms
 YAYFORMS_WEBHOOK_TOKEN=$(aleatorio 16)
 YAYFORMS_WEBHOOK_SECRET=

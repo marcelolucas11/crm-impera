@@ -35,6 +35,22 @@ env_get() {
   if [ -z "$valor" ]; then echo "$padrao"; else echo "$valor"; fi
 }
 
+# Grava (ou troca) uma variável no .env sem mexer nas outras
+definir_env() {
+  local chave="$1" valor="$2" arquivo="$APP_DIR/.env"
+  { grep -v -E "^${chave}=" "$arquivo" 2>/dev/null || true; echo "${chave}=${valor}"; } > "$arquivo.novo"
+  mv "$arquivo.novo" "$arquivo"
+  chmod 600 "$arquivo"
+}
+
+# Reinicia o CRM se ele estiver ligado (para ler o .env novo)
+reiniciar_se_ligado() {
+  if crm_rodando; then
+    "$APP_DIR/parar.sh" >/dev/null
+    "$APP_DIR/iniciar.sh"
+  fi
+}
+
 # Caminho absoluto de uma pasta configurada no .env (relativa à pasta do app)
 pasta_env() {
   local valor
@@ -110,6 +126,26 @@ servidor_precisa_instalar() {
 instalar_servidor() {
   (cd "$APP_DIR/server" && npm ci --omit=dev --no-audit --no-fund --loglevel=error)
   cat "$APP_DIR/server/package-lock.json" | hash_de > "$APP_DIR/server/node_modules/.hash-instalado"
+}
+
+# Instala as dependências novas numa pasta separada, com o CRM ainda ligado
+preparar_servidor() {
+  local tmp="$APP_DIR/server/.instalando"
+  rm -rf "$tmp"
+  mkdir -p "$tmp"
+  cp "$APP_DIR/server/package.json" "$APP_DIR/server/package-lock.json" "$tmp/"
+  (cd "$tmp" && npm ci --omit=dev --no-audit --no-fund --loglevel=error)
+  cat "$APP_DIR/server/package-lock.json" | hash_de > "$tmp/node_modules/.hash-instalado"
+}
+
+# Troca as dependências antigas pelas preparadas (leva menos de um segundo)
+trocar_servidor() {
+  local tmp="$APP_DIR/server/.instalando"
+  [ -d "$tmp/node_modules" ] || return 0
+  rm -rf "$APP_DIR/server/node_modules.antigo"
+  [ -d "$APP_DIR/server/node_modules" ] && mv "$APP_DIR/server/node_modules" "$APP_DIR/server/node_modules.antigo"
+  mv "$tmp/node_modules" "$APP_DIR/server/node_modules"
+  rm -rf "$tmp" "$APP_DIR/server/node_modules.antigo"
 }
 
 # Recompila a interface só se algo nela mudou

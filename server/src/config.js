@@ -28,6 +28,16 @@ export const config = {
   dbFile: caminho(process.env.DB_FILE, '../dados/crm.db'),
   filesDir: caminho(process.env.FILES_DIR, '../arquivos'),
   followupHours: numero(process.env.FOLLOWUP_HORAS, 24),
+  calendly: {
+    token: process.env.CALENDLY_TOKEN || '',
+    intervaloMin: Math.max(1, numero(process.env.CALENDLY_INTERVALO_MIN, 5)),
+    apiUrl: (process.env.CALENDLY_API_URL || 'https://api.calendly.com').replace(/\/+$/, ''),
+  },
+  whatsapp: {
+    ativo: process.env.WHATSAPP_ATIVO !== '0',
+    pastaSessoes: caminho(process.env.WHATSAPP_SESSOES, '../dados/whatsapp'),
+    criarLeadNovo: process.env.WHATSAPP_CRIAR_LEADS !== '0',
+  },
   yayforms: {
     token: process.env.YAYFORMS_WEBHOOK_TOKEN || '',
     secret: process.env.YAYFORMS_WEBHOOK_SECRET || '',

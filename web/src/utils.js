@@ -31,6 +31,24 @@ export function dataHora(data) {
   return new Date(data).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' });
 }
 
+export function dataCurta(data) {
+  if (!data) return '';
+  const d = new Date(data);
+  const hoje = new Date();
+  const amanha = new Date(hoje.getTime() + 86400000);
+  const hora = d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  if (d.toDateString() === hoje.toDateString()) return `hoje ${hora}`;
+  if (d.toDateString() === amanha.toDateString()) return `amanhã ${hora}`;
+  return `${d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })} ${hora}`;
+}
+
+export function horaMensagem(data) {
+  if (!data) return '';
+  const d = new Date(data);
+  const hora = d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  return d.toDateString() === new Date().toDateString() ? hora : `${d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })} ${hora}`;
+}
+
 export function iniciais(nome) {
   if (!nome) return '?';
   const partes = nome.trim().split(/\s+/);
