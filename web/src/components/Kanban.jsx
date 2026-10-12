@@ -45,11 +45,16 @@ function Cartao({ lead, onAbrir }) {
   const semContato = !lead.last_contact_at;
   return (
     <article
-      className={`cartao ${lead.followup_overdue ? 'atrasado' : ''}`}
+      className={`cartao ${lead.followup_overdue ? 'atrasado' : ''} ${lead.waiting_since ? 'aguardando' : ''}`}
       draggable
       onDragStart={(e) => { e.dataTransfer.setData('text/plain', String(lead.id)); e.dataTransfer.effectAllowed = 'move'; }}
       onClick={() => onAbrir(lead)}
     >
+      {lead.waiting_since && (
+        <div className="faixa-aguardando" title={lead.waiting_note || 'Aguardando sua resposta'}>
+          ⏳ Aguardando resposta · {tempoDesde(lead.waiting_since).replace('há ', '')}
+        </div>
+      )}
       <div className="cartao-titulo">{titulo}</div>
       {lead.name && lead.phone && <div className="cartao-linha">{formatarTelefone(lead.phone)}</div>}
       {lead.company && <div className="cartao-linha suave">{lead.company}</div>}

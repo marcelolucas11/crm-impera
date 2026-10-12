@@ -8,7 +8,8 @@ import { variantesTelefone } from '../../util.js';
 export const BASE_LEADS = `
   SELECT
     l.id, l.name, l.phone, l.email, l.company, l.source, l.stage_id, l.owner_id, l.notes, l.extra,
-    l.last_contact_at, l.stage_changed_at, l.created_at, l.updated_at,
+    l.last_contact_at, l.first_contact_at, l.stage_changed_at, l.created_at, l.updated_at,
+    l.waiting_since, l.waiting_note, wu.name AS waiting_by_name,
     json_extract(l.extra, '$.formulario') AS form_name,
     s.name AS stage_name, s.kind AS stage_kind,
     u.name AS owner_name,
@@ -20,7 +21,8 @@ export const BASE_LEADS = `
       WHERE c.lead_id = l.id AND c.status = 'active' AND c.start_time > strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) AS next_meeting_at
   FROM leads l
   JOIN stages s ON s.id = l.stage_id
-  LEFT JOIN users u ON u.id = l.owner_id`;
+  LEFT JOIN users u ON u.id = l.owner_id
+  LEFT JOIN users wu ON wu.id = l.waiting_by`;
 
 // Ajusta tipos vindos do SQLite (0/1 → booleano, texto JSON → objeto)
 export function mapearLead(row, { comExtra = false } = {}) {
@@ -39,7 +41,9 @@ export function listarLeads(filtros, valores) {
   return all(
     `SELECT * FROM (${BASE_LEADS}) AS b
      ${filtros.length ? 'WHERE ' + filtros.join(' AND ') : ''}
-     ORDER BY followup_overdue DESC,
+     ORDER BY (waiting_since IS NOT NULL) DESC,
+              CASE WHEN waiting_since IS NOT NULL THEN waiting_since END ASC,
+              followup_overdue DESC,
               CASE WHEN followup_overdue THEN last_activity_at END ASC,
               created_at DESC
      LIMIT 2000`,
@@ -47,8 +51,43 @@ export function listarLeads(filtros, valores) {
   ).map((r) => mapearLead(r));
 }
 
+// Etapa onde os leads novos entram (marcada como "entrada" no editor de etapas)
 export function primeiraEtapa() {
-  return get("SELECT id FROM stages WHERE kind = 'open' ORDER BY position, id LIMIT 1")?.id;
+  return (
+    get("SELECT id FROM stages WHERE role = 'entrada' AND kind = 'open' LIMIT 1")?.id ||
+    get("SELECT id FROM stages WHERE kind = 'open' ORDER BY position, id LIMIT 1")?.id
+  );
+}
+
+// Registra um contato com o lead (zera o follow-up e guarda o primeiro contato para as estatísticas)
+export function registrarContatoLead(leadId, horario = new Date().toISOString()) {
+  run(
+    `UPDATE leads SET
+       last_contact_at = CASE WHEN last_contact_at IS NULL OR last_contact_at < ? THEN ? ELSE last_contact_at END,
+       first_contact_at = CASE WHEN first_contact_at IS NULL OR first_contact_at > ? THEN ? ELSE first_contact_at END,
+       updated_at = ?
+     WHERE id = ?`,
+    [horario, horario, horario, horario, new Date().toISOString(), leadId]
+  );
+}
+
+// Liga ao lead as conversas de WhatsApp que já existiam com o mesmo telefone
+export function vincularConversasExistentes(leadId, phone) {
+  const telefones = variantesTelefone(phone);
+  if (!telefones.length) return;
+  run(
+    `UPDATE wa_contacts SET lead_id = ? WHERE lead_id IS NULL AND phone IN (${telefones.map(() => '?').join(',')})`,
+    [leadId, ...telefones]
+  );
+  run(
+    'UPDATE wa_messages SET lead_id = ? WHERE lead_id IS NULL AND chat_jid IN (SELECT jid FROM wa_contacts WHERE lead_id = ?)',
+    [leadId, leadId]
+  );
+  const ultimaEnviada = get('SELECT min(timestamp) AS primeira, max(timestamp) AS ultima FROM wa_messages WHERE lead_id = ? AND from_me = 1', [leadId]);
+  if (ultimaEnviada?.primeira) {
+    registrarContatoLead(leadId, ultimaEnviada.primeira);
+    registrarContatoLead(leadId, ultimaEnviada.ultima);
+  }
 }
 
 // Procura um lead existente pelo telefone (com e sem o 9º dígito) ou e-mail (evita duplicados)
@@ -99,5 +138,6 @@ export function criarLead(dados, { userId = null } = {}) {
   );
   const id = Number(lastInsertRowid);
   registrarEvento({ leadId: id, userId, type: 'created', data: { origem: dados.source || 'manual' } });
+  if (dados.phone) vincularConversasExistentes(id, dados.phone);
   return id;
 }

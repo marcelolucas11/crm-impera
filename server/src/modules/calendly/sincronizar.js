@@ -10,8 +10,9 @@ import { chamar, listarTudo } from './cliente.js';
 const DIAS_PARA_TRAS = 7;
 const RE_TELEFONE = /telefone|whats|celular|fone|phone|contato/i;
 
+// Etapa marcada como "reuniões do Calendly" no editor de etapas
 function etapaReuniao() {
-  return get("SELECT id FROM stages WHERE kind = 'open' AND lower(name) LIKE '%reuni%' ORDER BY position LIMIT 1")?.id || null;
+  return get("SELECT id FROM stages WHERE role = 'reuniao' AND kind = 'open' LIMIT 1")?.id || null;
 }
 
 function dadosDoConvidado(convidados) {

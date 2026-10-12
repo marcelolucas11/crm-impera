@@ -4,7 +4,7 @@ import { dataHora, tempoDesde } from '../utils.js';
 import WhatsAppNumeros from './WhatsAppNumeros.jsx';
 import CalendlyStatus from './CalendlyStatus.jsx';
 
-export default function Equipe({ user, voltar, sair }) {
+export default function Equipe({ user }) {
   const [users, setUsers] = useState([]);
   const [novo, setNovo] = useState({ name: '', email: '', senha: '', role: 'member' });
   const [erro, setErro] = useState('');
@@ -44,14 +44,7 @@ export default function Equipe({ user, voltar, sair }) {
   const urlWebhook = yay ? yay.url || `${window.location.origin}${yay.caminho}` : '';
 
   return (
-    <div className="app">
-      <header className="topo">
-        <div className="marca">IMPERA <span>CRM</span></div>
-        <div className="espaco" />
-        <button className="btn" onClick={voltar}>← Voltar ao kanban</button>
-        <button className="btn" onClick={sair}>Sair</button>
-      </header>
-
+    <>
       <div className="pagina">
         {erro && <div className="erro">{erro}</div>}
         {msg && <div className="sucesso">{msg}</div>}
@@ -143,6 +136,6 @@ export default function Equipe({ user, voltar, sair }) {
           )}
         </section>
       </div>
-    </div>
+    </>
   );
 }

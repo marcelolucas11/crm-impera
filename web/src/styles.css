@@ -11,6 +11,11 @@
   --alerta-fundo: rgba(229, 99, 75, 0.12);
   --verde: #4fbf73;
   --raio: 10px;
+  --aviso: #e0a050;
+  --aviso-fundo: rgba(224, 160, 80, 0.12);
+  /* Cores dos gráficos (paleta validada para fundo escuro) */
+  --serie-1: #3987e5;
+  --serie-2: #d95926;
   color-scheme: dark;
 }
 
@@ -238,14 +243,173 @@ textarea { resize: vertical; }
 .copiar code { flex: 1; overflow-x: auto; white-space: nowrap; color: var(--ouro); font-size: 12.5px; }
 
 /* Celular */
+
+/* ===== v0.4 ===== */
+
+/* Abas do topo */
+.abas { display: flex; gap: 4px; background: var(--fundo); border: 1px solid var(--borda); border-radius: 10px; padding: 3px; }
+.aba {
+  background: none; border: none; padding: 7px 16px; border-radius: 7px; cursor: pointer; color: var(--suave);
+  font-weight: 500; display: inline-flex; align-items: center; gap: 8px;
+}
+.aba:hover { color: var(--texto); }
+.aba.ativa { background: var(--superficie-2); color: var(--ouro); }
+.aba-contador { background: #1f7a45; color: #fff; font-size: 11px; font-weight: 600; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; display: inline-flex; align-items: center; justify-content: center; }
+.aba-contador.aviso { background: var(--aviso); color: #111; }
+
+/* Barra de ferramentas do kanban */
+.barra-ferramentas { display: flex; align-items: center; gap: 10px; padding: 12px 20px; border-bottom: 1px solid var(--borda); flex-wrap: wrap; }
+.chip-aviso { border-color: rgba(224, 160, 80, .5); color: var(--aviso); }
+.chip-aviso.ativo { background: var(--aviso-fundo); border-color: var(--aviso); color: var(--aviso); }
+.chip-pequeno { padding: 4px 10px; font-size: 11.5px; }
+.faixa-filtros { padding: 7px 20px; font-size: 12.5px; color: var(--ouro); background: rgba(215, 184, 112, .08); border-bottom: 1px solid var(--borda); }
+.link { background: none; border: none; color: var(--ouro); text-decoration: underline; cursor: pointer; margin-left: 8px; font-size: inherit; }
+
+/* Painel de filtros */
+.painel-filtros { padding: 14px 20px; border-bottom: 1px solid var(--borda); background: var(--superficie); display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 14px 22px; }
+.grupo-filtro { display: flex; flex-direction: column; gap: 6px; }
+.grupo-filtro.selects { gap: 10px; }
+.rotulo-filtro { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--ouro); }
+.opcao { flex-direction: row; align-items: center; gap: 8px; font-size: 13px; color: var(--texto); cursor: pointer; }
+.opcao input { width: auto; accent-color: var(--ouro); }
+.opcao.marcada { color: var(--ouro); }
+.rodape-filtros { grid-column: 1 / -1; display: flex; justify-content: space-between; align-items: center; font-size: 12.5px; }
+
+/* Cartão aguardando resposta */
+.cartao.aguardando { border-left-color: var(--aviso); background: linear-gradient(90deg, var(--aviso-fundo), var(--superficie-2) 60%); }
+.faixa-aguardando { font-size: 11px; font-weight: 600; color: var(--aviso); }
+.tag-aguardando { color: var(--aviso); border-color: rgba(224, 160, 80, .45); }
+.tag-atrasado { color: var(--alerta); border-color: rgba(229, 99, 75, .45); }
+.tag-etapa { display: inline-flex; align-items: center; gap: 5px; }
+
+/* Botões e avisos de "aguardando" */
+.btn-aviso { background: var(--aviso); border-color: var(--aviso); color: #111; font-weight: 600; }
+.btn-aviso-leve { border-color: rgba(224, 160, 80, .5); color: var(--aviso); background: transparent; align-self: flex-start; }
+.btn-aviso-leve:hover { background: var(--aviso-fundo); border-color: var(--aviso); }
+.aviso-aguardando { display: flex; justify-content: space-between; align-items: center; gap: 10px; background: var(--aviso-fundo); border: 1px solid rgba(224, 160, 80, .45); color: #f0c58a; padding: 10px 12px; border-radius: 8px; font-size: 13px; }
+.marcar-aguardando { display: flex; gap: 8px; }
+.btn-perigo-leve { border-color: rgba(229, 99, 75, .4); color: var(--alerta); background: transparent; }
+.btn-perigo-cheio { background: var(--alerta); border-color: var(--alerta); color: #fff; font-weight: 600; }
+
+/* Ficha do lead (painel do kanban e tela de WhatsApp) */
+.ficha { display: flex; flex-direction: column; min-height: 0; height: 100%; }
+.ficha .painel-topo small { display: block; margin-top: 2px; font-size: 12px; }
+.erro.margem { margin: 12px 20px 0; }
+
+/* Editor de etapas */
+.modal-largo { max-width: 960px; }
+.editor-etapas { display: flex; flex-direction: column; gap: 14px; }
+.linhas-etapas { display: flex; flex-direction: column; gap: 6px; }
+.linha-etapa { display: grid; grid-template-columns: auto 38px minmax(140px, 1fr) 175px 250px 64px auto; gap: 8px; align-items: center; background: var(--superficie-2); padding: 8px 10px; border-radius: 9px; }
+.ordem-botoes { display: flex; gap: 4px; }
+.cor-etapa { width: 38px; height: 34px; padding: 2px; cursor: pointer; }
+.total-etapa { text-align: right; }
+.confirmar-apagar { border: 1px solid rgba(229, 99, 75, .45); background: var(--alerta-fundo); border-radius: 10px; padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+
+/* Tela de WhatsApp */
+.whatsapp-tela { flex: 1; min-height: 0; display: grid; grid-template-columns: 340px minmax(0, 1fr) 380px; }
+.lista-conversas { border-right: 1px solid var(--borda); display: flex; flex-direction: column; min-height: 0; background: var(--superficie); }
+.lista-topo { padding: 12px; display: flex; flex-direction: column; gap: 10px; border-bottom: 1px solid var(--borda); }
+.filtros-conversas { display: flex; gap: 6px; flex-wrap: wrap; }
+.itens-conversas { overflow-y: auto; flex: 1; }
+.vazio-conversas { padding: 24px 16px; color: var(--suave); font-size: 13px; text-align: center; line-height: 1.5; }
+.item-conversa { width: 100%; display: flex; gap: 10px; padding: 11px 12px; background: none; border: none; border-bottom: 1px solid var(--borda); text-align: left; cursor: pointer; }
+.item-conversa:hover { background: var(--superficie-2); }
+.item-conversa.aberta { background: #1c1a14; box-shadow: inset 3px 0 0 var(--ouro); }
+.avatar-conversa { flex: 0 0 40px; height: 40px; border-radius: 50%; background: var(--superficie-2); border: 1px solid var(--borda); display: inline-flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 600; color: var(--suave); }
+.avatar-conversa.lead { color: var(--ouro); border-color: var(--ouro-escuro); }
+.item-meio { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.item-linha { display: flex; justify-content: space-between; gap: 8px; align-items: center; }
+.item-nome { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13.5px; }
+.item-previa { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12.5px; color: var(--suave); }
+.item-previa.forte { color: var(--texto); }
+.contador-nao-lidas { background: #1f7a45; color: #fff; font-size: 11px; font-weight: 600; min-width: 20px; height: 20px; border-radius: 10px; display: inline-flex; align-items: center; justify-content: center; padding: 0 6px; }
+.item-tags { display: flex; gap: 4px; flex-wrap: wrap; }
+.chat { display: flex; flex-direction: column; min-height: 0; min-width: 0; }
+.chat-vazio { margin: auto; text-align: center; display: flex; flex-direction: column; gap: 8px; }
+.chat-topo { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--borda); background: var(--superficie); }
+.chat-topo small { display: block; font-size: 12px; }
+.conversa-cheia { flex: 1; min-height: 0; padding: 12px 16px 14px; }
+.conversa-cheia .conversa-lista { height: auto; flex: 1; }
+.bolha-linha { display: flex; flex-direction: column; }
+.bolha-linha .bolha.minha { align-self: flex-end; }
+.bolha-linha .bolha.dele { align-self: flex-start; }
+.separador-dia { align-self: center; font-size: 11px; color: var(--suave); background: var(--superficie-2); padding: 3px 10px; border-radius: 999px; margin: 8px 0 4px; }
+.ficha-lateral { border-left: 1px solid var(--borda); min-height: 0; overflow: hidden; background: var(--superficie); display: flex; flex-direction: column; }
+.nao-lead { padding: 20px; display: flex; flex-direction: column; gap: 12px; }
+.nao-lead h3 { font-size: 17px; }
+
+/* Estatísticas */
+.pagina-larga { max-width: 1280px; }
+.cabecalho-pagina { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+.cabecalho-pagina h1 { margin: 0; font-size: 22px; font-weight: 600; }
+.seletor-periodo { display: flex; gap: 6px; flex-wrap: wrap; }
+.titulo-secao { font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: var(--ouro); margin-bottom: 8px; }
+.indicadores { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; }
+.indicador { background: var(--superficie); border: 1px solid var(--borda); border-radius: 12px; padding: 14px 16px; display: flex; flex-direction: column; gap: 4px; }
+.indicador.destaque { border-color: var(--ouro-escuro); }
+.indicador-rotulo { font-size: 12.5px; color: var(--suave); }
+.indicador-valor { font-size: 28px; font-weight: 600; line-height: 1.15; }
+.indicador.destaque .indicador-valor { font-size: 34px; }
+.indicador-detalhe { font-size: 12px; color: var(--suave); }
+.delta { font-weight: 600; color: var(--suave); }
+.delta.bom { color: var(--verde); }
+.delta.ruim { color: var(--alerta); }
+.graficos { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.grafico-largo { grid-column: 1 / -1; }
+.legenda { display: flex; gap: 16px; font-size: 12.5px; color: var(--suave); flex-wrap: wrap; }
+.legenda span { display: inline-flex; align-items: center; gap: 6px; }
+.chave-cor { display: inline-block; width: 10px; height: 10px; border-radius: 3px; }
+.grafico { display: flex; flex-direction: column; gap: 10px; }
+.area-colunas { display: flex; gap: 8px; height: 200px; }
+.eixo-y { display: flex; flex-direction: column; justify-content: space-between; font-size: 11px; color: var(--suave); text-align: right; min-width: 28px; font-variant-numeric: tabular-nums; }
+.colunas { position: relative; flex: 1; display: flex; align-items: flex-end; gap: 2px; border-bottom: 1px solid #34343a; }
+.grade-h { position: absolute; left: 0; right: 0; border-top: 1px solid #26262b; pointer-events: none; }
+.coluna-dia { position: relative; flex: 1; height: 100%; display: flex; align-items: flex-end; justify-content: center; outline: none; }
+.coluna-dia:hover .pilha, .coluna-dia:focus .pilha { filter: brightness(1.2); }
+.pilha { width: 100%; max-width: 24px; display: flex; flex-direction: column; gap: 2px; min-height: 0; }
+.seg { min-height: 2px; flex-basis: 0; }
+.pilha .seg:first-child { border-radius: 4px 4px 0 0; }
+.seg-1 { background: var(--serie-1); }
+.seg-2 { background: var(--serie-2); }
+.dica { position: absolute; bottom: calc(100% + 6px); left: 50%; transform: translateX(-50%); background: #000; border: 1px solid var(--borda); border-radius: 8px; padding: 8px 10px; font-size: 12px; display: flex; flex-direction: column; gap: 3px; white-space: nowrap; z-index: 5; pointer-events: none; box-shadow: 0 6px 18px rgba(0,0,0,.5); }
+.dica span { display: inline-flex; align-items: center; gap: 6px; }
+.dica-esq { left: auto; right: 0; transform: none; }
+.coluna-dia .dica { bottom: auto; top: 0; }
+.eixo-x { position: relative; height: 16px; margin-left: 36px; font-size: 11px; color: var(--suave); }
+.eixo-x span { position: absolute; transform: translateX(-50%); white-space: nowrap; }
+.tabela-dados summary { cursor: pointer; font-size: 12.5px; color: var(--suave); }
+.tabela-dados table { margin-top: 8px; }
+.barras { display: flex; flex-direction: column; gap: 9px; }
+.barra-linha { display: grid; grid-template-columns: minmax(110px, 38%) 1fr; gap: 10px; align-items: center; font-size: 13px; }
+.barra-rotulo { display: inline-flex; align-items: center; gap: 7px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.barra-trilho { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.barra { height: 14px; background: var(--serie-1); border-radius: 0 4px 4px 0; flex-shrink: 0; }
+.barra-valor { white-space: nowrap; font-variant-numeric: tabular-nums; }
+
+/* Celular e telas estreitas */
+@media (max-width: 1180px) {
+  .whatsapp-tela { grid-template-columns: 300px minmax(0, 1fr); }
+  .ficha-lateral { display: none; }
+}
+@media (max-width: 860px) {
+  .graficos { grid-template-columns: 1fr; }
+  .linha-etapa { grid-template-columns: auto 38px 1fr; }
+  .linha-etapa select, .linha-etapa .total-etapa { grid-column: span 3; }
+}
 @media (max-width: 720px) {
   .topo { padding: 10px 14px; gap: 10px; }
-  .topo .usuario { order: 1; }
-  .topo .filtros { order: 2; }
-  .topo > .btn-ouro { order: 3; margin-left: auto; }
-  .busca { order: 5; max-width: none; flex-basis: 100%; }
+  .abas { order: 3; flex-basis: 100%; justify-content: space-between; }
+  .aba { flex: 1; justify-content: center; padding: 7px 8px; }
+  .barra-ferramentas { padding: 10px 12px; }
+  .busca { max-width: none; flex-basis: 100%; }
   .kanban { padding: 12px; }
   .coluna { flex-basis: 85vw; }
   .grade-2, .form-linha { grid-template-columns: 1fr; }
   .tabela { display: block; overflow-x: auto; }
+  .whatsapp-tela { grid-template-columns: 1fr; }
+  .whatsapp-tela:has(.chat-topo) .lista-conversas { display: none; }
+  .whatsapp-tela:not(:has(.chat-topo)) .chat { display: none; }
 }
+.voltar-lista { display: none; }
+@media (max-width: 720px) { .voltar-lista { display: inline-flex; } }

@@ -3,7 +3,7 @@ import { api } from '../api.js';
 import Modal from './Modal.jsx';
 
 export default function NovoLead({ stages, users, user, onFechar, onCriado }) {
-  const [form, setForm] = useState({ name: '', phone: '', email: '', company: '', stage_id: stages[0]?.id || '', owner_id: user.id });
+  const [form, setForm] = useState({ name: '', phone: '', email: '', company: '', stage_id: stages.find((s) => s.role === 'entrada')?.id || stages[0]?.id || '', owner_id: user.id });
   const [erro, setErro] = useState('');
   const [enviando, setEnviando] = useState(false);
   const campo = (k) => ({ value: form[k], onChange: (e) => setForm({ ...form, [k]: e.target.value }) });

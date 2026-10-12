@@ -7,9 +7,10 @@ import { config } from '../../config.js';
 import { exigirLogin, exigirAdmin } from '../auth/middleware.js';
 import { idValido, texto } from '../../util.js';
 import {
-  listarNumeros, conectar, desconectar, removerNumero, criarNumero, enviarMensagem,
+  listarNumeros, conectar, desconectar, removerNumero, criarNumero, enviarMensagem, enviarParaContato,
   iniciarTodos, pararTodos, numeroExiste,
 } from './gerenciador.js';
+import { listarConversas, mensagensDaConversa, destinoDaConversa, transformarEmLead } from './conversas.js';
 
 async function comQr(numeros, admin) {
   return Promise.all(
@@ -64,6 +65,32 @@ export default {
       if (!numeroExiste(id)) return res.status(404).json({ erro: 'Número não encontrado' });
       await removerNumero(id);
       res.json({ ok: true });
+    });
+
+    // Caixa de entrada (tela de WhatsApp)
+    r.get('/conversas', (req, res) => {
+      res.json({ conversas: listarConversas({ busca: String(req.query.q || ''), filtro: String(req.query.filtro || 'todas') }) });
+    });
+
+    r.get('/conversas/:chave/mensagens', (req, res) => {
+      res.json(mensagensDaConversa(req.params.chave));
+    });
+
+    r.post('/conversas/:chave/mensagens', async (req, res) => {
+      const numeroId = idValido(req.body?.numero_id);
+      const conteudo = texto(req.body?.texto, 4000);
+      if (!conteudo) return res.status(400).json({ erro: 'Escreva a mensagem' });
+      if (!numeroId) return res.status(400).json({ erro: 'Escolha o número que vai enviar' });
+      const destino = destinoDaConversa(req.params.chave);
+      const r2 = destino.leadId
+        ? await enviarMensagem(numeroId, destino.leadId, conteudo, req.user.id)
+        : await enviarParaContato(numeroId, destino.jid, conteudo, req.user.id);
+      res.status(201).json({ ok: true, ...r2 });
+    });
+
+    r.post('/conversas/:chave/lead', (req, res) => {
+      const { leadId, novo } = transformarEmLead(req.params.chave, req.user.id);
+      res.status(novo ? 201 : 200).json({ lead_id: leadId, novo, chave: `l:${leadId}` });
     });
 
     app.use('/api/whatsapp', r);

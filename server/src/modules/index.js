@@ -9,5 +9,6 @@ import followup from './followup/index.js';
 import yayforms from './yayforms/index.js';
 import calendly from './calendly/index.js';
 import whatsapp from './whatsapp/index.js';
+import estatisticas from './estatisticas/index.js';
 
-export const modulos = [auth, users, stages, leads, followup, yayforms, calendly, whatsapp];
+export const modulos = [auth, users, stages, leads, followup, yayforms, calendly, whatsapp, estatisticas];

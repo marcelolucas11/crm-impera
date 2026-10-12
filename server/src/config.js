@@ -36,7 +36,8 @@ export const config = {
   whatsapp: {
     ativo: process.env.WHATSAPP_ATIVO !== '0',
     pastaSessoes: caminho(process.env.WHATSAPP_SESSOES, '../dados/whatsapp'),
-    criarLeadNovo: process.env.WHATSAPP_CRIAR_LEADS !== '0',
+    // Conversa nova vira lead automaticamente só com WHATSAPP_CRIAR_LEADS=1 (padrão: botão "Transformar em lead")
+    criarLeadNovo: process.env.WHATSAPP_CRIAR_LEADS === '1',
   },
   yayforms: {
     token: process.env.YAYFORMS_WEBHOOK_TOKEN || '',

@@ -8,7 +8,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { get, all, run, tx, agora } from '../../db.js';
 import { config } from '../../config.js';
-import { criarLead, encontrarExistente } from '../leads/service.js';
+import { criarLead, encontrarExistente, registrarContatoLead } from '../leads/service.js';
 import { variantesTelefone, ErroHttp } from '../../util.js';
 import { TIPOS_IGNORADOS, extrairTexto, horarioDaMensagem } from './conteudo.js';
 
@@ -213,13 +213,14 @@ function vincularLead({ chatJid, phone, pushName, criar }) {
 }
 
 function registrarContato(leadId, horario) {
-  run(
-    `UPDATE leads SET last_contact_at = CASE WHEN last_contact_at IS NULL OR last_contact_at < ? THEN ? ELSE last_contact_at END,
-                      updated_at = ? WHERE id = ?`,
-    [horario, horario, agora(), leadId]
-  );
+  registrarContatoLead(leadId, horario);
   // Respondeu: o que o lead mandou antes conta como lido
   run('UPDATE wa_messages SET read_at = ? WHERE lead_id = ? AND from_me = 0 AND read_at IS NULL', [agora(), leadId]);
+}
+
+// Respondeu alguém que ainda não é lead: marca a conversa como lida
+function marcarConversaRespondida(chatJid) {
+  run('UPDATE wa_messages SET read_at = ? WHERE lead_id IS NULL AND chat_jid = ? AND from_me = 0 AND read_at IS NULL', [agora(), chatJid]);
 }
 
 async function aoReceberMensagem(id, sock, msg, tipoUpsert, lib) {
@@ -250,13 +251,22 @@ async function aoReceberMensagem(id, sock, msg, tipoUpsert, lib) {
        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
       [id, leadId, chatJid, msg.key.id, fromMe, tipo, texto, horario]
     );
-    if (changes && leadId && fromMe) registrarContato(leadId, horario);
+    if (changes && fromMe) {
+      if (leadId) registrarContato(leadId, horario);
+      else marcarConversaRespondida(chatJid);
+    }
   });
 }
 
-export async function enviarMensagem(numeroId, leadId, texto, userId) {
+function numeroConectado(numeroId) {
   const e = estado(numeroId);
   if (e.status !== 'conectado' || !e.sock) throw new ErroHttp(409, 'Este número não está conectado');
+  return e;
+}
+
+// Envia para um lead (descobre a conversa certa ou o número no WhatsApp)
+export async function enviarMensagem(numeroId, leadId, texto, userId) {
+  const e = numeroConectado(numeroId);
   const lib = await carregarBaileys();
   const lead = get('SELECT id, phone FROM leads WHERE id = ?', [leadId]);
   if (!lead) throw new ErroHttp(404, 'Lead não encontrado');
@@ -269,7 +279,17 @@ export async function enviarMensagem(numeroId, leadId, texto, userId) {
     if (!achado) throw new ErroHttp(400, 'Este telefone não tem WhatsApp');
     destino = lib.jidNormalizedUser(achado.jid);
   }
+  return enviarPara(e, lib, numeroId, destino, leadId, texto, userId);
+}
 
+// Envia para uma conversa de quem ainda não é lead
+export async function enviarParaContato(numeroId, jid, texto, userId) {
+  const e = numeroConectado(numeroId);
+  const lib = await carregarBaileys();
+  return enviarPara(e, lib, numeroId, jid, null, texto, userId);
+}
+
+async function enviarPara(e, lib, numeroId, destino, leadId, texto, userId) {
   const desdeUltimo = Date.now() - e.ultimoEnvio;
   if (desdeUltimo < INTERVALO_MINIMO_ENVIO_MS) await esperar(INTERVALO_MINIMO_ENVIO_MS - desdeUltimo);
   e.ultimoEnvio = Date.now();
@@ -282,7 +302,7 @@ export async function enviarMensagem(numeroId, leadId, texto, userId) {
   tx(() => {
     run(
       `INSERT INTO wa_contacts (jid, phone, lead_id, updated_at) VALUES (?, ?, ?, ?)
-       ON CONFLICT(jid) DO UPDATE SET lead_id = excluded.lead_id, updated_at = excluded.updated_at`,
+       ON CONFLICT(jid) DO UPDATE SET lead_id = COALESCE(excluded.lead_id, wa_contacts.lead_id), updated_at = excluded.updated_at`,
       [destino, lib.isPnUser(destino) ? lib.jidDecode(destino)?.user : null, leadId, horario]
     );
     run(
@@ -291,14 +311,18 @@ export async function enviarMensagem(numeroId, leadId, texto, userId) {
       [numeroId, leadId, destino, waId, texto, userId, horario]
     );
     // Se o WhatsApp já devolveu a mensagem antes (evento), completa quem enviou e o lead
-    run('UPDATE wa_messages SET lead_id = ?, sent_by = COALESCE(sent_by, ?) WHERE wa_id = ? AND from_me = 1', [leadId, userId, waId]);
-    // ...e liga ao lead o outro identificador (LID) que o WhatsApp usou para essa conversa
-    run(
-      `UPDATE wa_contacts SET lead_id = ? WHERE lead_id IS NULL
-         AND jid IN (SELECT chat_jid FROM wa_messages WHERE wa_id = ? AND from_me = 1)`,
-      [leadId, waId]
-    );
-    registrarContato(leadId, horario);
+    run('UPDATE wa_messages SET lead_id = COALESCE(?, lead_id), sent_by = COALESCE(sent_by, ?) WHERE wa_id = ? AND from_me = 1', [leadId, userId, waId]);
+    if (leadId) {
+      // ...e liga ao lead o outro identificador (LID) que o WhatsApp usou para essa conversa
+      run(
+        `UPDATE wa_contacts SET lead_id = ? WHERE lead_id IS NULL
+           AND jid IN (SELECT chat_jid FROM wa_messages WHERE wa_id = ? AND from_me = 1)`,
+        [leadId, waId]
+      );
+      registrarContato(leadId, horario);
+    } else {
+      marcarConversaRespondida(destino);
+    }
   });
   return { wa_id: waId };
 }

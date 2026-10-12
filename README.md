@@ -4,7 +4,7 @@ CRM da agência: leads do Yay! Forms caindo direto num kanban, alerta de follow-
 Roda direto no Mac, a partir do SSD externo, sem Docker e sem instalar nada no sistema.
 A mesma pasta funciona depois na VPS da Contabo.
 
-**Versão 0.3:** login e senha · kanban com arrastar e soltar · alerta de leads sem contato · webhook do Yay! Forms · **WhatsApp por QR code com vários números** · **Calendly** · histórico do lead · equipe com permissões · backup automático antes de cada atualização · volta de versão com um comando.
+**Versão 0.4:** três telas — **Kanban**, **WhatsApp** e **Estatísticas** · filtros no kanban · etapas editáveis (criar, renomear, reordenar, apagar sem perder leads) · botão "aguardando minha resposta" · conversa de WhatsApp dentro do CRM com "Transformar em lead" · alerta de follow-up · Yay! Forms · Calendly · login da equipe · backup automático antes de cada atualização.
 
 **Próximos módulos:** Google Agenda · notificações de follow-up.
 
@@ -76,6 +76,24 @@ Todo webhook recebido fica salvo; os que derem erro podem ser reprocessados na t
 para testar. Para receber leads reais no Mac (opcional), rode `tailscale funnel --bg 3000` e coloque a URL `https://….ts.net`
 em `PUBLIC_URL` no `.env`. Na Contabo isso não é necessário.
 
+## As três telas
+
+**Kanban**
+- **Filtros** (☰): dados preenchidos (com nome, com WhatsApp, com e-mail), situação (aguardando resposta, follow-up atrasado,
+  mensagem nova, reunião marcada, nunca contatado), origem, formulário, responsável e data de entrada. Ficam salvos no navegador.
+- **Editar etapas** (administrador): criar, renomear, mudar cor e ordem, marcar como ganho/perdido e apagar. Ao apagar, você escolhe
+  para qual etapa vão os leads — nenhum lead é apagado. Também define onde entram os leads novos e para onde o Calendly move as reuniões.
+- **⏳ Aguardando minha resposta**: botão na ficha do lead, com nota opcional ("enviar proposta"). O lead vai para o topo da coluna
+  com uma faixa laranja e entra no contador da aba Kanban. Só sai quando alguém clica em **Resolvido**.
+
+**WhatsApp** — conversas à esquerda, chat no meio e, à direita, a ficha do lead (anotações, respostas do Yay! Forms, etapa,
+responsável, histórico). Se o contato ainda não é lead, aparece o botão **Transformar em lead**; se já existir um lead com o mesmo
+telefone, a conversa é ligada a ele.
+
+**Estatísticas** — leads novos (com comparação ao período anterior), taxa de resposta, tempo até a primeira resposta, respondidos
+em até 1 hora, follow-up em dia, aguardando resposta, nunca contatados, fechados, reuniões, mensagens, entrada por dia, por origem,
+por formulário, leads por etapa e desempenho por responsável. Períodos de 7, 30 e 90 dias.
+
 ## WhatsApp (QR code, vários números)
 
 1. Menu do avatar → **Equipe e integrações** → dê um nome ao número (ex.: Comercial) → **Conectar novo número**.
@@ -83,9 +101,11 @@ em `PUBLIC_URL` no `.env`. Na Contabo isso não é necessário.
 3. Repita para cada número. Todos ficam conectados ao mesmo tempo.
 
 O que acontece depois:
-- Mensagem de um número desconhecido vira lead novo (desligue com `WHATSAPP_CRIAR_LEADS=0`).
+- Mensagem de um número desconhecido aparece na tela de WhatsApp com o botão **Transformar em lead**
+  (para criar o lead sozinho, use `WHATSAPP_CRIAR_LEADS=1` no `.env`).
 - Mensagem de um número que já é lead (do Yay! Forms, por exemplo) entra na conversa desse lead.
-- A conversa aparece no painel do lead, e dá para responder por ali escolhendo o número.
+- Um lead novo do formulário puxa a conversa de WhatsApp que já existia com o mesmo telefone.
+- Dá para responder pela tela de WhatsApp ou pelo painel do lead no kanban, escolhendo o número.
 - Qualquer resposta para o lead, pelo CRM ou pelo celular, zera o contador de follow-up.
 - O cartão mostra quantas mensagens novas o lead mandou.
 

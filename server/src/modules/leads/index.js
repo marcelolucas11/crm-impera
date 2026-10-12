@@ -5,7 +5,7 @@ import { config } from '../../config.js';
 import { registrarEvento, lerJson } from '../../events.js';
 import { exigirLogin, exigirAdmin } from '../auth/middleware.js';
 import { normalizarTelefone, normalizarEmail, texto, idValido, ErroHttp } from '../../util.js';
-import { buscarLead, listarLeads, criarLead } from './service.js';
+import { buscarLead, listarLeads, criarLead, registrarContatoLead, vincularConversasExistentes } from './service.js';
 
 const ROTULOS = { name: 'nome', phone: 'telefone', email: 'e-mail', company: 'empresa', notes: 'observações' };
 
@@ -130,6 +130,7 @@ export default {
           add('updated_at', agora());
           run(`UPDATE leads SET ${sets.join(', ')} WHERE id = ?`, [...vals, id]);
         }
+        if (alterados.includes('phone') && campos.phone) vincularConversasExistentes(id, campos.phone);
       });
 
       res.json({ lead: buscarLead(id) });
@@ -141,9 +142,33 @@ export default {
       const canal = texto(req.body?.canal, 40) || 'whatsapp';
       const nota = texto(req.body?.nota, 2000);
       const ok = tx(() => {
-        const { changes } = run('UPDATE leads SET last_contact_at = ?, updated_at = ? WHERE id = ?', [agora(), agora(), id]);
-        if (changes) registrarEvento({ leadId: id, userId: req.user.id, type: 'contact', data: { canal, nota } });
-        return changes > 0;
+        if (!get('SELECT 1 FROM leads WHERE id = ?', [id])) return false;
+        registrarContatoLead(id, agora());
+        registrarEvento({ leadId: id, userId: req.user.id, type: 'contact', data: { canal, nota } });
+        return true;
+      });
+      if (!ok) return res.status(404).json({ erro: 'Lead não encontrado' });
+      res.json({ lead: buscarLead(id) });
+    });
+
+    // Liga/desliga o aviso "aguardando minha resposta"
+    r.post('/:id/aguardando', (req, res) => {
+      const id = idValido(req.params.id);
+      const ativo = Boolean(req.body?.ativo);
+      const nota = texto(req.body?.nota, 300);
+      const ok = tx(() => {
+        const lead = get('SELECT waiting_since FROM leads WHERE id = ?', [id]);
+        if (!lead) return false;
+        if (ativo) {
+          run('UPDATE leads SET waiting_since = COALESCE(waiting_since, ?), waiting_by = ?, waiting_note = ?, updated_at = ? WHERE id = ?', [
+            agora(), req.user.id, nota, agora(), id,
+          ]);
+          if (!lead.waiting_since) registrarEvento({ leadId: id, userId: req.user.id, type: 'waiting_on', data: { nota } });
+        } else if (lead.waiting_since) {
+          run('UPDATE leads SET waiting_since = NULL, waiting_by = NULL, waiting_note = NULL, updated_at = ? WHERE id = ?', [agora(), id]);
+          registrarEvento({ leadId: id, userId: req.user.id, type: 'waiting_off', data: {} });
+        }
+        return true;
       });
       if (!ok) return res.status(404).json({ erro: 'Lead não encontrado' });
       res.json({ lead: buscarLead(id) });
