@@ -413,3 +413,7 @@ textarea { resize: vertical; }
 }
 .voltar-lista { display: none; }
 @media (max-width: 720px) { .voltar-lista { display: inline-flex; } }
+.tag-variavel { color: var(--ouro); border-color: rgba(215, 184, 112, .4); }
+.analise-ia { background: var(--superficie-2); border-radius: 8px; padding: 8px 12px; font-size: 13px; }
+.analise-ia summary { cursor: pointer; color: var(--ouro); font-size: 12.5px; }
+.analise-ia p { margin: 8px 0 2px; line-height: 1.55; color: var(--texto); white-space: pre-wrap; }

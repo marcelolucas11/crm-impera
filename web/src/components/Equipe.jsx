@@ -3,6 +3,7 @@ import { api } from '../api.js';
 import { dataHora, tempoDesde } from '../utils.js';
 import WhatsAppNumeros from './WhatsAppNumeros.jsx';
 import CalendlyStatus from './CalendlyStatus.jsx';
+import FormulariosYay from './FormulariosYay.jsx';
 
 export default function Equipe({ user }) {
   const [users, setUsers] = useState([]);
@@ -114,6 +115,8 @@ export default function Equipe({ user }) {
           )}
           <p className="suave pequeno">Assinatura HMAC: {yay?.assinatura_ativa ? 'ativa' : 'desativada (opcional)'}</p>
 
+          <FormulariosYay aoMensagem={setMsg} aoErro={setErro} />
+
           <h3>Últimos recebidos</h3>
           {eventos.length === 0 ? <p className="suave">Nenhum webhook recebido ainda.</p> : (
             <table className="tabela">
@@ -122,10 +125,10 @@ export default function Equipe({ user }) {
                 {eventos.map((ev) => (
                   <tr key={ev.id}>
                     <td>{dataHora(ev.received_at)}</td>
-                    <td className={ev.status === 'error' ? 'alerta' : ''}>{ev.status === 'processed' ? 'Processado' : ev.status === 'error' ? `Erro: ${ev.error}` : 'Recebido'}</td>
+                    <td className={ev.status === 'error' ? 'alerta' : ''}>{{ processed: 'Processado', duplicado: 'Repetido (já tinha chegado)', error: `Erro: ${ev.error}` }[ev.status] || 'Recebido'}</td>
                     <td>{ev.lead_id ? `#${ev.lead_id}` : '—'}</td>
                     <td>
-                      {ev.status !== 'processed' && (
+                      {(ev.status === 'error' || ev.status === 'received') && (
                         <button className="btn btn-pequeno" onClick={() => executar(() => api(`/yayforms/eventos/${ev.id}/reprocessar`, { method: 'POST' }), 'Reprocessado.')}>Reprocessar</button>
                       )}
                     </td>

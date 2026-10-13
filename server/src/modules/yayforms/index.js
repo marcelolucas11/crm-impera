@@ -9,6 +9,7 @@ import { exigirLogin, exigirAdmin } from '../auth/middleware.js';
 import { criarLead, encontrarExistente } from '../leads/service.js';
 import { interpretarPayload } from './parser.js';
 import { idValido } from '../../util.js';
+import { lerEstado, salvarEstado } from '../../estado.js';
 
 function iguaisSeguro(a, b) {
   const ba = Buffer.from(String(a));
@@ -36,8 +37,17 @@ function processar(body) {
     campoNome: config.yayforms.fieldName,
     campoTelefone: config.yayforms.fieldPhone,
     campoEmail: config.yayforms.fieldEmail,
+    nomesFormularios: lerEstado('yayforms').nomes || {},
   });
-  const detalhes = { formulario: dados.formulario, respostas: dados.respostas, utm: dados.utm };
+  const detalhes = {
+    formulario: dados.formulario,
+    form_id: dados.formId,
+    resposta_id: dados.respostaId,
+    respostas: dados.respostas,
+    utm: dados.utm,
+    variaveis: dados.variaveis,
+    analise_ia: dados.analiseIa,
+  };
 
   return tx(() => {
     const existente = encontrarExistente({ phone: dados.phone, email: dados.email });
@@ -77,6 +87,19 @@ export default {
       // 1) Guarda o payload bruto antes de qualquer coisa: nenhum lead se perde
       const eventoId = Number(run('INSERT INTO webhook_events (source, payload) VALUES (?, ?)', ['yayforms', JSON.stringify(body)]).lastInsertRowid);
 
+      // A mesma resposta chegando de novo (reenvio ou botão "Test" repetido) não vira registro duplicado
+      const respostaId = body.response?.id ? String(body.response.id) : null;
+      const jaProcessada = respostaId && get(
+        `SELECT lead_id FROM webhook_events
+          WHERE source = 'yayforms' AND status = 'processed' AND id != ? AND json_extract(payload, '$.response.id') = ?
+          LIMIT 1`,
+        [eventoId, respostaId]
+      );
+      if (jaProcessada) {
+        run("UPDATE webhook_events SET status = 'duplicado', lead_id = ? WHERE id = ?", [jaProcessada.lead_id, eventoId]);
+        return res.json({ ok: true, lead_id: jaProcessada.lead_id, duplicado: true });
+      }
+
       // 2) Processa
       try {
         const { leadId, novo } = processar(body);
@@ -112,6 +135,35 @@ export default {
       const { leadId, novo } = processar(lerJson(evento.payload));
       run("UPDATE webhook_events SET status = 'processed', error = NULL, lead_id = ? WHERE id = ?", [leadId, id]);
       res.json({ ok: true, lead_id: leadId, novo });
+    });
+
+    // Formulários que já mandaram respostas (o webhook só traz o ID; aqui dá para dar um nome)
+    adm.get('/formularios', (req, res) => {
+      const nomes = lerEstado('yayforms').nomes || {};
+      const vistos = all(
+        `SELECT json_extract(payload, '$.response.formId') AS form_id, count(*) AS respostas, max(received_at) AS ultima
+           FROM webhook_events
+          WHERE source = 'yayforms' AND json_extract(payload, '$.response.formId') IS NOT NULL
+          GROUP BY form_id ORDER BY ultima DESC`
+      );
+      res.json({ formularios: vistos.map((f) => ({ ...f, nome: nomes[f.form_id] || null })) });
+    });
+
+    adm.put('/formularios/:formId', (req, res) => {
+      const formId = String(req.params.formId || '').slice(0, 64);
+      const nome = String(req.body?.nome || '').trim().slice(0, 120);
+      if (!/^[\w-]+$/.test(formId)) return res.status(400).json({ erro: 'Formulário inválido' });
+      const nomes = { ...(lerEstado('yayforms').nomes || {}) };
+      if (nome) nomes[formId] = nome; else delete nomes[formId];
+      tx(() => {
+        salvarEstado('yayforms', { nomes });
+        // Atualiza os leads que já vieram desse formulário
+        run(
+          `UPDATE leads SET extra = json_set(extra, '$.formulario', ?) WHERE json_extract(extra, '$.form_id') = ?`,
+          [nome || null, formId]
+        );
+      });
+      res.json({ ok: true });
     });
 
     adm.get('/config', (req, res) => {

@@ -111,6 +111,7 @@ export default function LeadFicha({
 
   const respostas = lead?.extra?.respostas || [];
   const utm = lead?.extra?.utm || {};
+  const variaveis = lead?.extra?.variaveis || {};
   const titulo = lead ? lead.name || formatarTelefone(lead.phone) || lead.email || `Lead #${lead.id}` : 'Carregando…';
 
   return (
@@ -205,10 +206,17 @@ export default function LeadFicha({
               </dl>
             </>
           )}
-          {Object.keys(utm).length > 0 && (
+          {(Object.keys(utm).length > 0 || Object.keys(variaveis).length > 0) && (
             <div className="utms">
+              {Object.entries(variaveis).map(([k, v]) => <span key={`v-${k}`} className="tag tag-variavel">{k === 'score' ? 'pontuação' : k}: {v}</span>)}
               {Object.entries(utm).map(([k, v]) => <span key={k} className="tag">{k.replace('utm_', '')}: {v}</span>)}
             </div>
+          )}
+          {lead.extra?.analise_ia && (
+            <details className="analise-ia">
+              <summary>Análise de IA do Yay! Forms</summary>
+              <p>{lead.extra.analise_ia}</p>
+            </details>
           )}
 
           <h4>Dados</h4>

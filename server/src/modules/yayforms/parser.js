@@ -49,15 +49,28 @@ function listaDeRespostas(body) {
     ? bruto.map((a) => [a?.id || a?.field_id || a?.question_id || '', a])
     : Object.entries(bruto);
 
-  return entradas.map(([id, a]) => {
-    const obj = a && typeof a === 'object' && !Array.isArray(a) ? a : { content: a };
-    const def = titulos[id] || {};
-    const titulo =
-      paraTexto(obj.title || obj.question?.title || obj.field?.title || obj.label || obj.question_title) || def.titulo || id;
-    const tipo = String(obj.type || obj.field?.type || obj.question?.type || def.tipo || '').toLowerCase();
-    const valorBruto = obj.content ?? obj.value ?? obj.answer ?? obj.text;
-    return { id: String(id), titulo, tipo, valor: paraTexto(valorBruto), valorBruto };
-  });
+  return entradas
+    .map(([id, a]) => {
+      const obj = a && typeof a === 'object' && !Array.isArray(a) ? a : { content: a };
+      const def = titulos[id] || {};
+      // O Yay! Forms (V2) manda o título da pergunta em "fieldTitle"
+      const titulo =
+        limparTitulo(paraTexto(obj.fieldTitle || obj.title || obj.question?.title || obj.field?.title || obj.label || obj.question_title)) ||
+        def.titulo ||
+        id;
+      const tipo = String(obj.type || obj.fieldType || obj.field?.type || obj.question?.type || def.tipo || '').toLowerCase();
+      const valorBruto = obj.content ?? obj.value ?? obj.answer ?? obj.text;
+      return { id: String(id), titulo, tipo, valor: paraTexto(valorBruto).trim(), valorBruto };
+    })
+    // Telas de boas-vindas e textos informativos não têm resposta
+    .filter((r) => r.valor && !TEXTOS_SEM_RESPOSTA.has(r.valor));
+}
+
+// Conteúdo que o Yay! Forms coloca em telas que são só texto (não são respostas)
+const TEXTOS_SEM_RESPOSTA = new Set(['This is a statement.']);
+
+function limparTitulo(t) {
+  return t.replace(/\s+/g, ' ').trim().slice(0, 300);
 }
 
 // Parâmetros UTM e campos ocultos (busca rasa no payload)
@@ -103,14 +116,28 @@ export function interpretarPayload(body, opcoes = {}) {
     name = texto(r?.valor, 200);
   }
 
+  const r = body.response || {};
+  // O webhook V2 não traz o nome do formulário, só o formId; o nome vem do cadastro em "Equipe e integrações"
+  const formId = String(r.formId || body.formId || body.form?.id || '') || null;
   const formulario =
-    paraTexto(body.form?.title || body.form?.name || body.form_name || body.formTitle || body.data?.form?.title) || null;
+    paraTexto(body.form?.title || body.form?.name || body.form_name || body.formTitle || body.data?.form?.title) ||
+    (formId && opcoes.nomesFormularios?.[formId]) ||
+    null;
+
+  // Variáveis do formulário (ex.: pontuação de qualificação) — só valores simples
+  const variaveis = Object.fromEntries(
+    Object.entries(r.variables || {}).filter(([, v]) => v !== null && v !== '' && typeof v !== 'object').map(([k, v]) => [k, String(v)])
+  );
 
   return {
     name,
     phone,
     email,
     formulario,
+    formId,
+    respostaId: r.id ? String(r.id) : null,
+    analiseIa: texto(r.aiFeedback, 6000),
+    variaveis,
     respostas: respostas.map(({ id, titulo, valor }) => ({ id, pergunta: titulo, resposta: valor })),
     utm: extrairUtm(body),
   };
