@@ -42,7 +42,15 @@ function rodar(args, { timeoutMs = 120000 } = {}) {
 
 // Áudio gravado (webm/mp4 do navegador) → mensagem de voz do WhatsApp
 export async function converterParaVoz(entrada, saida) {
-  await rodar(['-y', '-i', entrada, '-vn', '-ac', '1', '-ar', '48000', '-c:a', 'libopus', '-b:a', '32k', '-application', 'voip', '-f', 'ogg', saida]);
+  // O áudio do navegador (WEBM) começa com tempo diferente de zero; o celular de quem recebe
+  // recusa a mensagem de voz ("Este áudio não está mais disponível"). Recomeça o tempo em zero,
+  // tira metadados e grava no mesmo formato da mensagem de voz do próprio WhatsApp.
+  await rodar([
+    '-y', '-fflags', '+genpts', '-i', entrada, '-map', '0:a:0', '-vn', '-map_metadata', '-1',
+    '-af', 'aresample=48000:async=1:first_pts=0,asetpts=N/SR/TB',
+    '-ac', '1', '-ar', '48000', '-c:a', 'libopus', '-b:a', '32k', '-vbr', 'on', '-application', 'voip', '-frame_duration', '20',
+    '-fflags', '+bitexact', '-flags:a', '+bitexact', '-f', 'ogg', saida,
+  ]);
 }
 
 // Áudio para navegadores que não tocam OGG (Safari antigo)
