@@ -4,7 +4,13 @@ CRM da agência: leads do Yay! Forms caindo direto num kanban, alerta de follow-
 Roda direto no Mac, a partir do SSD externo, sem Docker e sem instalar nada no sistema.
 A mesma pasta funciona depois na VPS da Contabo.
 
-**Versão atual: 0.5.3** — o número fica no arquivo `VERSAO` e é o que aparece em **Equipe e integrações → Atualização do CRM**.
+**Versão atual: 0.6.0** — o número fica no arquivo `VERSAO` e é o que aparece em **Equipe e integrações → Atualização do CRM**.
+
+**Versão 0.6:** tela de WhatsApp no estilo do WhatsApp Web (lista com busca e filtros, fixar, arquivar, silenciar, etiquetas,
+rascunhos, "digitando…", temas claro e escuro, ficha do lead recolhível) · **3 meses de histórico** ao conectar um número e ligação
+automática das conversas aos leads do formulário · encaminhar, favoritar, editar, apagar para mim, enquetes, contatos, localização,
+menções e mensagens temporárias · seletor de emoji completo · figurinhas (favoritas do celular, recentes, criar a partir de imagem) ·
+aviso de chamadas recebidas, recusar com mensagem e link de chamada · grupos · atalhos de teclado.
 
 **Versão 0.5.3:** respostas **incompletas** do Yay! Forms (quem começou o formulário e não terminou) viram lead com o selo
 ◐ "Form. incompleto"; se a pessoa voltar e terminar, o mesmo cartão é completado · filtros "Formulário incompleto/completo" ·
@@ -137,8 +143,8 @@ em `PUBLIC_URL` no `.env`. Na Contabo isso não é necessário.
 - **⏳ Aguardando minha resposta**: botão na ficha do lead, com nota opcional ("enviar proposta"). O lead vai para o topo da coluna
   com uma faixa laranja e entra no contador da aba Kanban. Só sai quando alguém clica em **Resolvido**.
 
-**WhatsApp** — conversas à esquerda, chat no meio e, à direita, a ficha do lead (anotações, respostas do Yay! Forms, etapa,
-responsável, histórico). Se o contato ainda não é lead, aparece o botão **Transformar em lead**; se já existir um lead com o mesmo
+**WhatsApp** — no estilo do WhatsApp Web: conversas à esquerda, chat no meio e, à direita, a ficha do lead (anotações, respostas do
+Yay! Forms, etapa, responsável, histórico), que pode ser recolhida. Detalhes na seção WhatsApp abaixo. Se o contato ainda não é lead, aparece o botão **Transformar em lead**; se já existir um lead com o mesmo
 telefone, a conversa é ligada a ele.
 
 **Estatísticas** — leads novos (com comparação ao período anterior), taxa de resposta, tempo até a primeira resposta, respondidos
@@ -151,50 +157,101 @@ por formulário, leads por etapa e desempenho por responsável. Períodos de 7, 
 2. No celular desse número: WhatsApp → **Configurações → Aparelhos conectados → Conectar um aparelho** → leia o QR code.
 3. Repita para cada número. Todos ficam conectados ao mesmo tempo.
 
-Ao conectar, o CRM importa as conversas dos **últimos 90 dias** (`WHATSAPP_HISTORICO_DIAS`), já marcadas como lidas, e liga
-sozinho cada conversa ao lead com o mesmo telefone. Números já conectados: **Equipe e integrações → Importar 3 meses de histórico**
-(não desconecta). Veja a seção da versão 0.6 abaixo.
-Dentro de uma conversa, o botão **Buscar mensagens anteriores no celular** (no topo) pede ao celular mensagens mais antigas.
+### Novidades da versão 0.6
 
-### O chat
+- **Histórico de 3 meses.** Ao conectar pelo QR code, o CRM pede ao celular o histórico completo (como o WhatsApp do computador)
+  e guarda os últimos **90 dias** (`WHATSAPP_HISTORICO_DIAS`). Depois que o celular termina de mandar, o CRM completa, conversa
+  por conversa, o que faltar para chegar aos 90 dias — um pedido de cada vez, com intervalo. Tudo entra como lido (não gera
+  "mensagem nova" nem alertas) e o progresso aparece em **Equipe e integrações**, ao vivo.
+- **Conversas ligadas aos leads sozinhas.** O telefone é comparado com e sem o 9º dígito, e conversas que o WhatsApp mostra só
+  pelo identificador interno (LID) são ligadas assim que o telefone aparece. Isso acontece na importação, a cada mensagem nova,
+  quando chega um lead (Yay! Forms, Calendly ou manual) e quando o telefone de um lead é editado — e uma revisão geral roda ao ligar
+  o CRM e depois de cada importação. Grupos nunca viram lead. Se dois leads têm o mesmo telefone, a conversa vai para o mais
+  recente e o caso fica anotado no histórico do lead (nenhum lead é juntado ou apagado). Leads continuam sendo criados sozinhos
+  só com `WHATSAPP_CRIAR_LEADS=1`. O último contato e o follow-up passam a refletir o histórico real (só avançam, nunca voltam).
+- **Tela igual à do WhatsApp Web**, com a ficha do lead à direita (recolhível) e o resto descrito abaixo.
 
-Funciona como o WhatsApp do celular:
+### Números que já estavam conectados: importar os 3 meses
 
-| Recurso | Como usar |
+Não precisa desconectar. Em **Equipe e integrações**, no número, clique em **Importar 3 meses de histórico**. O CRM pede ao
+celular as mensagens que faltam em cada conversa que ele já conhece, até completar 90 dias. Deixe o celular ligado e com internet;
+dá para acompanhar a barra de progresso. Se o celular parar de responder, a importação para e continua de onde parou ao clicar de novo.
+
+Limite: esse botão só completa conversas que já aparecem no CRM. Conversas que nunca chegaram ao CRM (de antes da conexão) só vêm
+**desconectando e conectando o número de novo pelo QR code** — aí o celular manda o histórico inteiro.
+
+### A tela de WhatsApp
+
+| Onde | O que tem |
 |---|---|
-| Fotos, vídeos, documentos e áudios | 📎 no canto da barra, arrastar o arquivo para a conversa ou colar (Ctrl/Cmd+V) uma imagem. Aparece uma prévia para escrever a legenda. |
-| Mensagem de voz | 🎤 à direita (quando o campo está vazio). 🗑 descarta, ➤ envia. O áudio chega no celular do lead como mensagem de voz normal. |
-| Responder citando, reagir, copiar, baixar, apagar para todos | Passe o mouse na mensagem e clique na setinha ⌄ |
-| Emojis | 😊 na barra |
-| Formatação | `*negrito*`, `_itálico_`, `~riscado~`, ` ```monoespaçado``` ` |
-| Confirmações | 🕓 enviando · ✓ enviada · ✓✓ entregue · ✓✓ azul lida · ⚠ não enviada (com botão para tentar de novo) |
+| Lista de conversas | Busca por nome, número **e texto das mensagens** (com a lista "Mensagens" encontradas) · filtros **Tudo, Não lidas, Favoritas, Grupos, Leads, Não são leads, Aguardando** e por etiqueta · **Arquivadas** · escolher o número conectado · "digitando…" e **rascunho** na prévia · ícone do tipo da última mensagem |
+| Menu ⌄ de cada conversa (ou botão direito) | Arquivar, silenciar (8 h, 1 semana, sempre), fixar, marcar como lida/não lida, favoritar, **etiquetas**, abrir no WhatsApp Web, **ocultar** (some da lista até chegar mensagem nova — nada é apagado) |
+| Cabeçalho | Foto, nome, **online / visto por último / digitando…**, 📞 e 🎥 (ver Chamadas), 🔍 busca dentro da conversa, ficha do lead (recolher/mostrar), menu com dados do contato, favoritas, selecionar mensagens |
+| Mensagens | Mensagens antigas carregam ao rolar para cima (lista otimizada para conversas longas), separadores de data, prévia de links, menções em grupos (com o nome de quem mandou colorido), enquetes com resultado e voto, contatos, localização, chamadas, visualização única, mensagens temporárias |
+| Menu ⌄ da mensagem | Reagir com qualquer emoji, responder, copiar, **encaminhar** (até 5 conversas), **favoritar** ⭐, **editar** (até 15 min), dados da mensagem (entregue/lida com horário), baixar, favoritar figurinha, **selecionar várias**, **apagar para mim** (só esconde no CRM) e apagar para todos |
+| Barra de digitação | 😊 emojis (busca, categorias, tom de pele, recentes), GIF (vídeo curto), figurinhas · 📎 fotos e vídeos, documento, áudio, visualização única, nova figurinha, contato, localização, enquete · 🎤 mensagem de voz · @menções em grupos · **↑** edita a última mensagem |
+| Painel da direita | Ficha do lead (anotações, etapa, histórico), dados do contato/grupo (mídias, participantes, mensagens temporárias, **Transformar em lead**), busca na conversa, mensagens favoritas |
+| Topo da lista | ☀/🌙 tema claro ou escuro · ⋮ mensagens favoritas, arquivadas, etiquetas e atalhos |
+
+**Atalhos de teclado** (Ctrl + Alt + K mostra a lista): Ctrl+Alt+/ busca · Ctrl+Alt+Tab próxima conversa · Ctrl+Alt+Shift+U lida/não lida ·
+Ctrl+Alt+Shift+E arquivar · Ctrl+Alt+Shift+P fixar · Ctrl+Alt+Shift+M silenciar · Ctrl+Alt+Shift+F buscar na conversa ·
+Ctrl+Alt+E emojis · Ctrl+Alt+S figurinhas · Ctrl+Alt+P ficha · Esc fecha. No Mac, Cmd no lugar de Ctrl e Option no lugar de Alt.
+
+Formatação: `*negrito*`, `_itálico_`, `~riscado~`, ` ```monoespaçado``` `. Confirmações: 🕓 enviando · ✓ enviada · ✓✓ entregue ·
+✓✓ azul lida · ⚠ não enviada (com botão para tentar de novo).
 
 - Fotos, figurinhas, documentos e áudios de até 25 MB (`WHATSAPP_MIDIA_AUTO_MB`) são baixados na hora; maiores e os do histórico, quando alguém abre.
-- Mensagens que o contato apagar continuam visíveis no CRM com a marca **🚫 Apagada pelo contato**; editadas mostram **editada**.
-- Abrir a conversa no CRM marca as mensagens como lidas também no WhatsApp (o contato vê ✓✓ azul). Para desligar: `WHATSAPP_CONFIRMAR_LEITURA=0`.
-- As fotos de perfil são buscadas aos poucos, uma por vez, e renovadas a cada 3 dias.
-- Gravar áudio só funciona abrindo o CRM por `http://localhost:3000` ou por `https` (regra dos navegadores para o microfone).
-- Os arquivos ficam em `../arquivos/whatsapp/` e entram no backup do SSD junto com a pasta `arquivos/`.
+- Abrir a conversa no CRM marca as mensagens como lidas também no WhatsApp. Para desligar: `WHATSAPP_CONFIRMAR_LEITURA=0`.
+- Arquivar, fixar, silenciar e marcar como não lida também valem no celular. Etiquetas e favoritas de conversa ficam só no CRM.
+- O contador da aba WhatsApp não conta conversas silenciadas nem arquivadas (como no WhatsApp).
+- Gravar áudio e "usar minha localização" só funcionam abrindo o CRM por `http://localhost:3000` ou por `https` (regra dos navegadores).
+- Os arquivos ficam em `../arquivos/whatsapp/` (figurinhas em `../arquivos/whatsapp/figurinhas/`) e entram no backup do SSD.
+- **Abrir no WhatsApp Web** abre `web.whatsapp.com` em outra aba. Não dá para embutir o WhatsApp Web dentro do CRM: o WhatsApp
+  bloqueia ser aberto dentro de outra página, e seria outra sessão do número.
+
+### Emojis e figurinhas
+
+- O seletor de emoji é completo e funciona sem internet (emoji-mart, licença MIT). Serve também para reagir com qualquer emoji.
+- **Figurinhas favoritas do celular:** o WhatsApp sincroniza as favoritas pelo "app state". A biblioteca do WhatsApp recebe essas
+  informações mas não as repassa; o CRM as lê sem modificar a biblioteca (pela linha de registro interna em que elas passam) e baixa
+  as figurinhas para `../arquivos/whatsapp/figurinhas/`. Elas chegam ao conectar um número pelo QR code; para números já conectados,
+  clique em **Sincronizar figurinhas** em Equipe e integrações. Se uma versão futura da biblioteca mudar esse ponto, as favoritas do
+  celular param de chegar — recentes, favoritas do CRM e criar figurinhas continuam funcionando.
+- **Recentes:** figurinhas enviadas e recebidas. **Favoritar no CRM:** estrela na figurinha (ou no menu de uma figurinha recebida).
+- **Criar:** a partir de uma imagem (vira WEBP 512×512) ou de um vídeo/GIF curto (vira figurinha animada, até 6 s). Na aba GIF,
+  um vídeo curto vai como GIF do WhatsApp (sem som, em repetição). A busca de GIFs da internet do WhatsApp não existe por QR code.
+
+### Chamadas de voz e vídeo
+
+A conexão por QR code (biblioteca Baileys) **não transmite áudio nem vídeo de chamadas** — ela não implementa VoIP. Então o CRM:
+
+- **Chamada recebida:** aparece um aviso em qualquer tela (voz ou vídeo, nome e foto, tocando), com **Recusar** e **Recusar com
+  mensagem** (respostas prontas ou texto livre). Para atender, use o celular.
+- **Registro:** cada chamada entra na conversa e no histórico do lead — perdida, recusada, atendida no celular (com a duração) —,
+  inclusive as chamadas perdidas que vierem no histórico importado.
+- **Botões 📞 e 🎥:** geram um **link de chamada do WhatsApp** e, depois de você confirmar, enviam ao contato. Também mostram
+  **Ligar pelo celular** (QR code / link wa.me) e **Abrir no WhatsApp Web**.
+- **Alternativa oficial:** para atender chamadas no computador seria preciso a **WhatsApp Business Calling API**, que exige o número
+  na API oficial da Meta (WhatsApp Business Platform). Não está implementada.
 
 ### Leads e conversas
 
 - Mensagem de um número desconhecido aparece na tela de WhatsApp com o botão **Transformar em lead**
   (para criar o lead sozinho, use `WHATSAPP_CRIAR_LEADS=1` no `.env`).
 - Mensagem de um número que já é lead (do Yay! Forms, por exemplo) entra na conversa desse lead.
-- Um lead novo do formulário puxa a conversa de WhatsApp que já existia com o mesmo telefone.
 - Dá para responder pela tela de WhatsApp ou pelo painel do lead no kanban, escolhendo o número.
 - Qualquer resposta para o lead, pelo CRM ou pelo celular, zera o contador de follow-up.
-- O cartão mostra a foto do lead e quantas mensagens novas ele mandou. Tudo atualiza sozinho, sem recarregar a página.
 
 As sessões ficam em `../dados/whatsapp/` (nunca vão para o GitHub). Não rode o CRM no Mac e na VPS com o mesmo número
 ao mesmo tempo: o WhatsApp derruba uma das conexões.
 
 ⚠️ A conexão por QR code não é oficial (é a mesma biblioteca usada pela Evolution API). O WhatsApp pode banir números que mandam
-mensagens em massa ou automáticas. O CRM só envia o que alguém da equipe digita, com intervalo mínimo entre envios.
+mensagens em massa ou automáticas. O CRM só envia o que alguém da equipe faz na tela, com intervalo mínimo entre envios; a importação
+de histórico só pede mensagens ao próprio celular, uma conversa de cada vez.
 
-**FFmpeg:** a conversão de áudio gravado, a onda do áudio, as miniaturas e a conversão de vídeos usam um FFmpeg portátil que o
-`./atualizar.sh` baixa para dentro de `server/node_modules` (nada é instalado no Mac). Se o download falhar, o CRM funciona igual,
-mas envia os arquivos sem conversão.
+**FFmpeg:** a conversão de áudio gravado, a onda do áudio, as miniaturas, a conversão de vídeos e a criação de figurinhas usam um
+FFmpeg portátil que o `./atualizar.sh` baixa para dentro de `server/node_modules` (nada é instalado no Mac). Se o download falhar,
+o CRM funciona igual, mas envia os arquivos sem conversão e não cria figurinhas.
 
 ## Calendly
 
@@ -215,7 +272,10 @@ mostra a data da próxima reunião. Funciona em qualquer plano do Calendly e nã
 | `PUBLIC_URL` | Endereço público do CRM, com o caminho se houver (ex.: `https://crm-impera.imperaservices.com/interno`) |
 | `BASE_PATH` | Caminho do CRM no domínio (ex.: `/interno`). Vazio = usa o caminho do `PUBLIC_URL`. A raiz continua funcionando. |
 | `YAYFORMS_WEBHOOK_SECRET` | Opcional: um "Secret" fixo do Yay! Forms. Prefira cadastrar os segredos pela tela (aceita vários) |
-| `WHATSAPP_HISTORICO_DIAS` | Quantos dias de conversas antigas importar ao conectar um número (padrão 90; 0 = nenhum) |
+| `WHATSAPP_HISTORICO_DIAS` | Quantos dias de conversas antigas importar ao conectar um número (padrão 90; 0 = nenhum). Quem tinha o valor antigo gerado pelo instalador (30) passa para 90 sozinho na atualização (cópia do `.env` anterior em `.env.antes-0.6`) |
+| `WHATSAPP_GRUPOS` | `1` = conversas de grupo aparecem na tela de WhatsApp (padrão; grupos nunca viram lead); `0` = ignora grupos |
+| `WHATSAPP_PREVIA_LINKS` | `1` = ao enviar um link, manda a prévia (título e imagem) como o WhatsApp Web (padrão); `0` = sem prévia |
+| `WHATSAPP_CRIAR_LEADS` | `1` = conversa nova de número desconhecido vira lead sozinha; `0` = botão "Transformar em lead" (padrão) |
 | `WHATSAPP_MIDIA_AUTO_MB` | Mídias recebidas até este tamanho são baixadas na hora (padrão 25) |
 | `WHATSAPP_ENVIO_MAX_MB` | Tamanho máximo de arquivo enviado pelo CRM (padrão 100) |
 | `WHATSAPP_CONFIRMAR_LEITURA` | `1` = abrir a conversa marca como lida no WhatsApp (padrão); `0` = não avisa o contato |
@@ -232,16 +292,42 @@ Depois de mudar o `.env`, rode `./parar.sh && ./iniciar.sh`.
 ## Para quem for mexer no código
 
 ```
-server/src/modules/   ← cada integração é um módulo (auth, users, stages, leads, followup, yayforms)
+server/src/modules/   ← cada integração é um módulo (auth, users, stages, leads, followup, yayforms, calendly, whatsapp...)
 server/src/db.js      ← toda a conversa com o banco (SQLite embutido no Node)
 server/src/tempoReal.js ← avisos em tempo real para a tela (/api/eventos)
-server/src/modules/whatsapp/ ← gerenciador.js (conexão, recebimento, envio, mídia, fotos), conversas.js, conteudo.js, ffmpeg.js
+server/src/modules/whatsapp/
+  gerenciador.js  conexão (QR code, reconexão), eventos do WhatsApp, fotos de perfil
+  recebimento.js  mensagens recebidas → banco (ao vivo e em lotes do histórico)
+  historico.js    importação de 90 dias e complemento por conversa (fetchMessageHistory)
+  ligacao.js      conversa ↔ lead (telefone, 9º dígito, LID, "religar tudo")
+  envio.js        tudo que o CRM envia e as ações nas mensagens (editar, encaminhar, votar...)
+  conversas.js    caixa de entrada (lista, filtros, estado das conversas, etiquetas)
+  chamadas.js · figurinhas.js · presenca.js · previa.js · midia.js · conteudo.js · ffmpeg.js
 server/migrations/    ← mudanças no banco, numeradas (001_, 002_...). Só acrescentam, nunca apagam dados.
-web/src/              ← interface React (o chat fica em web/src/components/chat/ e Conversa.jsx)
+server/testes/        ← testes automáticos (node:test) e ferramentas de teste com dados falsos
+web/src/              ← interface React (WhatsApp em WhatsAppPagina.jsx, Conversa.jsx e web/src/components/chat/)
 ```
 
 Novo módulo: criar `server/src/modules/<nome>/index.js` exportando `{ name, register(app) }` e registrar em `modules/index.js`.
 Mudança no banco: criar `server/migrations/00X_descricao.sql`. Ela roda sozinha na próxima atualização, dentro de uma transação.
 Nunca reescreva o histórico do Git (`push --force`) no repositório: o `atualizar.sh` só avança versões.
 Versão nova: mude o número no arquivo `VERSAO` e no topo deste README no mesmo commit, e crie a tag no GitHub
-(`git tag v0.5.3 && git push origin v0.5.3`). É esse número que a tela de atualização mostra.
+(`git tag v0.6.0 && git push origin v0.6.0`). É esse número que a tela de atualização mostra.
+
+**Testes:** `cd server && npm test` — usam um banco temporário (nunca o real) e mensagens de exemplo no formato da biblioteca do
+WhatsApp: telefone e 9º dígito, LID, janela de 90 dias, sem duplicar, ligação com leads, banco da versão 0.5 atualizando sem perder
+nada, enquetes, figurinhas, chamadas e um fluxo completo com um "WhatsApp falso".
+
+**Ver a tela sem conectar número nenhum** (dados falsos, banco temporário):
+
+```bash
+cd server
+export DB_FILE=/tmp/crm-demo/crm.db FILES_DIR=/tmp/crm-demo/arquivos WHATSAPP_SESSOES=/tmp/crm-demo/sessoes SESSION_SECRET=demo-demo-demo-demo APP_PORT=3999
+node src/cli.js criar-usuario --admin --nome Teste --email teste@exemplo.com --senha teste12345
+node testes/semear.js          # conversas, grupo, enquete, chamadas e figurinhas de exemplo
+node testes/servidor-falso.js  # CRM com dois números falsos (nada sai para o WhatsApp)
+```
+
+Créditos: ícones [Lucide](https://lucide.dev) (ISC), seletor de emoji [emoji-mart](https://github.com/missive/emoji-mart) (MIT),
+lista virtual [react-virtuoso](https://virtuoso.dev) (MIT), WhatsApp por [Baileys](https://github.com/WhiskeySockets/Baileys) (MIT).
+A interface é própria (layout inspirado no WhatsApp Web); nenhum logo, ícone ou papel de parede do WhatsApp é usado.
