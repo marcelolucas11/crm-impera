@@ -55,14 +55,15 @@ export default function Compositor({
   useEffect(() => { if (!editando) gravarRascunho(chave, texto); }, [chave, texto, editando]);
 
   // Edição: o campo recebe o texto da mensagem
-  const textoAntesDaEdicao = useRef('');
+  const textoAntesDaEdicao = useRef(null);
   useEffect(() => {
     if (editando) {
       textoAntesDaEdicao.current = texto;
       setTexto(editando.body || '');
       requestAnimationFrame(() => campo.current?.focus());
     } else if (textoAntesDaEdicao.current !== null) {
-      setTexto(lerRascunho(chave));
+      // Fim da edição: volta o que estava escrito antes (o rascunho), nunca o texto editado
+      setTexto(textoAntesDaEdicao.current || '');
       textoAntesDaEdicao.current = null;
     }
   }, [editando]); // eslint-disable-line react-hooks/exhaustive-deps
