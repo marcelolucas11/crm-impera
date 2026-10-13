@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../api.js';
+import { useEvento } from '../tempoReal.js';
 import Kanban from './Kanban.jsx';
 import LeadPanel from './LeadPanel.jsx';
 import NovoLead from './NovoLead.jsx';
@@ -55,6 +56,21 @@ export default function KanbanPagina({ user, stages, users, carregarEtapas, aoMu
     const id = setInterval(() => { if (!document.hidden) carregarLeads(); }, ATUALIZAR_A_CADA_MS);
     return () => clearInterval(id);
   }, [carregarLeads]);
+
+  // Mensagem nova no WhatsApp: atualiza os cartões (contador de mensagens), no máximo a cada 3 s
+  const ultimaAtualizacao = useRef(0);
+  const agendada = useRef(null);
+  useEvento('whatsapp', (d) => {
+    if (!d?.chat && !d?.historico && !d?.reconectou) return;
+    if (agendada.current) return;
+    const espera = Math.max(0, 3000 - (Date.now() - ultimaAtualizacao.current));
+    agendada.current = setTimeout(() => {
+      agendada.current = null;
+      ultimaAtualizacao.current = Date.now();
+      carregarLeads();
+    }, espera);
+  });
+  useEffect(() => () => clearTimeout(agendada.current), []);
 
   const visiveis = useMemo(() => aplicarFiltros(leads, filtros, user), [leads, filtros, user]);
   const atrasados = useMemo(() => leads.filter((l) => l.followup_overdue).length, [leads]);

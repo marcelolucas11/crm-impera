@@ -1,8 +1,13 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '../api.js';
-import { formatarTelefone, horaMensagem, iniciais } from '../utils.js';
+import { formatarTelefone, horaMensagem } from '../utils.js';
+import { useEvento } from '../tempoReal.js';
 import Conversa from './Conversa.jsx';
 import LeadFicha from './LeadFicha.jsx';
+import Avatar from './Avatar.jsx';
+import { Tique } from './chat/Mensagem.jsx';
+
+const ICONES_TIPO = { imagem: '📷', video: '🎥', audio: '🎤', documento: '📄', figurinha: '🙂', localizacao: '📍', contato: '👤' };
 
 const FILTROS = [
   ['todas', 'Todas'],
@@ -36,13 +41,20 @@ export default function WhatsAppPagina({ user, stages, users, horas, aoMudarAlgo
 
   useEffect(() => {
     const t = setTimeout(carregar, 200);
-    const id = setInterval(() => { if (!document.hidden) carregar(); }, 4000);
+    const id = setInterval(() => { if (!document.hidden) carregar(); }, 20000);
     return () => { clearTimeout(t); clearInterval(id); };
   }, [carregar]);
 
-  useEffect(() => {
+  const carregarNumeros = useCallback(() => {
     api('/whatsapp/numeros').then((d) => setNumeros(d.numeros)).catch(() => setNumeros([]));
   }, []);
+  useEffect(carregarNumeros, [carregarNumeros]);
+
+  useEvento('whatsapp', (d) => {
+    carregar();
+    if (d?.numeros) carregarNumeros();
+    if (d?.chat || d?.historico) aoMudarAlgo();
+  });
 
   // Mantém a conversa aberta mesmo se o filtro da lista deixar de mostrá-la
   const [ultimaAberta, setUltimaAberta] = useState(null);
@@ -96,14 +108,17 @@ export default function WhatsAppPagina({ user, stages, users, horas, aoMudarAlgo
           )}
           {conversas.map((c) => (
             <button key={c.chave} className={`item-conversa ${aberta === c.chave ? 'aberta' : ''}`} onClick={() => abrir(c)}>
-              <span className={`avatar-conversa ${c.lead_id ? 'lead' : ''}`}>{iniciais(c.nome || '') || '#'}</span>
+              <Avatar chave={c.chave} nome={c.nome} tamanho={46} lead={Boolean(c.lead_id)} />
               <span className="item-meio">
                 <span className="item-linha">
                   <b className="item-nome">{c.nome || formatarTelefone(c.telefone) || 'Contato'}</b>
                   <small className="suave">{horaMensagem(c.ultima_em)}</small>
                 </span>
                 <span className="item-linha">
-                  <span className={`item-previa ${c.nao_lidas ? 'forte' : ''}`}>{c.ultima_minha ? 'Você: ' : ''}{c.ultima_mensagem}</span>
+                  <span className={`item-previa ${c.nao_lidas ? 'forte' : ''}`}>
+                    {c.ultima_minha && <Tique status={c.ultimo_status} />}
+                    {c.ultima_apagada ? <i>🚫 Mensagem apagada</i> : c.ultimo_tipo !== 'texto' && ICONES_TIPO[c.ultimo_tipo] && !String(c.ultima_mensagem || '').startsWith(ICONES_TIPO[c.ultimo_tipo]) ? `${ICONES_TIPO[c.ultimo_tipo]} ${c.ultima_mensagem}` : c.ultima_mensagem}
+                  </span>
                   {c.nao_lidas > 0 && <span className="contador-nao-lidas">{c.nao_lidas}</span>}
                 </span>
                 <span className="item-tags">
@@ -132,13 +147,13 @@ export default function WhatsAppPagina({ user, stages, users, horas, aoMudarAlgo
           <>
             <div className="chat-topo">
               <button className="btn btn-pequeno voltar-lista" onClick={() => setAberta(null)} aria-label="Voltar para as conversas">←</button>
-              <span className={`avatar-conversa ${conversa.lead_id ? 'lead' : ''}`}>{iniciais(conversa.nome || '') || '#'}</span>
+              <Avatar chave={conversa.chave} nome={conversa.nome} tamanho={42} lead={Boolean(conversa.lead_id)} />
               <div>
                 <b>{conversa.nome || formatarTelefone(conversa.telefone) || 'Contato'}</b>
                 <small className="suave">{conversa.telefone ? formatarTelefone(conversa.telefone) : 'telefone oculto pelo WhatsApp'}{conversa.lead_id ? ` · lead em ${conversa.etapa?.nome}` : ' · ainda não é lead'}</small>
               </div>
             </div>
-            <Conversa chave={conversa.chave} cheia onEnviado={() => { carregar(); aoMudarAlgo(); }} />
+            <Conversa chave={conversa.chave} nome={conversa.nome || formatarTelefone(conversa.telefone)} cheia onEnviado={() => { carregar(); aoMudarAlgo(); }} />
           </>
         )}
       </section>

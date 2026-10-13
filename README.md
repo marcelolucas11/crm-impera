@@ -4,7 +4,10 @@ CRM da agência: leads do Yay! Forms caindo direto num kanban, alerta de follow-
 Roda direto no Mac, a partir do SSD externo, sem Docker e sem instalar nada no sistema.
 A mesma pasta funciona depois na VPS da Contabo.
 
-**Versão 0.4:** três telas — **Kanban**, **WhatsApp** e **Estatísticas** · filtros no kanban · etapas editáveis (criar, renomear, reordenar, apagar sem perder leads) · botão "aguardando minha resposta" · conversa de WhatsApp dentro do CRM com "Transformar em lead" · alerta de follow-up · Yay! Forms · Calendly · login da equipe · backup automático antes de cada atualização.
+**Versão 0.5:** chat de WhatsApp completo, igual ao do celular — fotos, áudios (com gravação pelo navegador), vídeos, documentos,
+figurinhas, localização, foto de perfil dos contatos (também no kanban), ✓✓ azul, responder citando, reações, mensagens apagadas e editadas,
+importação das conversas antigas e atualização em tempo real · três telas — **Kanban**, **WhatsApp** e **Estatísticas** · filtros no kanban ·
+etapas editáveis · botão "aguardando minha resposta" · alerta de follow-up · Yay! Forms · Calendly · login da equipe · backup automático antes de cada atualização.
 
 **Próximos módulos:** Google Agenda · notificações de follow-up.
 
@@ -100,20 +103,49 @@ por formulário, leads por etapa e desempenho por responsável. Períodos de 7, 
 2. No celular desse número: WhatsApp → **Configurações → Aparelhos conectados → Conectar um aparelho** → leia o QR code.
 3. Repita para cada número. Todos ficam conectados ao mesmo tempo.
 
-O que acontece depois:
+Ao conectar, o CRM importa as conversas dos **últimos 30 dias** (`WHATSAPP_HISTORICO_DIAS`), já marcadas como lidas.
+Se o número foi conectado antes da versão 0.5, **desconecte e conecte de novo** para trazer o histórico.
+Dentro de uma conversa, o botão **Buscar mensagens anteriores no celular** (no topo) pede ao celular mensagens mais antigas.
+
+### O chat
+
+Funciona como o WhatsApp do celular:
+
+| Recurso | Como usar |
+|---|---|
+| Fotos, vídeos, documentos e áudios | 📎 no canto da barra, arrastar o arquivo para a conversa ou colar (Ctrl/Cmd+V) uma imagem. Aparece uma prévia para escrever a legenda. |
+| Mensagem de voz | 🎤 à direita (quando o campo está vazio). 🗑 descarta, ➤ envia. O áudio chega no celular do lead como mensagem de voz normal. |
+| Responder citando, reagir, copiar, baixar, apagar para todos | Passe o mouse na mensagem e clique na setinha ⌄ |
+| Emojis | 😊 na barra |
+| Formatação | `*negrito*`, `_itálico_`, `~riscado~`, ` ```monoespaçado``` ` |
+| Confirmações | 🕓 enviando · ✓ enviada · ✓✓ entregue · ✓✓ azul lida · ⚠ não enviada (com botão para tentar de novo) |
+
+- Fotos, figurinhas, documentos e áudios de até 25 MB (`WHATSAPP_MIDIA_AUTO_MB`) são baixados na hora; maiores e os do histórico, quando alguém abre.
+- Mensagens que o contato apagar continuam visíveis no CRM com a marca **🚫 Apagada pelo contato**; editadas mostram **editada**.
+- Abrir a conversa no CRM marca as mensagens como lidas também no WhatsApp (o contato vê ✓✓ azul). Para desligar: `WHATSAPP_CONFIRMAR_LEITURA=0`.
+- As fotos de perfil são buscadas aos poucos, uma por vez, e renovadas a cada 3 dias.
+- Gravar áudio só funciona abrindo o CRM por `http://localhost:3000` ou por `https` (regra dos navegadores para o microfone).
+- Os arquivos ficam em `../arquivos/whatsapp/` e entram no backup do SSD junto com a pasta `arquivos/`.
+
+### Leads e conversas
+
 - Mensagem de um número desconhecido aparece na tela de WhatsApp com o botão **Transformar em lead**
   (para criar o lead sozinho, use `WHATSAPP_CRIAR_LEADS=1` no `.env`).
 - Mensagem de um número que já é lead (do Yay! Forms, por exemplo) entra na conversa desse lead.
 - Um lead novo do formulário puxa a conversa de WhatsApp que já existia com o mesmo telefone.
 - Dá para responder pela tela de WhatsApp ou pelo painel do lead no kanban, escolhendo o número.
 - Qualquer resposta para o lead, pelo CRM ou pelo celular, zera o contador de follow-up.
-- O cartão mostra quantas mensagens novas o lead mandou.
+- O cartão mostra a foto do lead e quantas mensagens novas ele mandou. Tudo atualiza sozinho, sem recarregar a página.
 
 As sessões ficam em `../dados/whatsapp/` (nunca vão para o GitHub). Não rode o CRM no Mac e na VPS com o mesmo número
 ao mesmo tempo: o WhatsApp derruba uma das conexões.
 
-⚠️ A conexão por QR code não é oficial. O WhatsApp pode banir números que mandam mensagens em massa ou automáticas.
-O CRM só envia o que alguém da equipe digita, com intervalo mínimo entre envios.
+⚠️ A conexão por QR code não é oficial (é a mesma biblioteca usada pela Evolution API). O WhatsApp pode banir números que mandam
+mensagens em massa ou automáticas. O CRM só envia o que alguém da equipe digita, com intervalo mínimo entre envios.
+
+**FFmpeg:** a conversão de áudio gravado, a onda do áudio, as miniaturas e a conversão de vídeos usam um FFmpeg portátil que o
+`./atualizar.sh` baixa para dentro de `server/node_modules` (nada é instalado no Mac). Se o download falhar, o CRM funciona igual,
+mas envia os arquivos sem conversão.
 
 ## Calendly
 
@@ -133,6 +165,10 @@ mostra a data da próxima reunião. Funciona em qualquer plano do Calendly e nã
 | `HOST` | `127.0.0.1` = só este Mac acessa; `0.0.0.0` = libera para a rede do escritório |
 | `PUBLIC_URL` | Endereço público do CRM |
 | `YAYFORMS_WEBHOOK_SECRET` | Opcional: o "Secret" do webhook no Yay! Forms, para conferir a assinatura |
+| `WHATSAPP_HISTORICO_DIAS` | Quantos dias de conversas antigas importar ao conectar um número (padrão 30; 0 = nenhum) |
+| `WHATSAPP_MIDIA_AUTO_MB` | Mídias recebidas até este tamanho são baixadas na hora (padrão 25) |
+| `WHATSAPP_ENVIO_MAX_MB` | Tamanho máximo de arquivo enviado pelo CRM (padrão 100) |
+| `WHATSAPP_CONFIRMAR_LEITURA` | `1` = abrir a conversa marca como lida no WhatsApp (padrão); `0` = não avisa o contato |
 
 Depois de mudar o `.env`, rode `./parar.sh && ./iniciar.sh`.
 
@@ -148,8 +184,10 @@ Depois de mudar o `.env`, rode `./parar.sh && ./iniciar.sh`.
 ```
 server/src/modules/   ← cada integração é um módulo (auth, users, stages, leads, followup, yayforms)
 server/src/db.js      ← toda a conversa com o banco (SQLite embutido no Node)
+server/src/tempoReal.js ← avisos em tempo real para a tela (/api/eventos)
+server/src/modules/whatsapp/ ← gerenciador.js (conexão, recebimento, envio, mídia, fotos), conversas.js, conteudo.js, ffmpeg.js
 server/migrations/    ← mudanças no banco, numeradas (001_, 002_...). Só acrescentam, nunca apagam dados.
-web/src/              ← interface React
+web/src/              ← interface React (o chat fica em web/src/components/chat/ e Conversa.jsx)
 ```
 
 Novo módulo: criar `server/src/modules/<nome>/index.js` exportando `{ name, register(app) }` e registrar em `modules/index.js`.

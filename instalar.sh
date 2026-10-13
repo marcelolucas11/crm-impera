@@ -76,6 +76,12 @@ CALENDLY_INTERVALO_MIN=5
 WHATSAPP_ATIVO=1
 # 1 = conversa nova de número desconhecido vira lead sozinha; 0 = aparece na tela de WhatsApp com o botão "Transformar em lead"
 WHATSAPP_CRIAR_LEADS=0
+# Dias de conversas antigas importadas ao conectar um número (0 = não importa)
+WHATSAPP_HISTORICO_DIAS=30
+# Mídias até este tamanho (MB) são baixadas na hora
+WHATSAPP_MIDIA_AUTO_MB=25
+# 1 = abrir a conversa no CRM marca como lida no WhatsApp
+WHATSAPP_CONFIRMAR_LEITURA=1
 
 # Yay! Forms
 YAYFORMS_WEBHOOK_TOKEN=$(aleatorio 16)

@@ -64,6 +64,15 @@ export default function WhatsAppNumeros({ aoMensagem, aoErro }) {
                 <span className={`status status-${classe}`}>{rotulo}</span>
               </div>
               {n.erro && <div className="erro pequeno">{n.erro}</div>}
+              {n.status === 'conectado' && (
+                <p className="suave pequeno numero-historico">
+                  {n.historico?.importando
+                    ? '⟳ Importando as conversas antigas do celular…'
+                    : n.historico?.importadas
+                      ? `✓ ${n.historico.importadas} mensagens antigas importadas.`
+                      : 'As conversas antigas são importadas quando o número é conectado pelo QR code. Se ele foi conectado antes da versão 0.5, desconecte e conecte de novo para trazer o histórico.'}
+                </p>
+              )}
 
               {n.status === 'aguardando_qr' && n.qr && (
                 <div className="qr">

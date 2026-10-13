@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { formatarTelefone, tempoDesde, iniciais, dataCurta } from '../utils.js';
+import Avatar from './Avatar.jsx';
 
 const ORIGENS = { yayforms: 'Yay! Forms', whatsapp: 'WhatsApp', calendly: 'Calendly', manual: 'Manual' };
 
@@ -55,8 +56,13 @@ function Cartao({ lead, onAbrir }) {
           ⏳ Aguardando resposta · {tempoDesde(lead.waiting_since).replace('há ', '')}
         </div>
       )}
-      <div className="cartao-titulo">{titulo}</div>
-      {lead.name && lead.phone && <div className="cartao-linha">{formatarTelefone(lead.phone)}</div>}
+      <div className="cartao-cabeca">
+        {lead.phone && <Avatar chave={`l:${lead.id}`} nome={lead.name || ''} tamanho={34} lead />}
+        <div className="cartao-nome">
+          <div className="cartao-titulo">{titulo}</div>
+          {lead.name && lead.phone && <div className="cartao-linha">{formatarTelefone(lead.phone)}</div>}
+        </div>
+      </div>
       {lead.company && <div className="cartao-linha suave">{lead.company}</div>}
       <div className="cartao-tags">
         <span className={`tag tag-${lead.source}`}>{lead.form_name || ORIGENS[lead.source] || 'Manual'}</span>

@@ -51,6 +51,7 @@ export function horaMensagem(data) {
 
 export function iniciais(nome) {
   if (!nome) return '?';
-  const partes = nome.trim().split(/\s+/);
+  const partes = nome.replace(/[^\p{L}\p{N}\s]/gu, ' ').trim().split(/\s+/).filter(Boolean);
+  if (!partes.length) return '#';
   return ((partes[0]?.[0] || '') + (partes.length > 1 ? partes[partes.length - 1][0] : '')).toUpperCase();
 }

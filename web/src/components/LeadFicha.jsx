@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '../api.js';
 import { formatarTelefone, linkWhatsApp, tempoDesde, dataHora, dataCurta } from '../utils.js';
 import Conversa from './Conversa.jsx';
+import Avatar from './Avatar.jsx';
 
 const DESCRICAO = {
   created: (d) => `Lead criado${d.origem && d.origem !== 'manual' ? ` (${{ yayforms: 'Yay! Forms', whatsapp: 'WhatsApp', calendly: 'Calendly' }[d.origem] || d.origem})` : ''}`,
@@ -117,7 +118,8 @@ export default function LeadFicha({
   return (
     <div className="ficha">
       <div className="painel-topo">
-        <div>
+        {lead?.phone && <Avatar chave={`l:${leadId}`} nome={lead.name || ''} tamanho={44} lead />}
+        <div className="painel-titulo">
           <h2>{titulo}</h2>
           {lead && <small className="suave">{lead.stage_name}{lead.owner_name ? ` · ${lead.owner_name}` : ''}</small>}
         </div>
@@ -160,7 +162,7 @@ export default function LeadFicha({
           {comConversa && (
             <>
               <h4>WhatsApp</h4>
-              <Conversa chave={`l:${leadId}`} onEnviado={aposEnviarMensagem} />
+              <Conversa chave={`l:${leadId}`} nome={lead.name || formatarTelefone(lead.phone)} onEnviado={aposEnviarMensagem} />
             </>
           )}
 

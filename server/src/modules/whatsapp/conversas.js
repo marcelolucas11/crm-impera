@@ -6,7 +6,9 @@
 import { get, all, run, tx, agora } from '../../db.js';
 import { config } from '../../config.js';
 import { criarLead, encontrarExistente, vincularConversasExistentes } from '../leads/service.js';
-import { ErroHttp, idValido } from '../../util.js';
+import { ErroHttp, idValido, variantesTelefone } from '../../util.js';
+import { lerJson } from '../../events.js';
+import { confirmarLeitura } from './gerenciador.js';
 
 const CHAVE_SQL = `CASE WHEN m.lead_id IS NOT NULL THEN 'l:' || m.lead_id
                         WHEN c.phone IS NOT NULL THEN 't:' || c.phone
@@ -33,17 +35,19 @@ function filtroMensagens(c) {
 export function listarConversas({ busca = '', filtro = 'todas', horasFollowup = config.followupHours } = {}) {
   const linhas = all(
     `WITH msgs AS (
-       SELECT m.*, ${CHAVE_SQL} AS chave, c.phone AS contato_phone, c.push_name
+       SELECT m.id, m.lead_id, m.chat_jid, m.body, m.type, m.from_me, m.timestamp, m.instance_id, m.read_at, m.status, m.deleted_at,
+              ${CHAVE_SQL} AS chave, c.phone AS contato_phone, c.push_name, c.name AS nome_agenda
          FROM wa_messages m LEFT JOIN wa_contacts c ON c.jid = m.chat_jid
      ),
      ordenadas AS (
        SELECT *, ROW_NUMBER() OVER (PARTITION BY chave ORDER BY timestamp DESC, id DESC) AS ordem,
               SUM(CASE WHEN from_me = 0 AND read_at IS NULL THEN 1 ELSE 0 END) OVER (PARTITION BY chave) AS nao_lidas,
-              MAX(push_name) OVER (PARTITION BY chave) AS nome_contato,
+              COALESCE(MAX(nome_agenda) OVER (PARTITION BY chave), MAX(push_name) OVER (PARTITION BY chave)) AS nome_contato,
               MAX(contato_phone) OVER (PARTITION BY chave) AS telefone_contato
          FROM msgs
      )
      SELECT chave, lead_id, chat_jid, body AS ultima_mensagem, type AS ultimo_tipo, from_me AS ultima_minha,
+            status AS ultimo_status, deleted_at AS ultima_apagada,
             timestamp AS ultima_em, instance_id AS ultimo_numero, nao_lidas, nome_contato, telefone_contato
        FROM ordenadas WHERE ordem = 1
       ORDER BY ultima_em DESC
@@ -77,6 +81,9 @@ export function listarConversas({ busca = '', filtro = 'todas', horasFollowup = 
         telefone,
         ultima_mensagem: l.ultima_mensagem,
         ultima_minha: Boolean(l.ultima_minha),
+        ultimo_tipo: l.ultimo_tipo,
+        ultimo_status: l.ultimo_status,
+        ultima_apagada: Boolean(l.ultima_apagada),
         ultima_em: l.ultima_em,
         ultimo_numero: l.ultimo_numero,
         nao_lidas: l.nao_lidas,
@@ -96,28 +103,82 @@ export function listarConversas({ busca = '', filtro = 'todas', horasFollowup = 
     });
 }
 
-export function mensagensDaConversa(chave) {
+const POR_PAGINA = 80;
+
+// Mensagens de uma conversa, das mais novas para trás (antes = id da mensagem mais antiga já carregada)
+export function mensagensDaConversa(chave, { antes = null } = {}) {
   const c = interpretarChave(chave);
   const { where, params } = filtroMensagens(c);
-  const mensagens = all(
+  const corte = idValido(antes);
+  const linhas = all(
     `SELECT * FROM (
-       SELECT m.id, m.from_me, m.type, m.body, m.timestamp, m.instance_id, m.chat_jid,
+       SELECT m.id, m.from_me, m.type, m.body, m.legenda, m.timestamp, m.instance_id, m.chat_jid, m.status,
+              m.media_mime, m.media_name, m.media_size, m.media_seconds, m.media_w, m.media_h, m.media_status, m.ptt,
+              CASE WHEN m.media_path IS NULL THEN m.thumb END AS thumb, m.media_path IS NOT NULL AS media_pronta,
+              m.raw IS NOT NULL AS tem_original,
+              m.quoted_wa_id, m.quoted_body, m.quoted_from_me, m.reactions, m.edited_at, m.deleted_at, m.extra,
+              (SELECT q.id FROM wa_messages q WHERE q.wa_id = m.quoted_wa_id ORDER BY q.id DESC LIMIT 1) AS quoted_id,
               i.name AS numero_nome, u.name AS enviado_por
          FROM wa_messages m
          LEFT JOIN wa_instances i ON i.id = m.instance_id
          LEFT JOIN users u ON u.id = m.sent_by
-        WHERE ${where}
-        ORDER BY m.timestamp DESC, m.id DESC LIMIT 300
+        WHERE ${where} ${corte ? 'AND (m.timestamp, m.id) < (SELECT timestamp, id FROM wa_messages WHERE id = ?)' : ''}
+        ORDER BY m.timestamp DESC, m.id DESC LIMIT ${POR_PAGINA + 1}
      ) ORDER BY timestamp ASC, id ASC`,
-    params
-  ).map((m) => ({ ...m, from_me: Boolean(m.from_me) }));
+    corte ? [...params, corte] : params
+  );
+  const temMais = linhas.length > POR_PAGINA;
+  const mensagens = (temMais ? linhas.slice(1) : linhas).map((m) => ({
+    ...m,
+    from_me: Boolean(m.from_me),
+    ptt: Boolean(m.ptt),
+    media_pronta: Boolean(m.media_pronta),
+    tem_original: Boolean(m.tem_original),
+    quoted_from_me: m.quoted_from_me === null ? null : Boolean(m.quoted_from_me),
+    reactions: lerJson(m.reactions, null),
+    extra: lerJson(m.extra, null),
+  }));
 
-  run(`UPDATE wa_messages SET read_at = ? WHERE id IN (SELECT m.id FROM wa_messages m WHERE ${where} AND m.from_me = 0 AND m.read_at IS NULL)`, [
-    agora(), ...params,
-  ]);
+  // Abrir a conversa marca como lidas (no CRM e, se configurado, no WhatsApp)
+  if (!corte) {
+    const naoLidas = all(
+      `SELECT m.id, m.wa_id, m.chat_jid, m.instance_id FROM wa_messages m WHERE ${where} AND m.from_me = 0 AND m.read_at IS NULL`,
+      params
+    );
+    if (naoLidas.length) {
+      run(`UPDATE wa_messages SET read_at = ? WHERE id IN (${naoLidas.map(() => '?').join(',')})`, [agora(), ...naoLidas.map((n) => n.id)]);
+      confirmarLeitura(naoLidas);
+    }
+  }
 
   const ultimo = mensagens.at(-1);
-  return { mensagens, ultimo_numero: ultimo?.instance_id || null };
+  return { mensagens, tem_mais: temMais, ultimo_numero: ultimo?.instance_id || null };
+}
+
+// Identificadores do WhatsApp de uma conversa (para foto de perfil e para buscar mensagens antigas)
+export function jidsDaChave(chave, { incluirTelefone = true } = {}) {
+  const c = interpretarChave(chave);
+  let jids = [];
+  let telefone = null;
+  if (c.tipo === 'lead') {
+    jids = all(
+      "SELECT jid FROM wa_contacts WHERE lead_id = ? ORDER BY CASE WHEN jid LIKE '%@s.whatsapp.net' THEN 0 ELSE 1 END, updated_at DESC",
+      [c.leadId]
+    ).map((r) => r.jid);
+    telefone = get('SELECT phone FROM leads WHERE id = ?', [c.leadId])?.phone || null;
+  } else if (c.tipo === 'telefone') {
+    jids = all("SELECT jid FROM wa_contacts WHERE phone = ? ORDER BY CASE WHEN jid LIKE '%@s.whatsapp.net' THEN 0 ELSE 1 END", [c.phone]).map((r) => r.jid);
+    telefone = c.phone;
+  } else {
+    jids = [c.jid];
+  }
+  if (incluirTelefone && telefone) {
+    for (const v of variantesTelefone(telefone)) {
+      const jid = `${v}@s.whatsapp.net`;
+      if (!jids.includes(jid)) jids.push(jid);
+    }
+  }
+  return jids;
 }
 
 // Para onde enviar numa conversa: lead (o gerenciador descobre o número) ou o identificador do contato

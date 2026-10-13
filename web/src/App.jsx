@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api, definirAoDeslogar } from './api.js';
+import { useEvento, encerrarTempoReal } from './tempoReal.js';
 import Login from './components/Login.jsx';
 import Topo from './components/Topo.jsx';
 import KanbanPagina from './components/KanbanPagina.jsx';
@@ -17,13 +18,13 @@ export default function App() {
   const [user, setUser] = useState(undefined); // undefined = carregando, null = deslogado
 
   useEffect(() => {
-    definirAoDeslogar(() => setUser(null));
+    definirAoDeslogar(() => { encerrarTempoReal(); setUser(null); });
     api('/auth/me').then((d) => setUser(d.user)).catch(() => setUser(null));
   }, []);
 
   if (user === undefined) return <div className="tela-cheia"><div className="carregando" /></div>;
   if (!user) return <Login aoEntrar={setUser} />;
-  return <Sistema user={user} aoSair={() => setUser(null)} />;
+  return <Sistema user={user} aoSair={() => { encerrarTempoReal(); setUser(null); }} />;
 }
 
 // Estrutura comum: barra do topo com as abas + a tela escolhida (tudo dentro do CRM, sem abrir abas no navegador)
@@ -49,6 +50,9 @@ function Sistema({ user, aoSair }) {
     const id = setInterval(() => { if (!document.hidden) carregarResumo(); }, 15000);
     return () => clearInterval(id);
   }, [carregarEtapas, carregarResumo]);
+
+  // Mensagem nova: atualiza o contador da aba WhatsApp
+  useEvento('whatsapp', (d) => { if (d?.chat || d?.reconectou) carregarResumo(); });
 
   const sair = async () => {
     await api('/auth/logout', { method: 'POST' }).catch(() => {});

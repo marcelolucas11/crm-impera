@@ -38,6 +38,14 @@ export const config = {
     pastaSessoes: caminho(process.env.WHATSAPP_SESSOES, '../dados/whatsapp'),
     // Conversa nova vira lead automaticamente só com WHATSAPP_CRIAR_LEADS=1 (padrão: botão "Transformar em lead")
     criarLeadNovo: process.env.WHATSAPP_CRIAR_LEADS === '1',
+    // Ao conectar um número, importa as conversas dos últimos N dias (0 = não importa)
+    historicoDias: Math.max(0, numero(process.env.WHATSAPP_HISTORICO_DIAS, 30)),
+    // Mídias recebidas até este tamanho são baixadas na hora; maiores, quando alguém abrir
+    midiaAutoMb: Math.max(0, numero(process.env.WHATSAPP_MIDIA_AUTO_MB, 25)),
+    // Abrir a conversa no CRM marca as mensagens como lidas no WhatsApp (✓✓ azul para o contato)
+    confirmarLeitura: process.env.WHATSAPP_CONFIRMAR_LEITURA !== '0',
+    // Tamanho máximo de arquivo enviado pelo CRM
+    envioMaxMb: Math.max(1, numero(process.env.WHATSAPP_ENVIO_MAX_MB, 100)),
   },
   yayforms: {
     token: process.env.YAYFORMS_WEBHOOK_TOKEN || '',

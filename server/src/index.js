@@ -22,7 +22,14 @@ function iniciar() {
 
   app.use(
     helmet({
-      contentSecurityPolicy: { directives: { upgradeInsecureRequests: null } },
+      contentSecurityPolicy: {
+        directives: {
+          upgradeInsecureRequests: null,
+          // blob: = prévia de fotos/vídeos antes de enviar pelo WhatsApp
+          imgSrc: ["'self'", 'data:', 'blob:'],
+          mediaSrc: ["'self'", 'blob:'],
+        },
+      },
     })
   );
 
