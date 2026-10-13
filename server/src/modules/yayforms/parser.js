@@ -87,6 +87,60 @@ function extrairUtm(body) {
   return utm;
 }
 
+// ---- Horário em que a pessoa começou a preencher o formulário ----
+// O Yay! Forms manda o horário de início dentro da resposta. Os nomes variam entre versões do webhook,
+// então procuramos primeiro os nomes que significam "início" e só depois "criado em".
+const CAMPOS_INICIO = [
+  'startedAt', 'started_at', 'startDate', 'start_date', 'startTime', 'start_time', 'startAt', 'start_at',
+  'landedAt', 'landed_at', 'openedAt', 'opened_at', 'initiatedAt', 'initiated_at', 'beganAt',
+  'createdAt', 'created_at', 'created', 'dateCreated', 'date_created',
+];
+const CAMPOS_ENVIO = ['submittedAt', 'submitted_at', 'completedAt', 'completed_at', 'finishedAt', 'finished_at', 'submitDate'];
+
+// Aceita ISO (com ou sem fuso), "AAAA-MM-DD HH:MM:SS" (tratado como UTC) e epoch em segundos ou milissegundos
+export function lerDataYay(valor) {
+  if (valor === null || valor === undefined || valor === '') return null;
+  let d = null;
+  if (typeof valor === 'number' || /^\d{9,13}$/.test(String(valor).trim())) {
+    const n = Number(valor);
+    d = new Date(n < 1e12 ? n * 1000 : n);
+  } else if (typeof valor === 'string') {
+    let t = valor.trim();
+    if (/^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}(:\d{2}(\.\d+)?)?$/.test(t)) t = t.replace(' ', 'T') + 'Z';
+    d = new Date(t);
+  } else if (typeof valor === 'object' && valor.$date) {
+    return lerDataYay(valor.$date);
+  }
+  if (!d || Number.isNaN(d.getTime())) return null;
+  // Descarta datas absurdas (antes de 2020 ou mais de 5 minutos no futuro)
+  if (d.getTime() < Date.UTC(2020, 0, 1) || d.getTime() > Date.now() + 5 * 60000) return null;
+  return d;
+}
+
+function primeiraData(blocos, campos) {
+  for (const campo of campos) {
+    for (const bloco of blocos) {
+      if (bloco && typeof bloco === 'object' && bloco[campo] !== undefined) {
+        const d = lerDataYay(bloco[campo]);
+        if (d) return { data: d, campo };
+      }
+    }
+  }
+  return null;
+}
+
+// Devolve { iniciadoEm: ISO | null, campo: nome do campo usado | null }
+export function extrairInicio(body) {
+  const r = body.response || body.data?.response || body.submission || body.data || {};
+  const blocos = [r, r.metadata, r.meta, body.metadata, body.meta, body];
+  const envio = primeiraData(blocos, CAMPOS_ENVIO);
+  const inicio = primeiraData(blocos, CAMPOS_INICIO);
+  if (!inicio) return { iniciadoEm: null, campo: null };
+  // O início nunca pode ser depois do envio
+  if (envio && inicio.data.getTime() > envio.data.getTime() + 1000) return { iniciadoEm: null, campo: null };
+  return { iniciadoEm: inicio.data.toISOString(), campo: inicio.campo };
+}
+
 export function interpretarPayload(body, opcoes = {}) {
   const respostas = listaDeRespostas(body);
   const porId = (id) => (id ? respostas.find((r) => r.id === id) : null);
@@ -117,6 +171,7 @@ export function interpretarPayload(body, opcoes = {}) {
   }
 
   const r = body.response || {};
+  const inicio = extrairInicio(body);
   // O webhook V2 não traz o nome do formulário, só o formId; o nome vem do cadastro em "Equipe e integrações"
   const formId = String(r.formId || body.formId || body.form?.id || '') || null;
   const formulario =
@@ -140,5 +195,7 @@ export function interpretarPayload(body, opcoes = {}) {
     variaveis,
     respostas: respostas.map(({ id, titulo, valor }) => ({ id, pergunta: titulo, resposta: valor })),
     utm: extrairUtm(body),
+    iniciadoEm: inicio.iniciadoEm,
+    campoInicio: inicio.campo,
   };
 }

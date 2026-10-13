@@ -8,7 +8,7 @@ import { variantesTelefone } from '../../util.js';
 export const BASE_LEADS = `
   SELECT
     l.id, l.name, l.phone, l.email, l.company, l.source, l.stage_id, l.owner_id, l.notes, l.extra,
-    l.last_contact_at, l.first_contact_at, l.stage_changed_at, l.created_at, l.updated_at,
+    l.last_contact_at, l.first_contact_at, l.stage_changed_at, l.created_at, l.updated_at, l.form_started_at,
     l.waiting_since, l.waiting_note, wu.name AS waiting_by_name,
     json_extract(l.extra, '$.formulario') AS form_name,
     json_extract(l.extra, '$.respostas') AS form_answers,

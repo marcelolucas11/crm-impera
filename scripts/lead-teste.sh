@@ -19,12 +19,14 @@ while [ $i -lt "$QTD" ]; do
   FORM=${FORMS[$((RANDOM % ${#FORMS[@]}))]}
   DDD=${DDDS[$((RANDOM % ${#DDDS[@]}))]}
   FONE="($DDD) 9$((RANDOM % 9000 + 1000))-$((RANDOM % 9000 + 1000))"
+  # Simula a pessoa começando o formulário entre 5 e 120 minutos atrás
+  INICIO=$(( $(date +%s) - (RANDOM % 116 + 5) * 60 ))
   PAYLOAD=$(cat <<EOF
 {"form":{"title":"$FORM"},"response":{"answers":{
   "q1":{"title":"Qual é o seu nome?","type":"short_text","content":"$NOME"},
   "q2":{"title":"Seu WhatsApp","type":"phone_number","content":"$FONE"},
   "q3":{"title":"Quanto você investe em anúncios por mês?","type":"multiple_choice","content":["R\$ 5 a 10 mil"]}
-},"hidden_fields":{"utm_source":"teste","utm_campaign":"simulacao"}}}
+},"startedAt":$INICIO,"submittedAt":$(date +%s),"hidden_fields":{"utm_source":"teste","utm_campaign":"simulacao"}}}
 EOF
 )
   RESPOSTA=$(curl -fsS -X POST "http://127.0.0.1:${PORTA}/webhooks/yayforms/${TOKEN}" -H 'Content-Type: application/json' -d "$PAYLOAD") \

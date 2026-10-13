@@ -75,7 +75,7 @@ function Cartao({ lead, onAbrir, oculto }) {
           <div className="cartao-titulo">{titulo}</div>
           {ver('telefone') && lead.name && lead.phone && <div className="cartao-linha">{formatarTelefone(lead.phone)}</div>}
         </div>
-        {ver('data') && <span className="cartao-data">{dataDia(lead.created_at)}</span>}
+        {ver('data') && <span className="cartao-data">{dataDia(lead.form_started_at || lead.created_at)}</span>}
       </div>
       {ver('email') && lead.email && <div className="cartao-linha suave">{lead.email}</div>}
       {respostas.length > 0 && (
@@ -91,7 +91,7 @@ function Cartao({ lead, onAbrir, oculto }) {
       <div className="cartao-rodape">
         <div className="cartao-timers">
           {ver('iniciado') && (
-            <span className={lead.followup_overdue ? 'alerta' : 'suave'}>{lead.followup_overdue && '⚠ '}Iniciado {tempoDesde(lead.created_at)}</span>
+            <span className={lead.followup_overdue ? 'alerta' : 'suave'}>{lead.followup_overdue && '⚠ '}Iniciado {tempoDesde(lead.form_started_at || lead.created_at)}</span>
           )}
           {ver('resposta') && lead.last_msg_at && (
             <span className={`timer-resp ${lead.last_msg_from_me ? 'minha' : 'dele'}`}

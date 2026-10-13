@@ -75,6 +75,9 @@ O CRM detecta nome, telefone e e-mail sozinho. Se errar em algum formulário, pr
 (`YAYFORMS_CAMPO_NOME`, `YAYFORMS_CAMPO_TELEFONE`, `YAYFORMS_CAMPO_EMAIL`) e rode `./parar.sh && ./iniciar.sh`.
 Todo webhook recebido fica salvo; os que derem erro podem ser reprocessados na tela de integrações.
 
+O **"Iniciado há…"** do cartão conta a partir do horário em que a pessoa **começou a preencher o formulário** no Yay! Forms
+(vem no próprio webhook). Se algum formulário não mandar esse horário, o cartão usa o horário em que o lead chegou ao CRM.
+
 **Enquanto o CRM roda só no Mac**, o Yay! Forms não alcança a sua máquina pela internet. Use `./scripts/lead-teste.sh`
 para testar. Para receber leads reais no Mac (opcional), rode `tailscale funnel --bg 3000` e coloque a URL `https://….ts.net`
 em `PUBLIC_URL` no `.env`. Na Contabo isso não é necessário.

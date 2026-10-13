@@ -7,7 +7,7 @@ import { config } from '../../config.js';
 import { registrarEvento, lerJson } from '../../events.js';
 import { exigirLogin, exigirAdmin } from '../auth/middleware.js';
 import { criarLead, encontrarExistente } from '../leads/service.js';
-import { interpretarPayload } from './parser.js';
+import { interpretarPayload, extrairInicio } from './parser.js';
 import { idValido } from '../../util.js';
 import { lerEstado, salvarEstado } from '../../estado.js';
 
@@ -47,6 +47,8 @@ function processar(body) {
     utm: dados.utm,
     variaveis: dados.variaveis,
     analise_ia: dados.analiseIa,
+    iniciado_em: dados.iniciadoEm,
+    campo_inicio: dados.campoInicio,
   };
 
   return tx(() => {
@@ -55,23 +57,51 @@ function processar(body) {
       // Mesmo lead respondeu de novo: completa dados que faltavam e registra no histórico
       run(
         `UPDATE leads SET
-           name = COALESCE(name, ?), phone = COALESCE(phone, ?), email = COALESCE(email, ?), updated_at = ?
+           name = COALESCE(name, ?), phone = COALESCE(phone, ?), email = COALESCE(email, ?),
+           form_started_at = COALESCE(form_started_at, ?), updated_at = ?
          WHERE id = ?`,
-        [dados.name, dados.phone, dados.email, agora(), existente]
+        [dados.name, dados.phone, dados.email, dados.iniciadoEm, agora(), existente]
       );
       registrarEvento({ leadId: existente, type: 'form_resubmitted', data: detalhes });
       return { leadId: existente, novo: false };
     }
 
     const leadId = criarLead({ name: dados.name, phone: dados.phone, email: dados.email, source: 'yayforms', extra: detalhes });
+    if (dados.iniciadoEm) run('UPDATE leads SET form_started_at = ? WHERE id = ?', [dados.iniciadoEm, leadId]);
     registrarEvento({ leadId, type: 'form_submitted', data: detalhes });
     return { leadId, novo: true };
   });
 }
 
+// Leads que vieram do Yay! Forms antes da versão com "form_started_at": lê o início do formulário
+// nos webhooks guardados. Roda ao ligar o CRM e só mexe em leads que ainda estão sem o horário.
+function preencherInicioDosAntigos() {
+  try {
+    const pendentes = all(
+      `SELECT e.lead_id, e.payload FROM webhook_events e JOIN leads l ON l.id = e.lead_id
+        WHERE e.source = 'yayforms' AND e.status = 'processed' AND l.form_started_at IS NULL
+        ORDER BY e.id`
+    );
+    let preenchidos = 0;
+    const feitos = new Set();
+    for (const ev of pendentes) {
+      if (feitos.has(ev.lead_id)) continue;
+      const { iniciadoEm } = extrairInicio(lerJson(ev.payload) || {});
+      if (!iniciadoEm) continue;
+      run('UPDATE leads SET form_started_at = ? WHERE id = ? AND form_started_at IS NULL', [iniciadoEm, ev.lead_id]);
+      feitos.add(ev.lead_id);
+      preenchidos++;
+    }
+    if (preenchidos) console.log(`[yayforms] horário de início do formulário preenchido em ${preenchidos} lead(s) antigo(s)`);
+  } catch (err) {
+    console.error('[yayforms] não consegui preencher o início dos leads antigos:', err.message);
+  }
+}
+
 export default {
   name: 'yayforms',
   register(app) {
+    preencherInicioDosAntigos();
     const r = Router();
 
     r.post('/:token', (req, res) => {
