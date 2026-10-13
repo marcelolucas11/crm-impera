@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../api.js';
 import { useEvento } from '../tempoReal.js';
 import Kanban from './Kanban.jsx';
+import CamposVisiveis from './CamposVisiveis.jsx';
 import LeadPanel from './LeadPanel.jsx';
 import NovoLead from './NovoLead.jsx';
 import EditorEtapas from './EditorEtapas.jsx';
@@ -24,6 +25,9 @@ export default function KanbanPagina({ user, stages, users, carregarEtapas, aoMu
   const [busca, setBusca] = useState('');
   const [filtros, setFiltrosEstado] = useState(lerFiltrosSalvos);
   const [mostrarFiltros, setMostrarFiltros] = useState(false);
+  const [mostrarCampos, setMostrarCampos] = useState(false);
+  const [ocultos, setOcultosEstado] = useState(() => { try { return JSON.parse(localStorage.getItem('crm.camposOcultos') || '[]'); } catch { return []; } });
+  const setOcultos = (o) => { setOcultosEstado(o); try { localStorage.setItem('crm.camposOcultos', JSON.stringify(o)); } catch { /* sem armazenamento */ } };
   const [aberto, setAberto] = useState(null);
   const [criando, setCriando] = useState(false);
   const [editandoEtapas, setEditandoEtapas] = useState(false);
@@ -123,6 +127,9 @@ export default function KanbanPagina({ user, stages, users, carregarEtapas, aoMu
           {atrasados ? `⚠ ${atrasados} sem contato` : '✓ Follow-up em dia'}
         </button>
         <div className="espaco" />
+        <button className={`chip ${mostrarCampos ? 'ativo' : ''}`} onClick={() => setMostrarCampos(!mostrarCampos)} title="Escolher o que aparece nos cartões">
+          👁 Campos{ocultos.length ? ` (${ocultos.length} ocultos)` : ''}
+        </button>
         {user.role === 'admin' && <button className="btn" onClick={() => setEditandoEtapas(true)}>Editar etapas</button>}
         <button className="btn btn-ouro" onClick={() => setCriando(true)}>+ Novo lead</button>
       </div>
@@ -137,7 +144,9 @@ export default function KanbanPagina({ user, stages, users, carregarEtapas, aoMu
         </div>
       )}
 
-      <Kanban stages={stages} leads={visiveis} onMover={mover} onAbrir={(l) => setAberto(l.id)} />
+      {mostrarCampos && <CamposVisiveis leads={leads} ocultos={ocultos} setOcultos={setOcultos} onFechar={() => setMostrarCampos(false)} />}
+
+      <Kanban stages={stages} leads={visiveis} ocultos={ocultos} onMover={mover} onAbrir={(l) => setAberto(l.id)} />
 
       {aberto && (
         <LeadPanel

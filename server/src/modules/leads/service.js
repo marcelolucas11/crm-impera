@@ -11,6 +11,9 @@ export const BASE_LEADS = `
     l.last_contact_at, l.first_contact_at, l.stage_changed_at, l.created_at, l.updated_at,
     l.waiting_since, l.waiting_note, wu.name AS waiting_by_name,
     json_extract(l.extra, '$.formulario') AS form_name,
+    json_extract(l.extra, '$.respostas') AS form_answers,
+    (SELECT m.timestamp FROM wa_messages m WHERE m.lead_id = l.id ORDER BY m.timestamp DESC LIMIT 1) AS last_msg_at,
+    (SELECT m.from_me FROM wa_messages m WHERE m.lead_id = l.id ORDER BY m.timestamp DESC LIMIT 1) AS last_msg_from_me,
     s.name AS stage_name, s.kind AS stage_kind,
     u.name AS owner_name,
     COALESCE(l.last_contact_at, l.created_at) AS last_activity_at,
@@ -27,8 +30,14 @@ export const BASE_LEADS = `
 // Ajusta tipos vindos do SQLite (0/1 → booleano, texto JSON → objeto)
 export function mapearLead(row, { comExtra = false } = {}) {
   if (!row) return null;
-  const { extra, ...resto } = row;
-  const lead = { ...resto, followup_overdue: Boolean(row.followup_overdue) };
+  const { extra, form_answers, ...resto } = row;
+  const respostas = lerJson(form_answers);
+  const lead = {
+    ...resto,
+    followup_overdue: Boolean(row.followup_overdue),
+    last_msg_from_me: row.last_msg_from_me == null ? null : Boolean(row.last_msg_from_me),
+    respostas: Array.isArray(respostas) ? respostas.map((r) => ({ pergunta: r.pergunta, resposta: r.resposta })) : [],
+  };
   if (comExtra) lead.extra = lerJson(extra);
   return lead;
 }
