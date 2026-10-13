@@ -7,7 +7,10 @@ import Avatar from './Avatar.jsx';
 const DESCRICAO = {
   created: (d) => `Lead criado${d.origem && d.origem !== 'manual' ? ` (${{ yayforms: 'Yay! Forms', whatsapp: 'WhatsApp', calendly: 'Calendly' }[d.origem] || d.origem})` : ''}`,
   form_submitted: (d) => `Respondeu o formulário${d.formulario ? ` “${d.formulario}”` : ''}`,
-  form_resubmitted: (d) => `Respondeu de novo${d.formulario ? ` “${d.formulario}”` : ''}`,
+  form_resubmitted: (d) => `Respondeu de novo${d.formulario ? ` “${d.formulario}”` : ''}${d.parcial ? ' (sem terminar)' : ''}`,
+  form_partial: (d) => `Começou o formulário${d.formulario ? ` “${d.formulario}”` : ''} e parou (resposta parcial)`,
+  form_completed: (d) => `✓ Terminou o formulário${d.formulario ? ` “${d.formulario}”` : ''}`,
+  form_updated: (d) => `Respondeu mais perguntas${d.formulario ? ` do formulário “${d.formulario}”` : ''}`,
   stage_changed: (d) => `Etapa: ${d.de} → ${d.para}${d.motivo ? ` (${d.motivo})` : ''}`,
   owner_changed: (d) => (d.para ? `Responsável: ${d.para}` : 'Responsável removido'),
   contact: (d) => `Contato registrado (${d.canal})${d.nota ? `: ${d.nota}` : ''}`,
@@ -201,6 +204,9 @@ export default function LeadFicha({
           {respostas.length > 0 && (
             <>
               <h4>Respostas do formulário{lead.extra.formulario ? ` — ${lead.extra.formulario}` : ''}</h4>
+              {lead.extra.parcial && (
+                <p className="aviso-parcial">◐ Formulário incompleto: a pessoa começou e não terminou. Estas são as respostas até onde ela parou.</p>
+              )}
               <dl className="respostas">
                 {respostas.map((r) => (
                   <div key={r.id || r.pergunta}><dt>{r.pergunta}</dt><dd>{r.resposta || '—'}</dd></div>

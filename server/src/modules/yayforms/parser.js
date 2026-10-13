@@ -141,6 +141,35 @@ export function extrairInicio(body) {
   return { iniciadoEm: inicio.data.toISOString(), campo: inicio.campo };
 }
 
+// ---- Resposta completa ou parcial ----
+// Com "Enviar respostas incompletas" ligado no formulário, o Yay! Forms manda a resposta parcial depois do tempo de
+// inatividade e, se a pessoa voltar e terminar, a completa com o MESMO ID de resposta. Procuramos primeiro um indicador
+// explícito; sem ele, "submittedAt" vazio = parcial. Sem nenhum sinal, conta como completa (comportamento de antes).
+const CAMPOS_COMPLETO = ['completed', 'isCompleted', 'is_completed', 'complete', 'isComplete', 'finished', 'isFinished', 'submitted', 'isSubmitted'];
+const CAMPOS_PARCIAL = ['partial', 'isPartial', 'is_partial', 'incomplete', 'isIncomplete', 'draft', 'isDraft'];
+const RE_PARCIAL = /partial|parcial|incomplet|draft|abandon/i;
+const RE_COMPLETO = /\b(complete|completed|completa|submitted|finished)\b/i;
+
+// Devolve { completo: boolean, sinal: nome do campo que decidiu | null }
+export function extrairSituacao(body) {
+  const r = body.response || body.data?.response || body.submission || {};
+  const blocos = [r, body];
+  for (const b of blocos) for (const c of CAMPOS_COMPLETO) if (typeof b?.[c] === 'boolean') return { completo: b[c], sinal: c };
+  for (const b of blocos) for (const c of CAMPOS_PARCIAL) if (typeof b?.[c] === 'boolean') return { completo: !b[c], sinal: c };
+  for (const b of blocos) {
+    for (const c of ['status', 'state', 'event', 'trigger']) {
+      const v = b?.[c];
+      if (typeof v !== 'string') continue;
+      if (RE_PARCIAL.test(v)) return { completo: false, sinal: `${c}=${v}` };
+      if (RE_COMPLETO.test(v)) return { completo: true, sinal: `${c}=${v}` };
+    }
+  }
+  for (const c of CAMPOS_ENVIO) {
+    if (r && typeof r === 'object' && Object.prototype.hasOwnProperty.call(r, c)) return { completo: Boolean(lerDataYay(r[c])), sinal: c };
+  }
+  return { completo: true, sinal: null };
+}
+
 export function interpretarPayload(body, opcoes = {}) {
   const respostas = listaDeRespostas(body);
   const porId = (id) => (id ? respostas.find((r) => r.id === id) : null);
@@ -172,6 +201,7 @@ export function interpretarPayload(body, opcoes = {}) {
 
   const r = body.response || {};
   const inicio = extrairInicio(body);
+  const situacao = extrairSituacao(body);
   // O webhook V2 não traz o nome do formulário, só o formId; o nome vem do cadastro em "Equipe e integrações"
   const formId = String(r.formId || body.formId || body.form?.id || '') || null;
   const formulario =
@@ -197,5 +227,7 @@ export function interpretarPayload(body, opcoes = {}) {
     utm: extrairUtm(body),
     iniciadoEm: inicio.iniciadoEm,
     campoInicio: inicio.campo,
+    completo: situacao.completo,
+    sinalSituacao: situacao.sinal,
   };
 }

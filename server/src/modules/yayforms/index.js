@@ -6,8 +6,8 @@ import { get, all, run, tx, agora } from '../../db.js';
 import { config } from '../../config.js';
 import { registrarEvento, lerJson } from '../../events.js';
 import { exigirLogin, exigirAdmin } from '../auth/middleware.js';
-import { criarLead, encontrarExistente } from '../leads/service.js';
-import { interpretarPayload, extrairInicio } from './parser.js';
+import { criarLead, encontrarExistente, vincularConversasExistentes } from '../leads/service.js';
+import { interpretarPayload, extrairInicio, extrairSituacao } from './parser.js';
 import { idValido } from '../../util.js';
 import { lerEstado, salvarEstado } from '../../estado.js';
 
@@ -56,14 +56,17 @@ function marcarUso(segredoId) {
   salvarEstado('yayforms', { segredos: lista });
 }
 
-function processar(body) {
-  const dados = interpretarPayload(body, {
+function lerDados(body) {
+  return interpretarPayload(body, {
     campoNome: config.yayforms.fieldName,
     campoTelefone: config.yayforms.fieldPhone,
     campoEmail: config.yayforms.fieldEmail,
     nomesFormularios: lerEstado('yayforms').nomes || {},
   });
-  const detalhes = {
+}
+
+function detalhesDe(dados) {
+  return {
     formulario: dados.formulario,
     form_id: dados.formId,
     resposta_id: dados.respostaId,
@@ -73,11 +76,69 @@ function processar(body) {
     analise_ia: dados.analiseIa,
     iniciado_em: dados.iniciadoEm,
     campo_inicio: dados.campoInicio,
+    parcial: !dados.completo,
+    sinal_parcial: dados.sinalSituacao,
   };
+}
+
+// Respostas da mesma resposta do Yay! Forms (parcial → completa): fica a ordem da mais nova, valores novos
+// substituem os antigos e perguntas que só existiam na anterior continuam no fim.
+function juntarRespostas(antigas, novas) {
+  const chave = (r) => r.id || r.pergunta;
+  const vistas = new Set((novas || []).map(chave));
+  return [...(novas || []), ...(antigas || []).filter((r) => !vistas.has(chave(r)))];
+}
+
+// A resposta nova traz algo que a anterior (mesmo ID) não tinha? (terminou o formulário ou respondeu mais perguntas)
+function trouxeNovidade(antes, depois) {
+  if (!antes.completo && depois.completo) return true;
+  return depois.respostas.some((r) => !antes.respostas.some((a) => a.id === r.id && a.resposta === r.resposta));
+}
+
+// Grava no lead as respostas do formulário. "mesmaResposta" = parcial e completa da mesma resposta do Yay! Forms
+// (junta as respostas); senão, troca os dados do formulário pelos da resposta nova. Nunca volta de completo para parcial.
+function gravarFormularioNoLead(leadId, dados, { mesmaResposta }) {
+  const linha = get('SELECT extra, phone FROM leads WHERE id = ?', [leadId]);
+  if (!linha) return;
+  const extra = lerJson(linha.extra) || {};
+  const novo = {
+    ...extra,
+    ...detalhesDe(dados),
+    respostas: mesmaResposta ? juntarRespostas(extra.respostas, dados.respostas) : dados.respostas,
+    formulario: dados.formulario || extra.formulario || null,
+    utm: mesmaResposta ? { ...(extra.utm || {}), ...dados.utm } : dados.utm,
+    variaveis: mesmaResposta ? { ...(extra.variaveis || {}), ...dados.variaveis } : dados.variaveis,
+    analise_ia: dados.analiseIa || (mesmaResposta ? extra.analise_ia : null) || null,
+    iniciado_em: extra.iniciado_em || dados.iniciadoEm,
+    campo_inicio: extra.campo_inicio || dados.campoInicio,
+    parcial: mesmaResposta ? Boolean(extra.parcial) && !dados.completo : !dados.completo,
+  };
+  run(
+    `UPDATE leads SET extra = ?,
+       name = COALESCE(name, ?), phone = COALESCE(phone, ?), email = COALESCE(email, ?),
+       form_started_at = COALESCE(form_started_at, ?), updated_at = ?
+     WHERE id = ?`,
+    [JSON.stringify(novo), dados.name, dados.phone, dados.email, dados.iniciadoEm, agora(), leadId]
+  );
+  // Lead que chegou sem telefone (resposta parcial) e agora ganhou um: liga as conversas de WhatsApp
+  if (!linha.phone && dados.phone) vincularConversasExistentes(leadId, dados.phone);
+  return { eraParcial: Boolean(extra.parcial), ficouParcial: novo.parcial };
+}
+
+function processar(body) {
+  const dados = lerDados(body);
+  const detalhes = detalhesDe(dados);
 
   return tx(() => {
     const existente = encontrarExistente({ phone: dados.phone, email: dados.email });
     if (existente) {
+      const extra = lerJson(get('SELECT extra FROM leads WHERE id = ?', [existente])?.extra) || {};
+      if (extra.parcial && dados.completo) {
+        // O lead tinha só uma resposta parcial e agora terminou o formulário (numa resposta nova): o cartão passa a mostrar a completa
+        gravarFormularioNoLead(existente, dados, { mesmaResposta: false });
+        registrarEvento({ leadId: existente, type: 'form_completed', data: detalhes });
+        return { leadId: existente, novo: false, tipo: 'form_completed' };
+      }
       // Mesmo lead respondeu de novo: completa dados que faltavam e registra no histórico
       run(
         `UPDATE leads SET
@@ -92,9 +153,50 @@ function processar(body) {
 
     const leadId = criarLead({ name: dados.name, phone: dados.phone, email: dados.email, source: 'yayforms', extra: detalhes });
     if (dados.iniciadoEm) run('UPDATE leads SET form_started_at = ? WHERE id = ?', [dados.iniciadoEm, leadId]);
-    registrarEvento({ leadId, type: 'form_submitted', data: detalhes });
+    registrarEvento({ leadId, type: dados.completo ? 'form_submitted' : 'form_partial', data: detalhes });
     return { leadId, novo: true };
   });
+}
+
+// A mesma resposta do Yay! Forms chegando de novo. Devolve { leadId } se atualizou o lead,
+// { duplicado: leadId } se não trouxe nada novo, ou null se o lead não existe mais (processa como resposta nova).
+function atualizarMesmaResposta(anterior, body) {
+  const dados = lerDados(body);
+  const antes = lerDados(lerJson(anterior.payload) || {});
+  const leadExiste = anterior.lead_id && get('SELECT id FROM leads WHERE id = ?', [anterior.lead_id]);
+  if (!trouxeNovidade(antes, dados)) return { duplicado: anterior.lead_id };
+  if (!leadExiste) return null;
+  return tx(() => {
+    const r = gravarFormularioNoLead(anterior.lead_id, dados, { mesmaResposta: true });
+    const tipo = r?.eraParcial && !r.ficouParcial ? 'form_completed' : 'form_updated';
+    registrarEvento({ leadId: anterior.lead_id, type: tipo, data: detalhesDe(dados) });
+    return { leadId: anterior.lead_id, tipo };
+  });
+}
+
+// Processa um webhook já guardado em webhook_events e marca o status. A mesma resposta chegando de novo:
+// a parcial seguida da completa (mesmo ID) atualiza o lead; reenvio sem nada novo (botão "Test" repetido,
+// "Executar em respostas anteriores") vira "duplicado" e não cria registro.
+function receber(eventoId, body) {
+  const respostaId = body.response?.id ? String(body.response.id) : null;
+  const anterior = respostaId && get(
+    `SELECT id, lead_id, payload FROM webhook_events
+      WHERE source = 'yayforms' AND status = 'processed' AND id != ? AND json_extract(payload, '$.response.id') = ?
+      ORDER BY id DESC LIMIT 1`,
+    [eventoId, respostaId]
+  );
+  const mesma = anterior ? atualizarMesmaResposta(anterior, body) : null;
+  if (mesma && 'duplicado' in mesma) {
+    run("UPDATE webhook_events SET status = 'duplicado', lead_id = ? WHERE id = ?", [mesma.duplicado || null, eventoId]);
+    return { leadId: mesma.duplicado || null, novo: false, duplicado: true };
+  }
+  if (mesma?.leadId) {
+    run("UPDATE webhook_events SET status = 'processed', lead_id = ? WHERE id = ?", [mesma.leadId, eventoId]);
+    return { leadId: mesma.leadId, novo: false, atualizado: true, tipo: mesma.tipo };
+  }
+  const { leadId, novo, tipo } = processar(body);
+  run("UPDATE webhook_events SET status = 'processed', lead_id = ? WHERE id = ?", [leadId, eventoId]);
+  return { leadId, novo, tipo };
 }
 
 // Leads que vieram do Yay! Forms antes da versão com "form_started_at": lê o início do formulário
@@ -148,25 +250,12 @@ export default {
       // 1) Guarda o payload bruto antes de qualquer coisa: nenhum lead se perde
       const eventoId = Number(run('INSERT INTO webhook_events (source, payload) VALUES (?, ?)', ['yayforms', JSON.stringify(body)]).lastInsertRowid);
 
-      // A mesma resposta chegando de novo (reenvio ou botão "Test" repetido) não vira registro duplicado
-      const respostaId = body.response?.id ? String(body.response.id) : null;
-      const jaProcessada = respostaId && get(
-        `SELECT lead_id FROM webhook_events
-          WHERE source = 'yayforms' AND status = 'processed' AND id != ? AND json_extract(payload, '$.response.id') = ?
-          LIMIT 1`,
-        [eventoId, respostaId]
-      );
-      if (jaProcessada) {
-        run("UPDATE webhook_events SET status = 'duplicado', lead_id = ? WHERE id = ?", [jaProcessada.lead_id, eventoId]);
-        return res.json({ ok: true, lead_id: jaProcessada.lead_id, duplicado: true });
-      }
-
       // 2) Processa
       try {
-        const { leadId, novo } = processar(body);
-        run("UPDATE webhook_events SET status = 'processed', lead_id = ? WHERE id = ?", [leadId, eventoId]);
-        console.log(`[yayforms] ${novo ? 'novo lead' : 'lead existente atualizado'} #${leadId}`);
-        res.json({ ok: true, lead_id: leadId, novo });
+        const r = receber(eventoId, body);
+        if (r.duplicado) return res.json({ ok: true, lead_id: r.leadId, duplicado: true });
+        console.log(`[yayforms] ${r.novo ? 'novo lead' : r.tipo === 'form_completed' ? 'terminou o formulário:' : 'lead existente atualizado'} #${r.leadId}`);
+        res.json({ ok: true, lead_id: r.leadId, novo: r.novo, atualizado: Boolean(r.atualizado) });
       } catch (err) {
         run("UPDATE webhook_events SET status = 'error', error = ? WHERE id = ?", [err.message, eventoId]);
         console.error('[yayforms] erro ao processar:', err.message);
@@ -183,9 +272,13 @@ export default {
 
     adm.get('/eventos', (req, res) => {
       const eventos = all(
-        `SELECT id, status, error, lead_id, received_at FROM webhook_events
+        `SELECT id, status, error, lead_id, received_at, payload FROM webhook_events
           WHERE source = 'yayforms' ORDER BY received_at DESC, id DESC LIMIT 50`
-      );
+      ).map(({ payload, ...ev }) => {
+        // "parcial" = a pessoa começou o formulário e não terminou (opção "Enviar respostas incompletas" do Yay! Forms)
+        const { completo, sinal } = extrairSituacao(lerJson(payload) || {});
+        return { ...ev, parcial: !completo, sinal_parcial: sinal };
+      });
       res.json({ eventos });
     });
 
@@ -193,9 +286,9 @@ export default {
       const id = idValido(req.params.id);
       const evento = id ? get("SELECT payload FROM webhook_events WHERE id = ? AND source = 'yayforms'", [id]) : null;
       if (!evento) return res.status(404).json({ erro: 'Evento não encontrado' });
-      const { leadId, novo } = processar(lerJson(evento.payload));
-      run("UPDATE webhook_events SET status = 'processed', error = NULL, lead_id = ? WHERE id = ?", [leadId, id]);
-      res.json({ ok: true, lead_id: leadId, novo });
+      run('UPDATE webhook_events SET error = NULL WHERE id = ?', [id]);
+      const r = receber(id, lerJson(evento.payload) || {});
+      res.json({ ok: true, lead_id: r.leadId, novo: r.novo, duplicado: Boolean(r.duplicado) });
     });
 
     // Formulários que já mandaram respostas (o webhook só traz o ID; aqui dá para dar um nome)

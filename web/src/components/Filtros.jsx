@@ -13,6 +13,8 @@ export const FILTROS_VAZIOS = {
   mensagensNovas: false,
   comReuniao: false,
   nuncaContatado: false,
+  formIncompleto: false,
+  formCompleto: false,
   periodo: 'todos',
 };
 
@@ -32,7 +34,7 @@ const PERIODOS = [
 
 export function contarFiltros(f) {
   let n = 0;
-  for (const k of ['comNome', 'comTelefone', 'comEmail', 'semNome', 'atrasados', 'aguardando', 'mensagensNovas', 'comReuniao', 'nuncaContatado']) if (f[k]) n++;
+  for (const k of ['comNome', 'comTelefone', 'comEmail', 'semNome', 'atrasados', 'aguardando', 'mensagensNovas', 'comReuniao', 'nuncaContatado', 'formIncompleto', 'formCompleto']) if (f[k]) n++;
   if (f.origens.length) n++;
   if (f.formulario) n++;
   if (f.responsavel !== 'todos') n++;
@@ -60,6 +62,8 @@ export function aplicarFiltros(leads, f, user) {
     if (f.mensagensNovas && !(l.unread_count > 0)) return false;
     if (f.comReuniao && !l.next_meeting_at) return false;
     if (f.nuncaContatado && l.first_contact_at) return false;
+    if (f.formIncompleto && !l.form_partial) return false;
+    if (f.formCompleto && (l.source !== 'yayforms' || l.form_partial)) return false;
     if (limiteData && new Date(l.created_at).getTime() < limiteData) return false;
     return true;
   });
@@ -100,6 +104,8 @@ export default function PainelFiltros({ filtros, setFiltros, leads, users, total
         <Marcar marcado={filtros.mensagensNovas} aoMudar={muda('mensagensNovas')}>💬 Mensagem nova</Marcar>
         <Marcar marcado={filtros.comReuniao} aoMudar={muda('comReuniao')}>📅 Reunião marcada</Marcar>
         <Marcar marcado={filtros.nuncaContatado} aoMudar={muda('nuncaContatado')}>Nunca contatado</Marcar>
+        <Marcar marcado={filtros.formIncompleto} aoMudar={(v) => setFiltros({ ...filtros, formIncompleto: v, formCompleto: v ? false : filtros.formCompleto })}>◐ Formulário incompleto</Marcar>
+        <Marcar marcado={filtros.formCompleto} aoMudar={(v) => setFiltros({ ...filtros, formCompleto: v, formIncompleto: v ? false : filtros.formIncompleto })}>Formulário completo</Marcar>
       </div>
 
       <div className="grupo-filtro">

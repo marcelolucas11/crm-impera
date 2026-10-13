@@ -12,6 +12,7 @@ export const BASE_LEADS = `
     l.waiting_since, l.waiting_note, wu.name AS waiting_by_name,
     json_extract(l.extra, '$.formulario') AS form_name,
     json_extract(l.extra, '$.respostas') AS form_answers,
+    json_extract(l.extra, '$.parcial') AS form_partial,
     (SELECT m.timestamp FROM wa_messages m WHERE m.lead_id = l.id ORDER BY m.timestamp DESC LIMIT 1) AS last_msg_at,
     (SELECT m.from_me FROM wa_messages m WHERE m.lead_id = l.id ORDER BY m.timestamp DESC LIMIT 1) AS last_msg_from_me,
     s.name AS stage_name, s.kind AS stage_kind,
@@ -36,6 +37,7 @@ export function mapearLead(row, { comExtra = false } = {}) {
     ...resto,
     followup_overdue: Boolean(row.followup_overdue),
     last_msg_from_me: row.last_msg_from_me == null ? null : Boolean(row.last_msg_from_me),
+    form_partial: Boolean(row.form_partial),
     respostas: Array.isArray(respostas) ? respostas.map((r) => ({ pergunta: r.pergunta, resposta: r.resposta })) : [],
   };
   if (comExtra) lead.extra = lerJson(extra);

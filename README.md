@@ -4,7 +4,11 @@ CRM da agência: leads do Yay! Forms caindo direto num kanban, alerta de follow-
 Roda direto no Mac, a partir do SSD externo, sem Docker e sem instalar nada no sistema.
 A mesma pasta funciona depois na VPS da Contabo.
 
-**Versão atual: 0.5.2** — o número fica no arquivo `VERSAO` e é o que aparece em **Equipe e integrações → Atualização do CRM**.
+**Versão atual: 0.5.3** — o número fica no arquivo `VERSAO` e é o que aparece em **Equipe e integrações → Atualização do CRM**.
+
+**Versão 0.5.3:** respostas **incompletas** do Yay! Forms (quem começou o formulário e não terminou) viram lead com o selo
+◐ "Form. incompleto"; se a pessoa voltar e terminar, o mesmo cartão é completado · filtros "Formulário incompleto/completo" ·
+reenvio de respostas antigas sem duplicar leads.
 
 **Versão 0.5.2:** cartões do kanban com respostas do formulário, data e timers (entrada e última resposta no WhatsApp) · campos visíveis
 configuráveis · atualização do CRM pela tela (administrador) · "Iniciado há…" a partir do início do formulário · vários segredos de webhook do Yay! Forms.
@@ -93,6 +97,32 @@ Todo webhook recebido fica salvo; os que derem erro podem ser reprocessados na t
 O **"Iniciado há…"** do cartão conta a partir do horário em que a pessoa **começou a preencher o formulário** no Yay! Forms
 (vem no próprio webhook). Se algum formulário não mandar esse horário, o cartão usa o horário em que o lead chegou ao CRM.
 
+### Receber também quem não terminou o formulário (respostas incompletas)
+
+Por padrão o Yay! Forms só chama o webhook quando a pessoa **termina** o formulário. Uma condição como
+`ISCOMPLETED() OR ISNOTCOMPLETED()` sozinha não muda isso: ela só filtra o que o Yay! Forms já vai mandar.
+
+1. No formulário: **Configurações → Enviar respostas incompletas** (ligar) e defina o **tempo de inatividade em minutos**
+   (ex.: 10). Depois desse tempo sem nenhuma resposta nova, o Yay! Forms manda o que a pessoa já preencheu.
+2. Cada resposta vai **no máximo uma vez por webhook**. Para receber a parcial **e** a completa (quando a pessoa volta e termina),
+   crie **dois webhooks com a mesma URL do CRM**, formato V2:
+   - **CRM – completos** · Condição do gatilho: `ISCOMPLETED()`
+   - **CRM – incompletos** · Condição do gatilho: `ISNOTCOMPLETED() AND ISNOTEMPTY(@Seu WhatsApp)` — no lugar de `@Seu WhatsApp`,
+     digite `@` e escolha a pergunta do WhatsApp no menu. Para receber todos, mesmo sem nenhum dado: `ISNOTCOMPLETED()`.
+3. Cole o *Secret* de cada um em **Segredos dos webhooks**.
+
+No CRM, a parcial vira lead com o selo **◐ Form. incompleto** (cartão e ficha). Quando a completa chega com o mesmo ID de resposta,
+o mesmo cartão recebe as respostas que faltavam, o selo sai e o histórico mostra "Terminou o formulário". Se a pessoa abrir o
+formulário de novo e terminar numa resposta nova, o lead (achado pelo telefone ou e-mail) também é completado.
+Em **Equipe e integrações → Últimos recebidos**, a coluna **Resposta** mostra se cada webhook veio parcial ou completo.
+
+### Mandar as respostas antigas
+
+Ao criar ou editar o webhook, ligue **Executar em respostas anteriores** (recursos avançados). O Yay! Forms reenvia as respostas
+que já existiam. Respostas que já tinham chegado ao CRM aparecem como **Repetido (nada novo)** e não viram lead duplicado.
+A ajuda do Yay! Forms não diz se esse reenvio inclui as respostas incompletas antigas; confira nos **Logs de integração** do
+webhook de incompletos.
+
 **Enquanto o CRM roda só no Mac**, o Yay! Forms não alcança a sua máquina pela internet. Use `./scripts/lead-teste.sh`
 para testar. Para receber leads reais no Mac (opcional), rode `tailscale funnel --bg 3000` e coloque a URL `https://….ts.net`
 em `PUBLIC_URL` no `.env`. Na Contabo isso não é necessário.
@@ -101,7 +131,7 @@ em `PUBLIC_URL` no `.env`. Na Contabo isso não é necessário.
 
 **Kanban**
 - **Filtros** (☰): dados preenchidos (com nome, com WhatsApp, com e-mail), situação (aguardando resposta, follow-up atrasado,
-  mensagem nova, reunião marcada, nunca contatado), origem, formulário, responsável e data de entrada. Ficam salvos no navegador.
+  mensagem nova, reunião marcada, nunca contatado, formulário incompleto/completo), origem, formulário, responsável e data de entrada. Ficam salvos no navegador.
 - **Editar etapas** (administrador): criar, renomear, mudar cor e ordem, marcar como ganho/perdido e apagar. Ao apagar, você escolhe
   para qual etapa vão os leads — nenhum lead é apagado. Também define onde entram os leads novos e para onde o Calendly move as reuniões.
 - **⏳ Aguardando minha resposta**: botão na ficha do lead, com nota opcional ("enviar proposta"). O lead vai para o topo da coluna

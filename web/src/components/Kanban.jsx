@@ -85,6 +85,7 @@ function Cartao({ lead, onAbrir, oculto }) {
       )}
       <div className="cartao-tags">
         {ver('origem') && <span className={`tag tag-${lead.source}`}>{lead.form_name || ORIGENS[lead.source] || 'Manual'}</span>}
+        {lead.form_partial && <span className="tag tag-parcial" title="Começou o formulário e não terminou (resposta parcial do Yay! Forms)">◐ Form. incompleto</span>}
         {lead.next_meeting_at && <span className="tag tag-reuniao">📅 {dataCurta(lead.next_meeting_at)}</span>}
         {lead.unread_count > 0 && <span className="tag tag-mensagens">💬 {lead.unread_count} {lead.unread_count === 1 ? 'nova' : 'novas'}</span>}
       </div>
