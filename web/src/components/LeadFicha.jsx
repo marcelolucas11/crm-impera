@@ -21,6 +21,13 @@ const DESCRICAO = {
   meeting_canceled: (d) => `Cancelou “${d.evento}”${d.motivo ? ` (${d.motivo})` : ''}`,
   waiting_on: (d) => `⏳ Marcado como aguardando resposta${d.nota ? `: ${d.nota}` : ''}`,
   waiting_off: () => '✓ Aguardando resposta resolvido',
+  whatsapp_duplicado: (d) => `⚠ Outro lead tem o mesmo telefone (${(d.outros || []).map((i) => `#${i}`).join(', ')}). A conversa de WhatsApp foi ligada a este, o mais recente.`,
+  whatsapp_call: (d) => {
+    const tipo = d.video ? 'Chamada de vídeo' : 'Chamada de voz';
+    const tempo = d.duracao ? ` (${Math.floor(d.duracao / 60)} min ${String(d.duracao % 60).padStart(2, '0')} s)` : '';
+    const r = { perdida: d.de_mim ? 'não atendida' : 'perdida', recusada: 'recusada', atendida_em_outro_aparelho: 'atendida no celular', atendida: 'atendida', falhou: 'não completada', silenciada: 'silenciada' }[d.resultado] || d.resultado;
+    return `📞 ${tipo} ${r}${tempo}`;
+  },
 };
 
 const valoresIniciais = (l) => ({

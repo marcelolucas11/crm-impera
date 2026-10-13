@@ -151,8 +151,9 @@ por formulário, leads por etapa e desempenho por responsável. Períodos de 7, 
 2. No celular desse número: WhatsApp → **Configurações → Aparelhos conectados → Conectar um aparelho** → leia o QR code.
 3. Repita para cada número. Todos ficam conectados ao mesmo tempo.
 
-Ao conectar, o CRM importa as conversas dos **últimos 30 dias** (`WHATSAPP_HISTORICO_DIAS`), já marcadas como lidas.
-Se o número foi conectado antes da versão 0.5, **desconecte e conecte de novo** para trazer o histórico.
+Ao conectar, o CRM importa as conversas dos **últimos 90 dias** (`WHATSAPP_HISTORICO_DIAS`), já marcadas como lidas, e liga
+sozinho cada conversa ao lead com o mesmo telefone. Números já conectados: **Equipe e integrações → Importar 3 meses de histórico**
+(não desconecta). Veja a seção da versão 0.6 abaixo.
 Dentro de uma conversa, o botão **Buscar mensagens anteriores no celular** (no topo) pede ao celular mensagens mais antigas.
 
 ### O chat
@@ -214,7 +215,7 @@ mostra a data da próxima reunião. Funciona em qualquer plano do Calendly e nã
 | `PUBLIC_URL` | Endereço público do CRM, com o caminho se houver (ex.: `https://crm-impera.imperaservices.com/interno`) |
 | `BASE_PATH` | Caminho do CRM no domínio (ex.: `/interno`). Vazio = usa o caminho do `PUBLIC_URL`. A raiz continua funcionando. |
 | `YAYFORMS_WEBHOOK_SECRET` | Opcional: um "Secret" fixo do Yay! Forms. Prefira cadastrar os segredos pela tela (aceita vários) |
-| `WHATSAPP_HISTORICO_DIAS` | Quantos dias de conversas antigas importar ao conectar um número (padrão 30; 0 = nenhum) |
+| `WHATSAPP_HISTORICO_DIAS` | Quantos dias de conversas antigas importar ao conectar um número (padrão 90; 0 = nenhum) |
 | `WHATSAPP_MIDIA_AUTO_MB` | Mídias recebidas até este tamanho são baixadas na hora (padrão 25) |
 | `WHATSAPP_ENVIO_MAX_MB` | Tamanho máximo de arquivo enviado pelo CRM (padrão 100) |
 | `WHATSAPP_CONFIRMAR_LEITURA` | `1` = abrir a conversa marca como lida no WhatsApp (padrão); `0` = não avisa o contato |

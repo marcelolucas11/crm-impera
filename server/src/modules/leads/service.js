@@ -3,6 +3,7 @@ import { get, all, run } from '../../db.js';
 import { config } from '../../config.js';
 import { registrarEvento, lerJson } from '../../events.js';
 import { variantesTelefone } from '../../util.js';
+import { ligarConversasDoLead } from '../whatsapp/ligacao.js';
 
 // 1º parâmetro (?) = horas de follow-up. Calcula a última atividade e se o lead está atrasado.
 export const BASE_LEADS = `
@@ -82,23 +83,9 @@ export function registrarContatoLead(leadId, horario = new Date().toISOString())
   );
 }
 
-// Liga ao lead as conversas de WhatsApp que já existiam com o mesmo telefone
+// Liga ao lead as conversas de WhatsApp que já existiam com o mesmo telefone (com e sem o 9º dígito)
 export function vincularConversasExistentes(leadId, phone) {
-  const telefones = variantesTelefone(phone);
-  if (!telefones.length) return;
-  run(
-    `UPDATE wa_contacts SET lead_id = ? WHERE lead_id IS NULL AND phone IN (${telefones.map(() => '?').join(',')})`,
-    [leadId, ...telefones]
-  );
-  run(
-    'UPDATE wa_messages SET lead_id = ? WHERE lead_id IS NULL AND chat_jid IN (SELECT jid FROM wa_contacts WHERE lead_id = ?)',
-    [leadId, leadId]
-  );
-  const ultimaEnviada = get('SELECT min(timestamp) AS primeira, max(timestamp) AS ultima FROM wa_messages WHERE lead_id = ? AND from_me = 1', [leadId]);
-  if (ultimaEnviada?.primeira) {
-    registrarContatoLead(leadId, ultimaEnviada.primeira);
-    registrarContatoLead(leadId, ultimaEnviada.ultima);
-  }
+  return ligarConversasDoLead(leadId, phone);
 }
 
 // Procura um lead existente pelo telefone (com e sem o 9º dígito) ou e-mail (evita duplicados)

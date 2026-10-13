@@ -148,6 +148,9 @@ function processar(body) {
         [dados.name, dados.phone, dados.email, dados.iniciadoEm, agora(), existente]
       );
       registrarEvento({ leadId: existente, type: 'form_resubmitted', data: detalhes });
+      // Telefone novo neste lead: puxa a conversa de WhatsApp que já existia com ele
+      const telefone = get('SELECT phone FROM leads WHERE id = ?', [existente])?.phone;
+      if (telefone) vincularConversasExistentes(existente, telefone);
       return { leadId: existente, novo: false };
     }
 

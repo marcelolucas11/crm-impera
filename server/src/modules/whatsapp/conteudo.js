@@ -9,7 +9,6 @@ export const TIPOS_IGNORADOS = new Set([
   'keepInChatMessage',
   'encReactionMessage',
   'pinInChatMessage',
-  'callLogMesssage',
   'botInvokeMessage',
 ]);
 
@@ -29,7 +28,32 @@ const ROTULOS = {
   pollCreationMessageV2: ['enquete', '📊 Enquete'],
   pollCreationMessageV3: ['enquete', '📊 Enquete'],
   eventMessage: ['evento', '📅 Evento'],
+  callLogMesssage: ['chamada', '📞 Chamada'],
+  groupInviteMessage: ['convite', '👥 Convite para grupo'],
 };
+
+// Resultado de uma chamada (CallLogMessage.CallOutcome)
+const RESULTADOS_CHAMADA = ['atendida', 'perdida', 'falhou', 'recusada', 'atendida_em_outro_aparelho', 'em_andamento', 'silenciada', 'silenciada'];
+
+export function descreverChamada({ video = false, resultado = 'perdida', duracao = null, deMim = false } = {}) {
+  const tipo = video ? 'Chamada de vídeo' : 'Chamada de voz';
+  const tempo = duracao ? ` (${duracaoLonga(duracao)})` : '';
+  if (resultado === 'perdida') return deMim ? `📞 ${tipo} não atendida` : `📞 ${tipo} perdida`;
+  if (resultado === 'recusada') return `📞 ${tipo} recusada`;
+  if (resultado === 'tocando') return `📞 ${tipo} tocando…`;
+  if (resultado === 'falhou') return `📞 ${tipo} não completada`;
+  if (resultado === 'silenciada') return `📞 ${tipo} silenciada`;
+  if (resultado === 'atendida_em_outro_aparelho') return `📞 ${tipo} atendida no celular${tempo}`;
+  return `📞 ${tipo}${tempo}`;
+}
+
+export function duracaoLonga(segundos) {
+  const s = Math.max(0, Math.round(segundos || 0));
+  if (s < 60) return `${s} s`;
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  return h ? `${h} h ${m} min` : `${m} min ${String(s % 60).padStart(2, '0')} s`;
+}
 
 const TIPOS_MIDIA = new Set(['imageMessage', 'videoMessage', 'ptvMessage', 'audioMessage', 'documentMessage', 'stickerMessage']);
 
@@ -83,7 +107,19 @@ export function analisarConteudo(conteudo, tipoBruto) {
   const contexto = interno.contextInfo || null;
 
   if (simples !== null) {
-    return { tipo: 'texto', texto: simples, legenda: null, midia: null, extra: null, contexto };
+    let extra = null;
+    // Prévia de link que o próprio WhatsApp manda junto (título, descrição e miniatura)
+    if (tipoBruto === 'extendedTextMessage' && (interno.title || interno.matchedText || interno.canonicalUrl)) {
+      extra = {
+        previa: {
+          url: interno.canonicalUrl || interno.matchedText || null,
+          titulo: interno.title || null,
+          descricao: interno.description || null,
+          thumb: base64(interno.jpegThumbnail),
+        },
+      };
+    }
+    return { tipo: 'texto', texto: simples, legenda: null, midia: null, extra, contexto };
   }
 
   const [tipo, rotulo] = ROTULOS[tipoBruto] || ['outro', 'Mensagem'];
@@ -115,8 +151,24 @@ export function analisarConteudo(conteudo, tipoBruto) {
   } else if (tipoBruto === 'contactsArrayMessage') {
     extra = { contatos: (interno.contacts || []).map((c) => ({ nome: c.displayName || 'Contato', telefones: telefonesDoVcard(c.vcard) })) };
   } else if (tipo === 'enquete') {
-    extra = { pergunta: interno.name || '', opcoes: (interno.options || []).map((o) => o.optionName) };
+    extra = {
+      pergunta: interno.name || '',
+      opcoes: (interno.options || []).map((o) => o.optionName),
+      multipla: Number(interno.selectableOptionsCount ?? 0) !== 1,
+      votos: {},
+    };
     legenda = interno.name || null;
+  } else if (tipo === 'chamada') {
+    extra = {
+      video: Boolean(interno.isVideo),
+      resultado: RESULTADOS_CHAMADA[Number(interno.callOutcome ?? 1)] || 'perdida',
+      duracao: numero(interno.durationSecs) || null,
+    };
+  } else if (tipo === 'convite') {
+    extra = { grupo: interno.groupName || null, codigo: interno.inviteCode || null };
+    legenda = interno.caption || null;
+  } else if (tipo === 'evento') {
+    extra = { nome: interno.name || null, descricao: interno.description || null, inicio: numero(interno.startTime) || null };
   }
 
   let texto = rotulo;
@@ -124,6 +176,8 @@ export function analisarConteudo(conteudo, tipoBruto) {
   else if (tipo === 'documento' && midia?.nome) texto = `📄 ${midia.nome}`;
   else if (tipo === 'contato' && extra?.contatos?.length) texto = `👤 ${extra.contatos.map((c) => c.nome).join(', ')}`;
   else if (tipo === 'localizacao' && extra?.nome) texto = `📍 ${extra.nome}`;
+  else if (tipo === 'chamada') texto = descreverChamada(extra);
+  else if (tipo === 'evento' && extra?.nome) texto = `📅 ${extra.nome}`;
   if (legenda && tipo !== 'enquete') texto = `${texto}: ${legenda}`;
   else if (tipo === 'enquete' && legenda) texto = `📊 ${legenda}`;
 

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '../api.js';
-import { formatarTelefone } from '../utils.js';
+import { formatarTelefone, dataHora } from '../utils.js';
+import { useEvento } from '../tempoReal.js';
 
 const STATUS = {
   conectado: ['Conectado', 'ok'],
@@ -12,16 +13,65 @@ const STATUS = {
 };
 const EM_ANDAMENTO = new Set(['aguardando_qr', 'conectando', 'reconectando']);
 
+// Barra de progresso da importação do histórico (atualiza em tempo real pelo evento "importacao")
+function ProgressoHistorico({ h, dias }) {
+  if (!h) return null;
+  const meses = Math.round((dias || 90) / 30);
+  if (h.fase === 'recebendo' || h.fase === 'recebido') {
+    const pct = typeof h.progresso === 'number' ? h.progresso : null;
+    return (
+      <div className="progresso-historico">
+        <div className="progresso-rotulo">
+          <span>{h.fase === 'recebido' ? '✓ Celular terminou de mandar o histórico' : '⟳ Recebendo o histórico do celular…'}</span>
+          <b>{(h.importadas || 0).toLocaleString('pt-BR')} mensagens</b>
+        </div>
+        {pct !== null && <span className="barra-progresso"><i style={{ width: `${pct}%` }} /></span>}
+        {h.mais_antiga && <small className="suave">Mais antiga até agora: {dataHora(h.mais_antiga)}</small>}
+      </div>
+    );
+  }
+  if (h.fase === 'completando') {
+    const pct = h.total ? Math.round(((h.feitas || 0) / h.total) * 100) : 0;
+    return (
+      <div className="progresso-historico">
+        <div className="progresso-rotulo">
+          <span>⟳ Completando {meses} meses, conversa por conversa ({h.feitas || 0} de {h.total || 0})</span>
+          <b>{(h.importadas || 0).toLocaleString('pt-BR')} mensagens</b>
+        </div>
+        <span className="barra-progresso"><i style={{ width: `${pct}%` }} /></span>
+        <small className="suave">Um pedido de cada vez ao celular, com intervalo. Pode levar alguns minutos — o celular precisa estar ligado e com internet.</small>
+      </div>
+    );
+  }
+  if (h.fase === 'concluido') {
+    return <p className="suave pequeno numero-historico">✓ Histórico de {meses} meses importado ({(h.importadas || 0).toLocaleString('pt-BR')} mensagens){h.concluido_em ? ` · ${dataHora(h.concluido_em)}` : ''}.</p>;
+  }
+  if (h.fase === 'interrompido') {
+    return <p className="erro pequeno numero-historico">Importação interrompida: {h.erro}</p>;
+  }
+  return null;
+}
+
 export default function WhatsAppNumeros({ aoMensagem, aoErro }) {
   const [numeros, setNumeros] = useState([]);
+  const [dias, setDias] = useState(90);
   const [nome, setNome] = useState('');
   const [ocupado, setOcupado] = useState(false);
 
   const carregar = useCallback(async () => {
     try {
-      setNumeros((await api('/whatsapp/numeros')).numeros);
+      const d = await api('/whatsapp/numeros');
+      setNumeros(d.numeros);
+      if (d.historico_dias !== undefined) setDias(d.historico_dias);
     } catch (e) { aoErro(e.message); }
   }, [aoErro]);
+
+  // Progresso da importação chega em tempo real
+  useEvento('importacao', (h) => {
+    if (!h?.numero) return;
+    setNumeros((ns) => ns.map((n) => (n.id === h.numero ? { ...n, historico: h } : n)));
+  });
+  useEvento('whatsapp', (d) => { if (d?.numeros) carregar(); });
 
   // Atualiza rápido enquanto algum número está conectando ou mostrando QR
   const andamento = numeros.some((n) => EM_ANDAMENTO.has(n.status));
@@ -64,13 +114,11 @@ export default function WhatsAppNumeros({ aoMensagem, aoErro }) {
                 <span className={`status status-${classe}`}>{rotulo}</span>
               </div>
               {n.erro && <div className="erro pequeno">{n.erro}</div>}
-              {n.status === 'conectado' && (
+              {n.status === 'conectado' && <ProgressoHistorico h={n.historico} dias={dias} />}
+              {n.status === 'conectado' && !n.historico && (
                 <p className="suave pequeno numero-historico">
-                  {n.historico?.importando
-                    ? '⟳ Importando as conversas antigas do celular…'
-                    : n.historico?.importadas
-                      ? `✓ ${n.historico.importadas} mensagens antigas importadas.`
-                      : 'As conversas antigas são importadas quando o número é conectado pelo QR code. Se ele foi conectado antes da versão 0.5, desconecte e conecte de novo para trazer o histórico.'}
+                  Números conectados antes da versão 0.6: clique em <b>Importar {Math.round(dias / 30)} meses de histórico</b> para completar as conversas
+                  sem desconectar.
                 </p>
               )}
 
@@ -86,6 +134,24 @@ export default function WhatsAppNumeros({ aoMensagem, aoErro }) {
               )}
 
               <div className="acoes-linha">
+                {n.status === 'conectado' && dias > 0 && (
+                  <button className="btn btn-pequeno btn-ouro" disabled={ocupado || n.historico?.fase === 'completando'}
+                    title="Pede ao celular, conversa por conversa, as mensagens que faltam até completar a janela de dias. Não desconecta o número."
+                    onClick={() => confirm(
+                      `Importar ${Math.round(dias / 30)} meses de histórico de ${n.name}?\n\n`
+                      + 'O CRM pede ao celular, uma conversa de cada vez, as mensagens que faltam. Não desconecta o número.\n'
+                      + 'Deixe o celular ligado e com internet. Conversas que o CRM nunca recebeu só chegam desconectando e conectando de novo pelo QR code.'
+                    ) && acao(() => api(`/whatsapp/numeros/${n.id}/importar-historico`, { method: 'POST' }), 'Importação iniciada. Acompanhe o progresso aqui.')}>
+                    {n.historico?.fase === 'completando' ? 'Importando…' : `Importar ${Math.round(dias / 30)} meses de histórico`}
+                  </button>
+                )}
+                {n.status === 'conectado' && (
+                  <button className="btn btn-pequeno" disabled={ocupado}
+                    title="Busca de novo as figurinhas favoritas do celular"
+                    onClick={() => acao(() => api(`/whatsapp/numeros/${n.id}/figurinhas/sincronizar`, { method: 'POST' }), 'Figurinhas favoritas sincronizadas.')}>
+                    Sincronizar figurinhas
+                  </button>
+                )}
                 {['desconectado', 'erro'].includes(n.status) && (
                   <button className="btn btn-pequeno btn-ouro" disabled={ocupado} onClick={() => acao(() => api(`/whatsapp/numeros/${n.id}/conectar`, { method: 'POST' }))}>Conectar</button>
                 )}

@@ -70,6 +70,19 @@ checar_env() {
   if [ ! -f "$APP_DIR/.env" ]; then
     falha "Arquivo .env não encontrado. Rode primeiro: ./instalar.sh"; exit 1
   fi
+  ajustar_env
+}
+
+# Versão 0.6: o histórico do WhatsApp passou de 30 para 90 dias. Quem ainda tem o valor que o instalar.sh
+# gerava (30) passa para 90, uma vez só; quem escolheu outro valor não é mexido. Guarda uma cópia do .env antes.
+ajustar_env() {
+  local env="$APP_DIR/.env"
+  if grep -qx 'WHATSAPP_HISTORICO_DIAS=30' "$env" && ! grep -q '^# ajuste-0.6' "$env"; then
+    cp "$env" "$env.antes-0.6"
+    sed -i.tmp 's/^WHATSAPP_HISTORICO_DIAS=30$/WHATSAPP_HISTORICO_DIAS=90/' "$env" && rm -f "$env.tmp"
+    printf '%s\n' '# ajuste-0.6: WHATSAPP_HISTORICO_DIAS passou de 30 para 90 (cópia anterior em .env.antes-0.6)' >> "$env"
+    echo "  .env: histórico do WhatsApp agora é de 90 dias (cópia anterior em .env.antes-0.6)"
+  fi
 }
 
 usar_node() {

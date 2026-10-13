@@ -87,3 +87,26 @@ export async function miniatura(arquivo, { video = false } = {}) {
   const dim = stderr.match(/Video:.*?\b(\d{2,5})x(\d{2,5})\b/);
   return { jpeg: stdout.length ? stdout : null, largura: dim ? Number(dim[1]) : null, altura: dim ? Number(dim[2]) : null };
 }
+
+// Figurinha do WhatsApp: WEBP 512×512 com fundo transparente. Vídeo/GIF curto vira figurinha animada (até 6 s).
+export async function paraFigurinha(entrada, saida, { animada = false } = {}) {
+  const ajuste = 'scale=512:512:force_original_aspect_ratio=decrease,format=rgba,pad=512:512:(ow-iw)/2:(oh-ih)/2:color=0x00000000';
+  if (animada) {
+    await rodar(
+      ['-y', '-t', '6', '-i', entrada, '-vf', `fps=15,${ajuste}`, '-an', '-c:v', 'libwebp_anim', '-loop', '0', '-q:v', '50',
+        '-compression_level', '6', '-f', 'webp', saida],
+      { timeoutMs: 180000 }
+    );
+  } else {
+    await rodar(['-y', '-i', entrada, '-frames:v', '1', '-vf', ajuste, '-c:v', 'libwebp', '-q:v', '80', '-f', 'webp', saida]);
+  }
+}
+
+// Vídeo curto como "GIF" do WhatsApp (MP4 sem áudio, que toca em repetição)
+export async function paraGif(entrada, saida) {
+  await rodar(
+    ['-y', '-t', '15', '-i', entrada, '-an', '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '28', '-pix_fmt', 'yuv420p',
+      '-vf', "scale='min(640,iw)':-2", '-movflags', '+faststart', '-f', 'mp4', saida],
+    { timeoutMs: 180000 }
+  );
+}

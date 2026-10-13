@@ -63,7 +63,11 @@ export const config = {
     // Conversa nova vira lead automaticamente só com WHATSAPP_CRIAR_LEADS=1 (padrão: botão "Transformar em lead")
     criarLeadNovo: process.env.WHATSAPP_CRIAR_LEADS === '1',
     // Ao conectar um número, importa as conversas dos últimos N dias (0 = não importa)
-    historicoDias: Math.max(0, numero(process.env.WHATSAPP_HISTORICO_DIAS, 30)),
+    historicoDias: Math.max(0, numero(process.env.WHATSAPP_HISTORICO_DIAS, 90)),
+    // Conversas de grupo aparecem na tela de WhatsApp (grupos nunca viram lead). 0 = ignora grupos
+    grupos: process.env.WHATSAPP_GRUPOS !== '0',
+    // Ao enviar um link, mostra a prévia (título e imagem) como no WhatsApp Web. 0 = desliga
+    previaLinks: process.env.WHATSAPP_PREVIA_LINKS !== '0',
     // Mídias recebidas até este tamanho são baixadas na hora; maiores, quando alguém abrir
     midiaAutoMb: Math.max(0, numero(process.env.WHATSAPP_MIDIA_AUTO_MB, 25)),
     // Abrir a conversa no CRM marca as mensagens como lidas no WhatsApp (✓✓ azul para o contato)

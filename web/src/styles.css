@@ -433,6 +433,10 @@ textarea { resize: vertical; }
 .item-previa .tique { flex: 0 0 auto; }
 .contador-nao-lidas { background: var(--wa-verde); color: #111b21; }
 .numero-historico { margin: 0; }
+.progresso-historico { display: flex; flex-direction: column; gap: 6px; font-size: 12px; }
+.progresso-rotulo { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.barra-progresso { display: block; height: 6px; border-radius: 3px; background: var(--superficie-2); overflow: hidden; }
+.barra-progresso i { display: block; height: 100%; background: var(--ouro); transition: width .4s; }
 
 /* Estrutura da conversa */
 .conversa { position: relative; display: flex; flex-direction: column; background: var(--wa-fundo); color: var(--wa-texto); min-height: 0; }

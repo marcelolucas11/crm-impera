@@ -4,7 +4,7 @@ import { get, tx, run, agora } from '../../db.js';
 import { registrarEvento } from '../../events.js';
 import { lerEstado, salvarEstado } from '../../estado.js';
 import { normalizarTelefone, normalizarEmail, texto } from '../../util.js';
-import { criarLead, encontrarExistente, avancarEtapa } from '../leads/service.js';
+import { criarLead, encontrarExistente, avancarEtapa, vincularConversasExistentes } from '../leads/service.js';
 import { chamar, listarTudo } from './cliente.js';
 
 const DIAS_PARA_TRAS = 7;
@@ -50,6 +50,8 @@ function aplicarEvento(ev, convidado) {
         run('UPDATE leads SET name = COALESCE(name, ?), phone = COALESCE(phone, ?), email = COALESCE(email, ?) WHERE id = ?', [
           convidado.name, convidado.phone, convidado.email, leadId,
         ]);
+        const telefone = get('SELECT phone FROM leads WHERE id = ?', [leadId])?.phone;
+        if (telefone) vincularConversasExistentes(leadId, telefone);
       }
     }
 

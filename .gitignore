@@ -1,4 +1,6 @@
 .env
+.env.antes-*
+.env.tmp
 node_modules/
 web/dist/
 server/public/
