@@ -10,6 +10,7 @@ import yayforms from './yayforms/index.js';
 import calendly from './calendly/index.js';
 import whatsapp from './whatsapp/index.js';
 import estatisticas from './estatisticas/index.js';
+import disparos from './disparos/index.js';
 import sistema from './sistema/index.js';
 
-export const modulos = [auth, users, stages, leads, followup, yayforms, calendly, whatsapp, estatisticas, sistema];
+export const modulos = [auth, users, stages, leads, followup, yayforms, calendly, whatsapp, disparos, estatisticas, sistema];

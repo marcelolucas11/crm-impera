@@ -6,10 +6,11 @@ import Topo from './components/Topo.jsx';
 import KanbanPagina from './components/KanbanPagina.jsx';
 import WhatsAppPagina from './components/WhatsAppPagina.jsx';
 import Estatisticas from './components/Estatisticas.jsx';
+import DisparosPagina from './components/disparos/DisparosPagina.jsx';
 import Equipe from './components/Equipe.jsx';
 import ChamadaRecebida from './components/ChamadaRecebida.jsx';
 
-const PAGINAS = new Set(['kanban', 'whatsapp', 'estatisticas', 'equipe']);
+const PAGINAS = new Set(['kanban', 'whatsapp', 'disparos', 'estatisticas', 'equipe']);
 const paginaInicial = () => {
   const p = window.location.hash.replace('#', '');
   return PAGINAS.has(p) ? p : 'kanban';
@@ -68,6 +69,7 @@ function Sistema({ user, aoSair }) {
       {erro && <div className="faixa-erro" onClick={() => setErro('')}>{erro} <span>×</span></div>}
       {pagina === 'kanban' && <KanbanPagina {...comum} />}
       {pagina === 'whatsapp' && <WhatsAppPagina {...comum} />}
+      {pagina === 'disparos' && <DisparosPagina />}
       {pagina === 'estatisticas' && <Estatisticas {...comum} />}
       {pagina === 'equipe' && <Equipe user={user} />}
       <ChamadaRecebida aoAbrirConversa={(chave) => {

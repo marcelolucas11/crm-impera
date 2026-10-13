@@ -194,7 +194,8 @@ async function prepararArquivo(arquivo, legenda) {
 const PREVIAS = { imagem: '📷 Foto', video: '🎥 Vídeo', documento: '📄', audio: '🎤 Mensagem de voz', figurinha: '🙂 Figurinha' };
 
 // Grava no banco a mensagem que está saindo (aparece na tela com o reloginho) e devolve o id
-function gravarSaindo({ numeroId, leadId, jid, waId, userId, horario, tipo, previa, legenda, midia, citada, extra, grupo }) {
+// automatico = envio da fila de disparos: não marca como lidas as mensagens que o contato mandou (a equipe ainda precisa ver)
+function gravarSaindo({ numeroId, leadId, jid, waId, userId, horario, tipo, previa, legenda, midia, citada, extra, grupo, automatico = false }) {
   let linhaId;
   tx(() => {
     if (!grupo) {
@@ -232,11 +233,11 @@ function gravarSaindo({ numeroId, leadId, jid, waId, userId, horario, tipo, prev
          WHERE id = ?`,
         [horario, horario, horario, horario, leadId]
       );
-      run('UPDATE wa_messages SET read_at = ? WHERE lead_id = ? AND from_me = 0 AND read_at IS NULL', [horario, leadId]);
-    } else {
+      if (!automatico) run('UPDATE wa_messages SET read_at = ? WHERE lead_id = ? AND from_me = 0 AND read_at IS NULL', [horario, leadId]);
+    } else if (!automatico) {
       run('UPDATE wa_messages SET read_at = ? WHERE chat_jid = ? AND from_me = 0 AND read_at IS NULL', [horario, jid]);
     }
-    run('UPDATE wa_chats SET marked_unread = 0 WHERE jid = ?', [jid]);
+    if (!automatico) run('UPDATE wa_chats SET marked_unread = 0 WHERE jid = ?', [jid]);
   });
   return linhaId;
 }
@@ -281,9 +282,10 @@ async function previaDeLink(texto) {
 /**
  * Envia texto e/ou arquivo (ou um conteúdo especial: figurinha, enquete, contato, localização).
  *  destino: { leadId } ou { jid }
- *  dados: { texto, arquivo: { caminho, mime, nome, modo: auto|documento|voz|figurinha|gif, unica }, responderId, mencoes }
+ *  dados: { texto, arquivo: { caminho, mime, nome, modo: auto|documento|voz|figurinha|gif, unica }, responderId, mencoes,
+ *          automatico (fila de disparos), semPrevia (não busca a prévia do link) }
  */
-export async function enviar(numeroId, destino, { texto = null, arquivo = null, responderId = null, especial = null, mencoes = null }, userId) {
+export async function enviar(numeroId, destino, { texto = null, arquivo = null, responderId = null, especial = null, mencoes = null, automatico = false, semPrevia = false }, userId) {
   const e = numeroConectado(numeroId);
   const lib = await carregarBaileys();
   const { jid, leadId } = await resolverDestino(e, lib, destino);
@@ -324,7 +326,7 @@ export async function enviar(numeroId, destino, { texto = null, arquivo = null, 
     };
     if (preparo.gif || arquivo.unica) extra = { ...(preparo.gif ? { gif: true } : {}), ...(arquivo.unica ? { unica: true } : {}) };
   } else {
-    const info = await previaDeLink(texto);
+    const info = semPrevia ? null : await previaDeLink(texto);
     conteudo = { text: texto, linkPreview: info || null };
     if (info) extra = { previa: { url: info['canonical-url'] || info['matched-text'], titulo: info.title || null, descricao: info.description || null, thumb: info.jpegThumbnail ? Buffer.from(info.jpegThumbnail).toString('base64') : null } };
   }
@@ -336,7 +338,7 @@ export async function enviar(numeroId, destino, { texto = null, arquivo = null, 
     }
   }
 
-  const linhaId = gravarSaindo({ numeroId, leadId, jid, waId, userId, horario, tipo, previa, legenda, midia, citada, extra, grupo });
+  const linhaId = gravarSaindo({ numeroId, leadId, jid, waId, userId, horario, tipo, previa, legenda, midia, citada, extra, grupo, automatico });
   await despachar(e, lib, { linhaId, jid, waId, conteudo, citada, leadId });
   if (preparo?.figurinhaId) marcarUsada(preparo.figurinhaId);
   return { id: linhaId, wa_id: waId };

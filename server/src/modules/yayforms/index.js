@@ -10,6 +10,7 @@ import { criarLead, encontrarExistente, vincularConversasExistentes } from '../l
 import { interpretarPayload, extrairInicio, extrairSituacao } from './parser.js';
 import { idValido } from '../../util.js';
 import { lerEstado, salvarEstado } from '../../estado.js';
+import { aoReceberLeadYay } from '../disparos/servico.js';
 
 function iguaisSeguro(a, b) {
   const ba = Buffer.from(String(a));
@@ -202,6 +203,15 @@ function receber(eventoId, body) {
   return { leadId, novo, tipo };
 }
 
+// Saudação automática no WhatsApp (aba Disparos). Nunca derruba o recebimento do webhook.
+function saudar(r) {
+  try {
+    aoReceberLeadYay(r);
+  } catch (err) {
+    console.error('[yayforms] não consegui agendar a saudação automática:', err.message);
+  }
+}
+
 // Leads que vieram do Yay! Forms antes da versão com "form_started_at": lê o início do formulário
 // nos webhooks guardados. Roda ao ligar o CRM e só mexe em leads que ainda estão sem o horário.
 function preencherInicioDosAntigos() {
@@ -257,6 +267,7 @@ export default {
       try {
         const r = receber(eventoId, body);
         if (r.duplicado) return res.json({ ok: true, lead_id: r.leadId, duplicado: true });
+        saudar(r);
         console.log(`[yayforms] ${r.novo ? 'novo lead' : r.tipo === 'form_completed' ? 'terminou o formulário:' : 'lead existente atualizado'} #${r.leadId}`);
         res.json({ ok: true, lead_id: r.leadId, novo: r.novo, atualizado: Boolean(r.atualizado) });
       } catch (err) {
@@ -291,6 +302,7 @@ export default {
       if (!evento) return res.status(404).json({ erro: 'Evento não encontrado' });
       run('UPDATE webhook_events SET error = NULL WHERE id = ?', [id]);
       const r = receber(id, lerJson(evento.payload) || {});
+      if (!r.duplicado) saudar(r);
       res.json({ ok: true, lead_id: r.leadId, novo: r.novo, duplicado: Boolean(r.duplicado) });
     });
 

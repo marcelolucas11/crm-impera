@@ -4,7 +4,13 @@ CRM da agência: leads do Yay! Forms caindo direto num kanban, alerta de follow-
 Roda direto no Mac, a partir do SSD externo, sem Docker e sem instalar nada no sistema.
 A mesma pasta funciona depois na VPS da Contabo.
 
-**Versão atual: 0.7.3** — o número fica no arquivo `VERSAO` e é o que aparece em **Equipe e integrações → Atualização do CRM**.
+**Versão atual: 0.8.0** — o número fica no arquivo `VERSAO` e é o que aparece em **Equipe e integrações → Atualização do CRM**.
+
+**Versão 0.8.0:** aba nova **Disparos** · **saudação automática** para todo lead novo do Yay! Forms (sequência de mensagens com
+atraso inicial, "digitando…/gravando áudio…", variáveis do formulário e proteção contra repetição) · **disparo personalizado** com fluxo de
+texto, áudio (PTT), vídeo, imagem/GIF e arquivo, Spintax, prévia estilo WhatsApp e envio de teste · timers entre contatos (fixo ou aleatório),
+descanso por lote e janela de horário · **listas de contatos** juntando kanban e WhatsApp sem números repetidos (com e sem o 9º dígito) ·
+**monitor da fila** em tempo real (pausar, retomar, cancelar, reenviar falhas) · modelos de fluxo · lista de bloqueio. A fila roda no servidor.
 
 **Versão 0.7.3:** seletor **Ordenar** na barra do kanban — **Início do formulário** (leads mais novos em cima) ou
 **Última interação** (última mensagem no WhatsApp mais recente em cima; quem nunca trocou mensagem fica embaixo). A ordem vale para todas
@@ -147,7 +153,7 @@ webhook de incompletos.
 para testar. Para receber leads reais no Mac (opcional), rode `tailscale funnel --bg 3000` e coloque a URL `https://….ts.net`
 em `PUBLIC_URL` no `.env`. Na Contabo isso não é necessário.
 
-## As três telas
+## As telas
 
 **Kanban**
 - **Filtros** (☰): dados preenchidos (com nome, com WhatsApp, com e-mail), situação (aguardando resposta, follow-up atrasado,
@@ -160,6 +166,8 @@ em `PUBLIC_URL` no `.env`. Na Contabo isso não é necessário.
 **WhatsApp** — no estilo do WhatsApp Web: conversas à esquerda, chat no meio e, à direita, a ficha do lead (anotações, respostas do
 Yay! Forms, etapa, responsável, histórico), que pode ser recolhida. Detalhes na seção WhatsApp abaixo. Se o contato ainda não é lead, aparece o botão **Transformar em lead**; se já existir um lead com o mesmo
 telefone, a conversa é ligada a ele.
+
+**Disparos** — saudação automática do Yay! Forms, campanhas, listas e monitor da fila. Detalhes na seção Disparos abaixo.
 
 **Estatísticas** — leads novos (com comparação ao período anterior), taxa de resposta, tempo até a primeira resposta, respondidos
 em até 1 hora, follow-up em dia, aguardando resposta, nunca contatados, fechados, reuniões, mensagens, entrada por dia, por origem,
@@ -267,6 +275,38 @@ de histórico só pede mensagens ao próprio celular, uma conversa de cada vez.
 FFmpeg portátil que o `./atualizar.sh` baixa para dentro de `server/node_modules` (nada é instalado no Mac). Se o download falhar,
 o CRM funciona igual, mas envia os arquivos sem conversão e não cria figurinhas.
 
+## Disparos
+
+Quatro áreas, todas dentro da aba **Disparos**. A fila roda no servidor: dá para trocar de tela, fechar o navegador ou reiniciar o CRM —
+cada contato continua do bloco em que parou.
+
+**Automação Yay! Forms** — liga/desliga a saudação dos leads novos. Monte a sequência (Bloco 1 → espera → Bloco 2…), cada bloco com
+texto, áudio, vídeo, imagem/GIF ou arquivo, e a espera com "digitando…" ou "gravando áudio…" antes dele. O **atraso inicial** (ex.: 15 a 30 s,
+sorteado) faz a abordagem parecer humana. Opções: não repetir para quem recebeu nas últimas X horas, pular se já houve conversa no
+WhatsApp, só quem terminou o formulário e horário permitido. **Inspecionar último payload** mostra o que o Yay! Forms mandou e qual
+variável cada pergunta vira (clique para pôr na mensagem). Só administradores alteram.
+
+**Disparo personalizado** — fluxo de mensagens + destinatários (listas salvas e/ou contatos escolhidos) + timers. Prévia no formato do
+WhatsApp (com **Simular**, que toca as esperas) e **Enviar teste** para o seu número antes de disparar para a lista.
+
+**Listas de contatos** — junta leads do kanban (etapa colorida, etiquetas, origem, formulário) e contatos do WhatsApp (nome, número e foto).
+O mesmo número com ou sem 55 e com ou sem o 9º dígito entra uma vez só, sempre com os dados do kanban. Filtros por etapa e etiqueta e
+"Selecionar todos desta coluna".
+
+**Monitor, modelos e bloqueio** — progresso ao vivo ("aguardando timer entre contatos, 23 s para João…"), pausar, retomar, cancelar,
+reenviar só as falhas e log por contato · modelos de fluxo salvos · **Não perturbe**: números que nunca recebem disparos.
+
+**Variáveis:** `{{nome}}`, `{{primeiro_nome}}` ("marcelo silva" → "Marcelo"), `{{saudacao}}` (Bom dia/Boa tarde/Boa noite no fuso de
+`DISPAROS_FUSO`), `{{telefone}}`, `{{email}}`, `{{etapa_kanban}}`, cada pergunta do formulário pelo título (`{{qual_o_seu_orcamento}}`) ou pelo
+id (`{{campo_<id>}}`), UTMs (`{{utm_source}}`) e variáveis do formulário. `{{variavel|padrão}}` usa o padrão quando vier vazia.
+**Spintax:** `{Oi|Olá|E aí}` sorteia uma opção a cada envio.
+
+> ⚠️ O WhatsApp por QR code não é oficial e pode **bloquear números que disparam em massa**. Use intervalo aleatório, descanso por lote e
+> janela de horário (vêm ligados por padrão), comece com poucos contatos por dia e fale só com quem espera sua mensagem.
+
+Mensagens automáticas contam como contato com o lead (como as enviadas pelo celular): zeram o follow-up e entram na taxa de resposta
+das Estatísticas. Elas **não** marcam como lidas as mensagens que o lead mandou — a equipe continua vendo o que precisa responder.
+
 ## Calendly
 
 1. No Calendly: **Integrações → API e webhooks → Personal access tokens** → gere um token.
@@ -293,6 +333,7 @@ mostra a data da próxima reunião. Funciona em qualquer plano do Calendly e nã
 | `WHATSAPP_MIDIA_AUTO_MB` | Mídias recebidas até este tamanho são baixadas na hora (padrão 25) |
 | `WHATSAPP_ENVIO_MAX_MB` | Tamanho máximo de arquivo enviado pelo CRM (padrão 100) |
 | `WHATSAPP_CONFIRMAR_LEITURA` | `1` = abrir a conversa marca como lida no WhatsApp (padrão); `0` = não avisa o contato |
+| `DISPAROS_FUSO` | Fuso usado no `{{saudacao}}` e na janela de horário dos disparos (padrão `America/Sao_Paulo`) |
 | `WHATSAPP_VERSAO` | Fixa a versão do WhatsApp Web (ex.: `2,3000,1043857760`). Em branco (padrão), o CRM consulta a versão atual sozinho, porque o WhatsApp recusa versões antigas ("Connection Terminated" em todos os números) |
 
 Depois de mudar o `.env`, rode `./parar.sh && ./iniciar.sh`.

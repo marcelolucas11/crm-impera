@@ -7,6 +7,7 @@ import { Users, KeyRound, LogOut } from 'lucide-react';
 const ABAS = [
   { id: 'kanban', rotulo: 'Kanban' },
   { id: 'whatsapp', rotulo: 'WhatsApp' },
+  { id: 'disparos', rotulo: 'Disparos' },
   { id: 'estatisticas', rotulo: 'Estatísticas' },
 ];
 
