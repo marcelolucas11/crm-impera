@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { iniciais } from '../utils.js';
 import TrocarSenha from './TrocarSenha.jsx';
+import logo from '../assets/logo-impera.png';
+import { Users, KeyRound, LogOut } from 'lucide-react';
 
 const ABAS = [
   { id: 'kanban', rotulo: 'Kanban' },
@@ -20,7 +22,10 @@ export default function Topo({ user, pagina, setPagina, resumo, sair }) {
 
   return (
     <header className="topo">
-      <div className="marca">IMPERA <span>CRM</span></div>
+      <div className="marca-topo">
+        <img className="marca-logo" src={logo} alt="" />
+        <div className="marca">IMPERA <span>CRM</span></div>
+      </div>
 
       <nav className="abas" aria-label="Telas do CRM">
         {ABAS.map((a) => (
@@ -45,9 +50,9 @@ export default function Topo({ user, pagina, setPagina, resumo, sair }) {
         {menu && (
           <div className="menu" onMouseLeave={() => setMenu(false)}>
             <div className="menu-nome">{user.name}<small>{user.email}</small></div>
-            {user.role === 'admin' && <button onClick={() => { setMenu(false); setPagina('equipe'); }}>Equipe e integrações</button>}
-            <button onClick={() => { setMenu(false); setTrocandoSenha(true); }}>Trocar minha senha</button>
-            <button onClick={sair}>Sair</button>
+            {user.role === 'admin' && <button onClick={() => { setMenu(false); setPagina('equipe'); }}><Users size={15} /> Equipe e integrações</button>}
+            <button onClick={() => { setMenu(false); setTrocandoSenha(true); }}><KeyRound size={15} /> Trocar minha senha</button>
+            <button onClick={sair}><LogOut size={15} /> Sair</button>
           </div>
         )}
       </div>

@@ -131,7 +131,7 @@ export default function Equipe({ user }) {
                 {eventos.map((ev) => (
                   <tr key={ev.id}>
                     <td>{dataHora(ev.received_at)}</td>
-                    <td title={ev.sinal_parcial ? `Campo usado: ${ev.sinal_parcial}` : 'O webhook não indicou; contada como completa'}>{ev.parcial ? '◐ Parcial' : 'Completa'}</td>
+                    <td title={ev.sinal_parcial ? `Campo usado: ${ev.sinal_parcial}` : 'O webhook não indicou; contada como completa'}>{ev.parcial ? 'Parcial' : 'Completa'}</td>
                     <td className={ev.status === 'error' || ev.status === 'assinatura_invalida' ? 'alerta' : ''}>{{ processed: 'Processado', duplicado: 'Repetido (nada novo)', error: `Erro: ${ev.error}`, assinatura_invalida: 'Recusado: segredo não cadastrado' }[ev.status] || 'Recebido'}</td>
                     <td>{ev.lead_id ? `#${ev.lead_id}` : '—'}</td>
                     <td>

@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { rota } from '../../base.js';
+import { Download, X } from 'lucide-react';
 
 // Foto ou vídeo em tela cheia (Esc ou clique fora fecha)
 export default function Visualizador({ midia, onFechar }) {
@@ -16,8 +17,8 @@ export default function Visualizador({ midia, onFechar }) {
       <div className="visualizador-topo">
         <span className="suave">{midia.titulo}</span>
         <span className="espaco" />
-        <a className="btn btn-pequeno" href={`${url}?download=1`}>⬇ Baixar</a>
-        <button className="btn btn-pequeno" onClick={onFechar} aria-label="Fechar">✕</button>
+        <a className="btn btn-pequeno" href={`${url}?download=1`}><Download size={14} /> Baixar</a>
+        <button className="btn btn-pequeno" onClick={onFechar} aria-label="Fechar"><X size={14} /></button>
       </div>
       <div className="visualizador-corpo" onMouseDown={(e) => e.target === e.currentTarget && onFechar()}>
         {midia.tipo === 'video' ? (

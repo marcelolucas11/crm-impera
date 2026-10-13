@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../api.js';
 import { useEvento } from '../tempoReal.js';
+import { SlidersHorizontal, Eye, Plus, Columns3 } from 'lucide-react';
 import Kanban from './Kanban.jsx';
 import CamposVisiveis from './CamposVisiveis.jsx';
 import LeadPanel from './LeadPanel.jsx';
@@ -79,6 +80,8 @@ export default function KanbanPagina({ user, stages, users, carregarEtapas, aoMu
   const visiveis = useMemo(() => aplicarFiltros(leads, filtros, user), [leads, filtros, user]);
   const atrasados = useMemo(() => leads.filter((l) => l.followup_overdue).length, [leads]);
   const aguardando = useMemo(() => leads.filter((l) => l.waiting_since).length, [leads]);
+  const nuncaContatados = useMemo(() => leads.filter((l) => !l.first_contact_at).length, [leads]);
+  const fechando = useMemo(() => leads.filter((l) => l.closing_since).length, [leads]);
   const qtdFiltros = contarFiltros(filtros);
 
   const mover = async (leadId, stageId) => {
@@ -114,24 +117,30 @@ export default function KanbanPagina({ user, stages, users, carregarEtapas, aoMu
           onChange={(e) => setBusca(e.target.value)}
         />
         <button className={`chip ${mostrarFiltros || qtdFiltros ? 'ativo' : ''}`} onClick={() => setMostrarFiltros(!mostrarFiltros)}>
-          ☰ Filtros{qtdFiltros ? ` (${qtdFiltros})` : ''}
+          <SlidersHorizontal size={14} /> Filtros{qtdFiltros ? ` (${qtdFiltros})` : ''}
         </button>
-        <button className={`chip ${filtros.aguardando ? 'ativo' : ''} ${aguardando ? 'chip-aviso' : ''}`} onClick={() => alternar('aguardando')}>
-          ⏳ {aguardando} aguardando resposta
+        <button className={`chip chip-led chip-ambar ${filtros.aguardando ? 'ativo' : ''}`} onClick={() => alternar('aguardando')} title="Leads esperando a sua resposta">
+          <i className="led led-ambar" /> {aguardando} aguardando resposta
+        </button>
+        <button className={`chip chip-led chip-verde ${filtros.fechando ? 'ativo' : ''}`} onClick={() => alternar('fechando')} title="Leads que vão fechar — esperando a decisão deles">
+          <i className="led led-verde" /> {fechando} aguardando fechar
+        </button>
+        <button className={`chip chip-led chip-azul ${filtros.nuncaContatado ? 'ativo' : ''}`} onClick={() => alternar('nuncaContatado')} title="Leads com quem ninguém falou ainda">
+          <i className="led led-azul" /> {nuncaContatados} nunca contatado{nuncaContatados === 1 ? '' : 's'}
         </button>
         <button
-          className={`chip ${filtros.atrasados ? 'ativo' : ''} ${atrasados ? 'chip-alerta' : ''}`}
+          className={`chip chip-led ${atrasados ? 'chip-vermelho' : 'chip-ok'} ${filtros.atrasados ? 'ativo' : ''}`}
           onClick={() => alternar('atrasados')}
           title={`Leads sem contato há mais de ${horas} h`}
         >
-          {atrasados ? `⚠ ${atrasados} sem contato` : '✓ Follow-up em dia'}
+          <i className={`led ${atrasados ? 'led-vermelho' : 'led-apagado'}`} /> {atrasados ? `${atrasados} sem contato` : 'Follow-up em dia'}
         </button>
         <div className="espaco" />
         <button className={`chip ${mostrarCampos ? 'ativo' : ''}`} onClick={() => setMostrarCampos(!mostrarCampos)} title="Escolher o que aparece nos cartões">
-          👁 Campos{ocultos.length ? ` (${ocultos.length} ocultos)` : ''}
+          <Eye size={14} /> Campos{ocultos.length ? ` (${ocultos.length} ocultos)` : ''}
         </button>
-        {user.role === 'admin' && <button className="btn" onClick={() => setEditandoEtapas(true)}>Editar etapas</button>}
-        <button className="btn btn-ouro" onClick={() => setCriando(true)}>+ Novo lead</button>
+        {user.role === 'admin' && <button className="btn" onClick={() => setEditandoEtapas(true)}><Columns3 size={15} /> Editar etapas</button>}
+        <button className="btn btn-ouro" onClick={() => setCriando(true)}><Plus size={16} strokeWidth={2.2} /> Novo lead</button>
       </div>
 
       {mostrarFiltros && (

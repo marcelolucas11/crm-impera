@@ -1,6 +1,6 @@
 {
   "name": "crm-impera-web",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -9,6 +9,7 @@
   },
   "dependencies": {
     "@emoji-mart/data": "^1.2.1",
+    "@fontsource/cinzel": "^5.3.0",
     "@fontsource/montserrat": "^5.3.0",
     "emoji-mart": "^5.6.0",
     "lucide-react": "^1.56.0",

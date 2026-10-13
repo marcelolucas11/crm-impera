@@ -1,8 +1,5 @@
 import { memo, useEffect, useRef, useState } from 'react';
-import {
-  Reply, Copy, Forward, Star, StarOff, Pencil, Info, Trash2, EyeOff, Download, CheckSquare, Plus, Phone, Video as IconeVideo,
-  PhoneMissed, PhoneOff, Timer, Eye, Heart, ChevronDown, MapPin, UserRound, Smile,
-} from 'lucide-react';
+import { Reply, Copy, Forward, Star, StarOff, Pencil, Info, Trash2, EyeOff, Download, CheckSquare, Plus, Phone, Video as IconeVideo, PhoneMissed, PhoneOff, Timer, Eye, Heart, ChevronDown, MapPin, UserRound, Smile, TriangleAlert, ExternalLink, Check, Ban } from 'lucide-react';
 import { TextoFormatado } from './formatacao.jsx';
 import PlayerAudio from './PlayerAudio.jsx';
 import SeletorEmoji from './SeletorEmoji.jsx';
@@ -34,7 +31,7 @@ export function corDoAutor(id) {
 
 // ✓ enviada · ✓✓ entregue · ✓✓ azul lida · relógio enviando · ⚠ erro
 export function Tique({ status }) {
-  if (status === 0) return <span className="tique erro" title="Não enviada">⚠</span>;
+  if (status === 0) return <span className="tique erro" title="Não enviada"><TriangleAlert size={13} /></span>;
   if (status === 1 || status === null || status === undefined) {
     return (
       <svg className="tique" viewBox="0 0 16 16" width="14" height="14" aria-label="Enviando">
@@ -100,7 +97,7 @@ function Video({ m, onAbrir }) {
       <span className="midia-play">
         {gif ? <b className="rotulo-gif">GIF</b> : <svg viewBox="0 0 24 24" width="28" height="28"><path fill="currentColor" d="M8 5v14l11-7z" /></svg>}
       </span>
-      {!gif && <span className="midia-rotulo">🎥 {m.media_seconds ? duracao(m.media_seconds) : ''}{!m.media_pronta && m.media_size ? ` · ${tamanhoArquivo(m.media_size)}` : ''}</span>}
+      {!gif && <span className="midia-rotulo"><IconeVideo size={12} /> {m.media_seconds ? duracao(m.media_seconds) : ''}{!m.media_pronta && m.media_size ? ` · ${tamanhoArquivo(m.media_size)}` : ''}</span>}
     </button>
   );
 }
@@ -132,7 +129,7 @@ function Localizacao({ extra }) {
       <span>
         <b>{extra.nome || 'Localização'}</b>
         {extra.endereco && <small>{extra.endereco}</small>}
-        <small className="link">Abrir no mapa ↗</small>
+        <small className="link">Abrir no mapa <ExternalLink size={11} /></small>
       </span>
     </a>
   );
@@ -178,7 +175,7 @@ function Enquete({ m, podeVotar, onVotar, nomeDe }) {
       {opcoes.map((o) => (
         <button key={o} type="button" className={`opcao-enquete ${meus.includes(o) ? 'marcada' : ''}`} onClick={() => alternar(o)} disabled={!podeVotar}>
           <span className="opcao-linha">
-            <span className={`opcao-marca ${extra.multipla ? 'quadrada' : ''}`}>{meus.includes(o) ? '✓' : ''}</span>
+            <span className={`opcao-marca ${extra.multipla ? 'quadrada' : ''}`}>{meus.includes(o) ? <Check size={12} /> : ''}</span>
             <span className="opcao-nome">{o}</span>
             <b>{contagem[o] || 0}</b>
           </span>
@@ -318,7 +315,7 @@ function Mensagem({
       className={`linha-mensagem ${m.from_me ? 'minha' : 'dele'} ${primeiraDoGrupo ? 'inicio-grupo' : ''} ${reacoes.length ? 'com-reacao' : ''} ${selecionando ? 'selecionando' : ''} ${selecionada ? 'selecionada' : ''}`}
       onClick={clique}
     >
-      {selecionando && <span className="caixa-selecao">{selecionada && '✓'}</span>}
+      {selecionando && <span className="caixa-selecao">{selecionada && <Check size={13} />}</span>}
       <div ref={bolha} className={`bolha tipo-${m.type} ${semBolha ? 'sem-bolha' : ''} ${primeiraDoGrupo ? 'com-cauda' : ''} ${m.deleted_at ? 'apagada' : ''} ${destaque ? 'destaque' : ''} ${menu ? 'menu-aberto' : ''}`}>
         {!selecionando && (
           <button type="button" className="bolha-seta" onClick={abrirMenu} aria-label="Opções da mensagem">
@@ -361,7 +358,7 @@ function Mensagem({
         <div className="bolha-info">
           {m.extra?.temporaria && <span title="Mensagem temporária"><Timer size={12} /></span>}
           {m.starred_at && <span title="Favorita"><Star size={11} fill="currentColor" /></span>}
-          {m.deleted_at && <span className="marca-apagada" title={`Apagada para todos às ${hora(m.deleted_at)}`}>🚫 {m.from_me ? 'Você apagou' : 'Apagada pelo contato'}</span>}
+          {m.deleted_at && <span className="marca-apagada" title={`Apagada para todos às ${hora(m.deleted_at)}`}><Ban size={12} /> {m.from_me ? 'Você apagou' : 'Apagada pelo contato'}</span>}
           {m.edited_at && <span title={`Editada às ${hora(m.edited_at)}`}>Editada</span>}
           {autor && <span className="autor">{autor}{mostrarNumero && m.numero_nome ? ` · ${m.numero_nome}` : ''}</span>}
           {!autor && mostrarNumero && m.numero_nome && <span>{m.numero_nome}</span>}

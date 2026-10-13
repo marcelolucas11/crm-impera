@@ -1,6 +1,6 @@
 // Painel à direita da conversa (recolhível): ficha do lead, dados do contato/grupo, busca na conversa e favoritas
 import { useEffect, useState } from 'react';
-import { X, Search, Star, Timer, ExternalLink, Users } from 'lucide-react';
+import { X, Search, Star, Timer, ExternalLink, Users, Play } from 'lucide-react';
 import { api } from '../../api.js';
 import { rota } from '../../base.js';
 import { formatarTelefone, dataHora } from '../../utils.js';
@@ -57,7 +57,7 @@ function DadosContato({ conversa, numeroId, onTransformar, transformando, onAbri
             {dados.midias.map((m) => (
               <button key={m.id} type="button" onClick={() => onAbrirMidia({ id: m.id, tipo: m.type, titulo: dataHora(m.timestamp) })}>
                 <img src={m.thumb ? `data:image/jpeg;base64,${m.thumb}` : rota(`/api/whatsapp/midia/${m.id}`)} alt="" loading="lazy" />
-                {m.type === 'video' && <span className="grade-video">▶</span>}
+                {m.type === 'video' && <span className="grade-video"><Play size={18} fill="currentColor" /></span>}
               </button>
             ))}
           </div>
@@ -128,7 +128,7 @@ function Favoritas({ chave, onIr }) {
   return (
     <div className="busca-conversa">
       {!lista && <span className="girando" />}
-      {lista && !lista.length && <p className="suave pequeno">Nenhuma mensagem favorita. Use ☆ Favoritar no menu de uma mensagem.</p>}
+      {lista && !lista.length && <p className="suave pequeno">Nenhuma mensagem favorita. Use Favoritar no menu de uma mensagem.</p>}
       {lista?.map((m) => (
         <button key={m.id} type="button" className="item-resultado" onClick={() => onIr(m.id, m.chave)}>
           <small className="suave"><Star size={11} fill="currentColor" /> {quando(m.timestamp)} · {m.from_me ? 'Você' : m.participant_name || 'Contato'}</small>

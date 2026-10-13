@@ -174,6 +174,29 @@ export default {
       res.json({ lead: buscarLead(id) });
     });
 
+    // Liga/desliga o marcador "aguardando para fechar" (o lead vai fechar e estou esperando a decisão dele)
+    r.post('/:id/fechando', (req, res) => {
+      const id = idValido(req.params.id);
+      const ativo = Boolean(req.body?.ativo);
+      const nota = texto(req.body?.nota, 300);
+      const ok = tx(() => {
+        const lead = get('SELECT closing_since FROM leads WHERE id = ?', [id]);
+        if (!lead) return false;
+        if (ativo) {
+          run('UPDATE leads SET closing_since = COALESCE(closing_since, ?), closing_by = ?, closing_note = ?, updated_at = ? WHERE id = ?', [
+            agora(), req.user.id, nota, agora(), id,
+          ]);
+          if (!lead.closing_since) registrarEvento({ leadId: id, userId: req.user.id, type: 'closing_on', data: { nota } });
+        } else if (lead.closing_since) {
+          run('UPDATE leads SET closing_since = NULL, closing_by = NULL, closing_note = NULL, updated_at = ? WHERE id = ?', [agora(), id]);
+          registrarEvento({ leadId: id, userId: req.user.id, type: 'closing_off', data: {} });
+        }
+        return true;
+      });
+      if (!ok) return res.status(404).json({ erro: 'Lead não encontrado' });
+      res.json({ lead: buscarLead(id) });
+    });
+
     r.post('/:id/notas', (req, res) => {
       const id = idValido(req.params.id);
       const conteudo = texto(req.body?.texto, 5000);

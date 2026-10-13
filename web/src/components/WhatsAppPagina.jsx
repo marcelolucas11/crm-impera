@@ -13,6 +13,7 @@ import ListaConversas from './chat/ListaConversas.jsx';
 import PainelLateral from './chat/PainelLateral.jsx';
 import Visualizador from './chat/Visualizador.jsx';
 import { Ligar, Atalhos } from './chat/Modais.jsx';
+import logo from '../assets/logo-impera.png';
 
 const ler = (k, padrao) => { try { return localStorage.getItem(k) ?? padrao; } catch { return padrao; } };
 const gravar = (k, v) => { try { localStorage.setItem(k, v); } catch { /* sem armazenamento */ } };
@@ -333,6 +334,7 @@ export default function WhatsAppPagina({ user, stages, users, horas, aoMudarAlgo
       <section className="chat">
         {!conversa ? (
           <div className="chat-vazio">
+            <img className="chat-vazio-logo" src={logo} alt="" />
             <div className="marca marca-grande">IMPERA <span>CRM</span></div>
             <p className="suave">Escolha uma conversa à esquerda.</p>
             {conectados.length > 0 && <p className="suave pequeno">Conectados: {conectados.map((n) => n.name).join(', ')}</p>}

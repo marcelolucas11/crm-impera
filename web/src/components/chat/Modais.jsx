@@ -1,7 +1,7 @@
 // Janelas da tela de WhatsApp: encaminhar, informações da mensagem, enquete, contato, localização,
 // chamadas e atalhos de teclado.
 import { useEffect, useMemo, useState } from 'react';
-import { Check, Phone, Video, ExternalLink, Smartphone, Copy } from 'lucide-react';
+import { Check, Phone, Video, ExternalLink, Smartphone, Copy, Headphones, MapPin } from 'lucide-react';
 import Modal from '../Modal.jsx';
 import Avatar from '../Avatar.jsx';
 import { api } from '../../api.js';
@@ -97,7 +97,7 @@ export function InfoMensagem({ id, onFechar }) {
             {linha('Enviada', info.enviada_em, '✓')}
             {linha('Entregue', info.entregue_em || (info.status >= 3 ? null : null), '✓✓')}
             {linha('Lida', info.lida_em, <span className="azul">✓✓</span>)}
-            {info.ouvida_em && linha('Ouvida', info.ouvida_em, '🎧')}
+            {info.ouvida_em && linha('Ouvida', info.ouvida_em, <Headphones size={14} />)}
             <p className="suave pequeno">
               {info.enviada_por ? `Enviada por ${info.enviada_por}` : 'Enviada pelo celular'}{info.numero ? ` · número ${info.numero}` : ''}.
               {!info.entregue_em && info.status >= 3 ? ' Entregue (o WhatsApp não informou o horário).' : ''}
@@ -204,7 +204,7 @@ export function EnviarLocalizacao({ onEnviar, onFechar }) {
         {coords && <a className="pequeno" href={`https://www.google.com/maps?q=${coords.lat},${coords.lng}`} target="_blank" rel="noreferrer">Conferir no mapa ↗</a>}
         {erro && <div className="erro pequeno">{erro}</div>}
         <div className="acoes-linha">
-          <button className="btn" type="button" onClick={usarMinha}>📍 Usar minha localização</button>
+          <button className="btn" type="button" onClick={usarMinha}><MapPin size={15} /> Usar minha localização</button>
           <span className="espaco" />
           <button className="btn btn-ouro" disabled={!coords}>Enviar</button>
         </div>

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '../api.js';
 import { formatarTelefone, linkWhatsApp, tempoDesde, dataHora, dataCurta } from '../utils.js';
 import Conversa from './Conversa.jsx';
+import { Hourglass, Handshake, Check, TriangleAlert, CalendarDays, CircleDashed, PhoneCall } from 'lucide-react';
 import Avatar from './Avatar.jsx';
 
 const DESCRICAO = {
@@ -9,24 +10,26 @@ const DESCRICAO = {
   form_submitted: (d) => `Respondeu o formulário${d.formulario ? ` “${d.formulario}”` : ''}`,
   form_resubmitted: (d) => `Respondeu de novo${d.formulario ? ` “${d.formulario}”` : ''}${d.parcial ? ' (sem terminar)' : ''}`,
   form_partial: (d) => `Começou o formulário${d.formulario ? ` “${d.formulario}”` : ''} e parou (resposta parcial)`,
-  form_completed: (d) => `✓ Terminou o formulário${d.formulario ? ` “${d.formulario}”` : ''}`,
+  form_completed: (d) => `Terminou o formulário${d.formulario ? ` “${d.formulario}”` : ''}`,
   form_updated: (d) => `Respondeu mais perguntas${d.formulario ? ` do formulário “${d.formulario}”` : ''}`,
   stage_changed: (d) => `Etapa: ${d.de} → ${d.para}${d.motivo ? ` (${d.motivo})` : ''}`,
   owner_changed: (d) => (d.para ? `Responsável: ${d.para}` : 'Responsável removido'),
   contact: (d) => `Contato registrado (${d.canal})${d.nota ? `: ${d.nota}` : ''}`,
   note: (d) => d.texto,
   updated: (d) => `Editou ${d.campos?.join(', ')}`,
-  meeting_scheduled: (d) => `📅 Agendou “${d.evento}” para ${dataHora(d.inicio)}`,
-  meeting_rescheduled: (d) => `📅 Reagendou “${d.evento}” para ${dataHora(d.inicio)}`,
+  meeting_scheduled: (d) => `Agendou “${d.evento}” para ${dataHora(d.inicio)}`,
+  meeting_rescheduled: (d) => `Reagendou “${d.evento}” para ${dataHora(d.inicio)}`,
   meeting_canceled: (d) => `Cancelou “${d.evento}”${d.motivo ? ` (${d.motivo})` : ''}`,
-  waiting_on: (d) => `⏳ Marcado como aguardando resposta${d.nota ? `: ${d.nota}` : ''}`,
-  waiting_off: () => '✓ Aguardando resposta resolvido',
-  whatsapp_duplicado: (d) => `⚠ Outro lead tem o mesmo telefone (${(d.outros || []).map((i) => `#${i}`).join(', ')}). A conversa de WhatsApp foi ligada a este, o mais recente.`,
+  waiting_on: (d) => `Marcado como aguardando resposta${d.nota ? `: ${d.nota}` : ''}`,
+  waiting_off: () => 'Aguardando resposta resolvido',
+  closing_on: (d) => `Marcado como aguardando para fechar${d.nota ? `: ${d.nota}` : ''}`,
+  closing_off: () => 'Aguardando para fechar removido',
+  whatsapp_duplicado: (d) => `Outro lead tem o mesmo telefone (${(d.outros || []).map((i) => `#${i}`).join(', ')}). A conversa de WhatsApp foi ligada a este, o mais recente.`,
   whatsapp_call: (d) => {
     const tipo = d.video ? 'Chamada de vídeo' : 'Chamada de voz';
     const tempo = d.duracao ? ` (${Math.floor(d.duracao / 60)} min ${String(d.duracao % 60).padStart(2, '0')} s)` : '';
     const r = { perdida: d.de_mim ? 'não atendida' : 'perdida', recusada: 'recusada', atendida_em_outro_aparelho: 'atendida no celular', atendida: 'atendida', falhou: 'não completada', silenciada: 'silenciada' }[d.resultado] || d.resultado;
-    return `📞 ${tipo} ${r}${tempo}`;
+    return `${tipo} ${r}${tempo}`;
   },
 };
 
@@ -49,6 +52,8 @@ export default function LeadFicha({
   const [nota, setNota] = useState('');
   const [notaAguardando, setNotaAguardando] = useState('');
   const [marcandoAguardando, setMarcandoAguardando] = useState(false);
+  const [notaFechando, setNotaFechando] = useState('');
+  const [marcandoFechando, setMarcandoFechando] = useState(false);
   const [erro, setErro] = useState('');
   const [salvando, setSalvando] = useState(false);
 
@@ -74,6 +79,7 @@ export default function LeadFicha({
 
   useEffect(() => {
     setMarcandoAguardando(false);
+    setMarcandoFechando(false);
     carregar({ resetarForm: true });
   }, [carregar]);
 
@@ -112,6 +118,12 @@ export default function LeadFicha({
       setNotaAguardando('');
     }
   };
+  const alternarFechando = async (ativo) => {
+    if (await aplicar(`/leads/${leadId}/fechando`, { method: 'POST', body: { ativo, nota: notaFechando } })) {
+      setMarcandoFechando(false);
+      setNotaFechando('');
+    }
+  };
   const excluir = async () => {
     if (!confirm('Excluir este lead e todo o histórico? Não dá para desfazer.')) return;
     try {
@@ -142,11 +154,11 @@ export default function LeadFicha({
           {lead.waiting_since ? (
             <div className="aviso-aguardando">
               <div>
-                ⏳ <b>Aguardando sua resposta</b> há {tempoDesde(lead.waiting_since).replace('há ', '')}
+                <i className="led led-ambar" /> <b>Aguardando sua resposta</b> há {tempoDesde(lead.waiting_since).replace('há ', '')}
                 {lead.waiting_note && <> — {lead.waiting_note}</>}
                 <small className="suave"> · marcado por {lead.waiting_by_name || '—'}</small>
               </div>
-              <button className="btn btn-pequeno" onClick={() => alternarAguardando(false)} disabled={salvando}>✓ Resolvido</button>
+              <button className="btn btn-pequeno" onClick={() => alternarAguardando(false)} disabled={salvando}><Check size={14} /> Resolvido</button>
             </div>
           ) : marcandoAguardando ? (
             <form className="marcar-aguardando" onSubmit={(e) => { e.preventDefault(); alternarAguardando(true); }}>
@@ -155,16 +167,35 @@ export default function LeadFicha({
               <button type="button" className="btn" onClick={() => setMarcandoAguardando(false)}>Cancelar</button>
             </form>
           ) : (
-            <button className="btn btn-aviso-leve" onClick={() => setMarcandoAguardando(true)}>⏳ Está aguardando minha resposta</button>
+            <button className="btn btn-aviso-leve" onClick={() => setMarcandoAguardando(true)}><Hourglass size={15} /> Está aguardando minha resposta</button>
+          )}
+
+          {lead.closing_since ? (
+            <div className="aviso-fechando">
+              <div>
+                <i className="led led-verde" /> <b>Aguardando para fechar</b> há {tempoDesde(lead.closing_since).replace('há ', '')}
+                {lead.closing_note && <> — {lead.closing_note}</>}
+                <small className="suave"> · marcado por {lead.closing_by_name || '—'}</small>
+              </div>
+              <button className="btn btn-pequeno" onClick={() => alternarFechando(false)} disabled={salvando}><Check size={14} /> Desmarcar</button>
+            </div>
+          ) : marcandoFechando ? (
+            <form className="marcar-aguardando" onSubmit={(e) => { e.preventDefault(); alternarFechando(true); }}>
+              <input autoFocus placeholder="O que falta para ele decidir? (opcional)" value={notaFechando} onChange={(e) => setNotaFechando(e.target.value)} maxLength={300} />
+              <button className="btn btn-verde" disabled={salvando}>Marcar</button>
+              <button type="button" className="btn" onClick={() => setMarcandoFechando(false)}>Cancelar</button>
+            </form>
+          ) : (
+            <button className="btn btn-verde-leve" onClick={() => setMarcandoFechando(true)}><Handshake size={15} /> Aguardando para fechar</button>
           )}
 
           {lead.followup_overdue && (
-            <div className="aviso-followup">⚠ Sem contato {tempoDesde(lead.last_activity_at)} — limite é {horas} h.</div>
+            <div className="aviso-followup"><TriangleAlert size={15} /> Sem contato {tempoDesde(lead.last_activity_at)} — limite é {horas} h.</div>
           )}
 
           {proximaReuniao && (
             <div className="aviso-reuniao">
-              📅 {proximaReuniao.event_name} — <b>{dataCurta(proximaReuniao.start_time)}</b>
+              <CalendarDays size={15} /> {proximaReuniao.event_name} — <b>{dataCurta(proximaReuniao.start_time)}</b>
               {proximaReuniao.join_url && <> · <a href={proximaReuniao.join_url} target="_blank" rel="noreferrer">link da reunião</a></>}
             </div>
           )}
@@ -178,7 +209,7 @@ export default function LeadFicha({
 
           <div className="acoes">
             <button className="btn" onClick={registrarContato} disabled={salvando} title="Para contatos fora do WhatsApp do CRM (ligação, e-mail, reunião…)">
-              ✓ Registrar contato por outro meio
+              <PhoneCall size={15} /> Registrar contato por outro meio
             </button>
             {comConversa && !haNumeroConectado && lead.phone && (
               <a className="btn" href={linkWhatsApp(lead.phone)} target="_blank" rel="noreferrer">Abrir no WhatsApp Web</a>
@@ -212,7 +243,7 @@ export default function LeadFicha({
             <>
               <h4>Respostas do formulário{lead.extra.formulario ? ` — ${lead.extra.formulario}` : ''}</h4>
               {lead.extra.parcial && (
-                <p className="aviso-parcial">◐ Formulário incompleto: a pessoa começou e não terminou. Estas são as respostas até onde ela parou.</p>
+                <p className="aviso-parcial"><CircleDashed size={14} /> Formulário incompleto: a pessoa começou e não terminou. Estas são as respostas até onde ela parou.</p>
               )}
               <dl className="respostas">
                 {respostas.map((r) => (

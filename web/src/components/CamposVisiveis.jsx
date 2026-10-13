@@ -1,5 +1,6 @@
 // Escolhe quais campos e respostas do formulário aparecem nos cartões do kanban (salvo no navegador)
 import { useMemo } from 'react';
+import { Eye, EyeOff } from 'lucide-react';
 import { CAMPOS_FIXOS } from './Kanban.jsx';
 
 export default function CamposVisiveis({ leads, ocultos, setOcultos, onFechar }) {
@@ -15,7 +16,7 @@ export default function CamposVisiveis({ leads, ocultos, setOcultos, onFechar })
     <label className="campo-vis">
       <span>{rotulo}</span>
       <button className={`olho ${set.has(k) ? 'fechado' : ''}`} onClick={() => alternar(k)} title={set.has(k) ? 'Mostrar' : 'Ocultar'}>
-        {set.has(k) ? '🙈' : '👁'}
+        {set.has(k) ? <EyeOff size={16} /> : <Eye size={16} />}
       </button>
     </label>
   );

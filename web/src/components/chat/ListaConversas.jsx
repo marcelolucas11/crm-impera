@@ -1,8 +1,5 @@
 import { memo, useEffect, useRef, useState } from 'react';
-import {
-  Search, Archive, ArchiveRestore, Pin, PinOff, BellOff, Bell, MailOpen, Mail, Heart, HeartOff, Tag, EyeOff, ExternalLink,
-  ChevronDown, ArrowLeft, Users, Image as IconeImagem, Video, Mic, FileText, Sticker, MapPin, UserRound, BarChart3, Phone, Calendar, X,
-} from 'lucide-react';
+import { Search, Archive, ArchiveRestore, Pin, PinOff, BellOff, Bell, MailOpen, Mail, Heart, HeartOff, Tag, EyeOff, ExternalLink, ChevronDown, ArrowLeft, Users, Image as IconeImagem, Video, Mic, FileText, Sticker, MapPin, UserRound, BarChart3, Phone, Calendar, X, Ban } from 'lucide-react';
 import Avatar from '../Avatar.jsx';
 import { Tique } from './Mensagem.jsx';
 import { realcar } from './formatacao.jsx';
@@ -21,7 +18,7 @@ const FILTROS = [
   ['grupos', 'Grupos'],
   ['leads', 'Leads'],
   ['contatos', 'Não são leads'],
-  ['aguardando', '⏳ Aguardando'],
+  ['aguardando', 'Aguardando'],
 ];
 
 // Data da última mensagem no formato do WhatsApp Web: hora (hoje), "Ontem", dia da semana ou data
@@ -105,7 +102,7 @@ const ItemConversa = memo(function ItemConversa({ c, aberta, etiquetas, busca, o
   let previa;
   if (c.digitando) previa = <span className="digitando">{c.digitando === 'recording' ? 'gravando áudio…' : 'digitando…'}</span>;
   else if (rascunho) previa = <span><b className="rascunho">Rascunho:</b> {(() => { try { return localStorage.getItem(`wa-rascunho:${c.chave}`); } catch { return ''; } })()}</span>;
-  else if (c.ultima_apagada) previa = <i>🚫 Mensagem apagada</i>;
+  else if (c.ultima_apagada) previa = <i className="com-icone"><Ban size={13} /> Mensagem apagada</i>;
   else {
     const texto = String(c.ultima_mensagem || '').replace(/^(📷|🎥|🎤|🎵|📄|🙂|📍|👤|📊|📞|📅|🎞)\s*/u, '');
     previa = (
@@ -144,8 +141,8 @@ const ItemConversa = memo(function ItemConversa({ c, aberta, etiquetas, busca, o
             : c.lead_id ? <span className="tag tag-etapa"><span className="ponto" style={{ background: c.etapa?.cor }} />{c.etapa?.nome}</span>
               : <span className="tag">Não é lead</span>}
           {etiquetasDaConversa.map((t) => <span key={t.id} className="tag" style={{ borderColor: t.color, color: t.color }}>{t.name}</span>)}
-          {c.aguardando && <span className="tag tag-aguardando">⏳ aguardando</span>}
-          {c.atrasado && <span className="tag tag-atrasado">⚠ follow-up</span>}
+          {c.aguardando && <span className="tag tag-aguardando"><i className="led led-ambar" /> aguardando</span>}
+          {c.atrasado && <span className="tag tag-atrasado"><i className="led led-vermelho" /> follow-up</span>}
         </span>
       </span>
       {menu && <MenuConversa c={c} etiquetas={etiquetas} onFechar={() => setMenu(false)} onEstado={onEstado} onAbrirWeb={onAbrirWeb} />}

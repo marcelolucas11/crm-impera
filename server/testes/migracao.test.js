@@ -17,6 +17,12 @@ test('banco da versão 0.5: as migrações novas rodam sem perder nada', async (
   try { aplicarMigracoes(MIGRACOES); } finally { console.log = log; }
   for (const [t, n] of Object.entries(antes)) assert.equal(contar(t), n, `tabela ${t} perdeu linhas`);
   assert.ok(db.get("SELECT 1 AS ok FROM schema_migrations WHERE name = '006_whatsapp_web.sql'"));
+  assert.ok(db.get("SELECT 1 AS ok FROM schema_migrations WHERE name = '007_aguardando_fechar.sql'"));
+  // 0.7: marcador "aguardando para fechar" começa vazio e aparece na consulta dos leads
+  const { buscarLead } = await import('../src/modules/leads/service.js');
+  assert.equal(buscarLead(1).closing_since, null);
+  db.run("UPDATE leads SET closing_since = '2026-01-01T00:00:00.000Z' WHERE id = 1");
+  assert.equal(buscarLead(1).closing_since, '2026-01-01T00:00:00.000Z');
   // Dados antigos intactos
   assert.equal(db.get("SELECT body FROM wa_messages WHERE wa_id = 'M2'").body, 'Olá Maria!');
   assert.equal(db.get("SELECT status FROM wa_messages WHERE wa_id = 'M2'").status, 4);

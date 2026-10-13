@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { rota } from '../../base.js';
+import { Mic } from 'lucide-react';
 
 // O Safari antigo não toca OGG/Opus (formato das mensagens de voz): pede uma versão convertida
 const tocaOgg = typeof Audio !== 'undefined' && new Audio().canPlayType('audio/ogg; codecs="opus"') !== '';
@@ -57,7 +58,7 @@ export default function PlayerAudio({ id, segundos, ptt, avatar }) {
 
   return (
     <div className={`player-audio ${ptt ? 'voz' : ''}`}>
-      {ptt && avatar && <span className="player-avatar">{avatar}<span className="player-mic">🎤</span></span>}
+      {ptt && avatar && <span className="player-avatar">{avatar}<span className="player-mic"><Mic size={13} /></span></span>}
       <button type="button" className="player-botao" onClick={alternar} aria-label={tocando ? 'Pausar' : 'Tocar'}>
         {carregando ? <span className="girando" /> : tocando ? (
           <svg viewBox="0 0 24 24" width="22" height="22"><path fill="currentColor" d="M6 5h4v14H6zM14 5h4v14h-4z" /></svg>

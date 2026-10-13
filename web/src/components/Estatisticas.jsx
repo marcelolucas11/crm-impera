@@ -194,8 +194,8 @@ export default function Estatisticas({ setErro }) {
         <h2 className="titulo-secao">Follow-up agora</h2>
         <div className="indicadores">
           <Indicador rotulo="Follow-up em dia" valor={pct(agora.taxa_followup_em_dia)} detalhe={`${num(agora.em_dia)} de ${num(agora.abertos)} leads em andamento`} />
-          <Indicador rotulo={`Sem contato há mais de ${e.followup_horas} h`} valor={num(agora.atrasados)} detalhe="⚠ precisam de follow-up" />
-          <Indicador rotulo="Aguardando sua resposta" valor={num(agora.aguardando)} detalhe="⏳ marcados no botão" />
+          <Indicador rotulo={`Sem contato há mais de ${e.followup_horas} h`} valor={num(agora.atrasados)} detalhe="precisam de follow-up" />
+          <Indicador rotulo="Aguardando sua resposta" valor={num(agora.aguardando)} detalhe="marcados no botão" />
           <Indicador rotulo="Nunca contatados" valor={num(agora.nunca_contatados)} detalhe="em andamento, sem nenhum contato" />
         </div>
       </section>

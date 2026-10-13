@@ -1,8 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import {
-  Smile, Paperclip, Mic, SendHorizontal, Trash2, X, Image as IconeImagem, FileText, Music, Sticker, UserRound, MapPin,
-  BarChart3, Eye, Pencil, Film,
-} from 'lucide-react';
+import { Smile, Paperclip, Mic, SendHorizontal, Trash2, X, Image as IconeImagem, FileText, Music, Sticker, UserRound, MapPin, BarChart3, Eye, Pencil, Film, Check } from 'lucide-react';
 import SeletorEmoji from './SeletorEmoji.jsx';
 import PainelFigurinhas from './PainelFigurinhas.jsx';
 
@@ -224,7 +221,7 @@ export default function Compositor({
           <button type="button" className="botao-icone" onClick={onCancelarResposta} aria-label="Cancelar resposta"><X size={20} /></button>
         </div>
       )}
-      {erro && <div className="compositor-erro" onClick={() => setErro('')}>{erro} <span>✕</span></div>}
+      {erro && <div className="compositor-erro" onClick={() => setErro('')}>{erro} <span><X size={14} /></span></div>}
       {sugestoes.length > 0 && (
         <div className="sugestoes-mencao">
           {sugestoes.map((p) => (
@@ -330,7 +327,7 @@ export default function Compositor({
           />
           {texto.trim() || editando ? (
             <button type="button" className="botao-enviar" onClick={enviar} aria-label={editando ? 'Salvar edição' : 'Enviar'} title={editando ? 'Salvar (Enter)' : 'Enviar (Enter)'}>
-              {editando ? '✓' : <SendHorizontal size={22} />}
+              {editando ? <Check size={22} /> : <SendHorizontal size={22} />}
             </button>
           ) : (
             <button type="button" className="botao-enviar" onClick={iniciarGravacao} aria-label="Gravar áudio" title="Gravar áudio">

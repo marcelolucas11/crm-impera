@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { api } from '../api.js';
 import { dataHora } from '../utils.js';
+import { CircleCheck } from 'lucide-react';
 
 export default function Atualizacao() {
   const [info, setInfo] = useState(null);
@@ -57,7 +58,7 @@ export default function Atualizacao() {
       )}
       {erro && <div className="erro">{erro}</div>}
       {info?.remota && !temNova && (
-        <div className="sucesso">✓ O CRM está na versão mais recente{info.versao ? ` (${info.versao})` : ''}, igual à do GitHub.</div>
+        <div className="sucesso"><CircleCheck size={15} /> O CRM está na versão mais recente{info.versao ? ` (${info.versao})` : ''}, igual à do GitHub.</div>
       )}
       {temNova && (
         <>

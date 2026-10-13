@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { formatarTelefone, tempoDesde, iniciais, dataCurta } from '../utils.js';
+import { CalendarDays, MessageCircle, CircleDashed } from 'lucide-react';
 import Avatar from './Avatar.jsx';
 
 const ORIGENS = { yayforms: 'Yay! Forms', whatsapp: 'WhatsApp', calendly: 'Calendly', manual: 'Manual' };
@@ -59,14 +60,33 @@ function Cartao({ lead, onAbrir, oculto }) {
   const respostas = (lead.respostas || []).filter((r) => r.pergunta && ver(`q:${r.pergunta}`) && String(r.resposta ?? '').trim());
   return (
     <article
-      className={`cartao ${lead.followup_overdue ? 'atrasado' : ''} ${lead.waiting_since ? 'aguardando' : ''}`}
+      className={`cartao ${lead.followup_overdue ? 'atrasado' : ''} ${lead.waiting_since ? 'aguardando' : ''} ${!lead.first_contact_at ? 'nunca' : ''} ${lead.closing_since ? 'fechando' : ''}`}
       draggable
       onDragStart={(e) => { e.dataTransfer.setData('text/plain', String(lead.id)); e.dataTransfer.effectAllowed = 'move'; }}
       onClick={() => onAbrir(lead)}
     >
-      {lead.waiting_since && (
-        <div className="faixa-aguardando" title={lead.waiting_note || 'Aguardando sua resposta'}>
-          ⏳ Aguardando resposta · {tempoDesde(lead.waiting_since).replace('há ', '')}
+      {(lead.closing_since || lead.waiting_since || lead.followup_overdue || !lead.first_contact_at) && (
+        <div className="cartao-status">
+          {lead.closing_since && (
+            <span className="selo selo-verde" title={lead.closing_note || 'Vai fechar — aguardando a decisão do lead'}>
+              <i className="led led-verde" /> Aguardando fechar · {tempoDesde(lead.closing_since).replace('há ', '')}
+            </span>
+          )}
+          {lead.waiting_since && (
+            <span className="selo selo-ambar" title={lead.waiting_note || 'Aguardando sua resposta'}>
+              <i className="led led-ambar" /> Aguardando resposta · {tempoDesde(lead.waiting_since).replace('há ', '')}
+            </span>
+          )}
+          {!lead.first_contact_at && (
+            <span className="selo selo-azul" title="Ninguém falou com este lead ainda">
+              <i className="led led-azul" /> Nunca contatado
+            </span>
+          )}
+          {lead.followup_overdue && (
+            <span className="selo selo-vermelho" title="Sem contato há mais tempo que o limite de follow-up">
+              <i className="led led-vermelho" /> Sem contato
+            </span>
+          )}
         </div>
       )}
       <div className="cartao-cabeca">
@@ -85,19 +105,19 @@ function Cartao({ lead, onAbrir, oculto }) {
       )}
       <div className="cartao-tags">
         {ver('origem') && <span className={`tag tag-${lead.source}`}>{lead.form_name || ORIGENS[lead.source] || 'Manual'}</span>}
-        {lead.form_partial && <span className="tag tag-parcial" title="Começou o formulário e não terminou (resposta parcial do Yay! Forms)">◐ Form. incompleto</span>}
-        {lead.next_meeting_at && <span className="tag tag-reuniao">📅 {dataCurta(lead.next_meeting_at)}</span>}
-        {lead.unread_count > 0 && <span className="tag tag-mensagens">💬 {lead.unread_count} {lead.unread_count === 1 ? 'nova' : 'novas'}</span>}
+        {lead.form_partial && <span className="tag tag-parcial" title="Começou o formulário e não terminou (resposta parcial do Yay! Forms)"><CircleDashed size={11} strokeWidth={2} /> Form. incompleto</span>}
+        {lead.next_meeting_at && <span className="tag tag-reuniao"><CalendarDays size={11} strokeWidth={2} /> {dataCurta(lead.next_meeting_at)}</span>}
+        {lead.unread_count > 0 && <span className="tag tag-mensagens"><MessageCircle size={11} strokeWidth={2} /> {lead.unread_count} {lead.unread_count === 1 ? 'nova' : 'novas'}</span>}
       </div>
       <div className="cartao-rodape">
         <div className="cartao-timers">
           {ver('iniciado') && (
-            <span className={lead.followup_overdue ? 'alerta' : 'suave'}>{lead.followup_overdue && '⚠ '}Iniciado {tempoDesde(lead.form_started_at || lead.created_at)}</span>
+            <span className={lead.followup_overdue ? 'alerta' : 'suave'}>Iniciado {tempoDesde(lead.form_started_at || lead.created_at)}</span>
           )}
           {ver('resposta') && lead.last_msg_at && (
             <span className={`timer-resp ${lead.last_msg_from_me ? 'minha' : 'dele'}`}
               title={lead.last_msg_from_me ? 'A última mensagem foi sua' : 'A última mensagem foi do lead'}>
-              💬 Respondido {tempoDesde(lead.last_msg_at)}
+              <MessageCircle size={11} strokeWidth={2} /> Respondido {tempoDesde(lead.last_msg_at)}
             </span>
           )}
         </div>

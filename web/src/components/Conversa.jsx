@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Virtuoso } from 'react-virtuoso';
-import { X, Forward, Star, EyeOff, Copy, ChevronDown } from 'lucide-react';
+import { X, Forward, Star, EyeOff, Copy, ChevronDown, Music, FileText, Video, Lock } from 'lucide-react';
 import { api } from '../api.js';
 import { useEvento } from '../tempoReal.js';
 import Avatar from './Avatar.jsx';
@@ -88,7 +88,7 @@ function PreviaArquivos({ selecao, onCancelar, onEnviar, onRemover }) {
         {urlPrincipal && principal.type.startsWith('video/') && <video src={urlPrincipal} controls muted={selecao.modo === 'gif'} loop={selecao.modo === 'gif'} autoPlay={selecao.modo === 'gif'} />}
         {!urlPrincipal && (
           <div className="previa-doc">
-            <span className="previa-doc-icone">{principal.type.startsWith('audio/') ? '🎵' : '📄'}</span>
+            <span className="previa-doc-icone">{principal.type.startsWith('audio/') ? <Music size={60} strokeWidth={1.2} /> : <FileText size={60} strokeWidth={1.2} />}</span>
             <b>{principal.name}</b>
             <small className="suave">{tamanhoArquivo(principal.size)}</small>
           </div>
@@ -98,8 +98,8 @@ function PreviaArquivos({ selecao, onCancelar, onEnviar, onRemover }) {
         <div className="previa-lista">
           {selecao.arquivos.map((a, i) => (
             <span key={`${a.name}-${i}`} className="previa-item">
-              {urls[i] && a.type.startsWith('image/') ? <img src={urls[i]} alt="" /> : <span>{a.type.startsWith('video/') ? '🎥' : '📄'}</span>}
-              <button type="button" onClick={() => onRemover(i)} aria-label={`Remover ${a.name}`}>✕</button>
+              {urls[i] && a.type.startsWith('image/') ? <img src={urls[i]} alt="" /> : <span>{a.type.startsWith('video/') ? <Video size={22} strokeWidth={1.5} /> : <FileText size={22} strokeWidth={1.5} />}</span>}
+              <button type="button" onClick={() => onRemover(i)} aria-label={`Remover ${a.name}`}><X size={11} /></button>
             </span>
           ))}
         </div>
@@ -496,7 +496,7 @@ export default function Conversa({ chave, nome = '', onEnviado, cheia = false, p
           )}
         </div>
       )}
-      {carregou && !temMais && <div className="aviso-criptografia">🔒 As mensagens são guardadas no CRM da agência e não saem dele.</div>}
+      {carregou && !temMais && <div className="aviso-criptografia"><Lock size={12} /> As mensagens são guardadas no CRM da agência e não saem dele.</div>}
     </div>
   ), [carregandoAntigas, carregou, temMais, mensagens.length, conectados.length, pedidoCelular]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -573,15 +573,15 @@ export default function Conversa({ chave, nome = '', onEnviado, cheia = false, p
         <div className="envios">
           {envios.map((e) => (
             <div key={e.id} className={`envio ${e.erro ? 'com-erro' : ''}`}>
-              <span className="envio-nome">{e.erro ? `⚠ ${e.nome}: ${e.erro}` : e.progresso < 100 ? `Enviando ${e.nome}…` : `Processando ${e.nome}…`}</span>
+              <span className="envio-nome">{e.erro ? `${e.nome}: ${e.erro}` : e.progresso < 100 ? `Enviando ${e.nome}…` : `Processando ${e.nome}…`}</span>
               {!e.erro && <span className="envio-barra"><i style={{ width: `${e.progresso}%` }} /></span>}
-              {e.erro && <button type="button" className="botao-icone" onClick={() => setEnvios((l) => l.filter((x) => x.id !== e.id))}>✕</button>}
+              {e.erro && <button type="button" className="botao-icone" onClick={() => setEnvios((l) => l.filter((x) => x.id !== e.id))}><X size={16} /></button>}
             </div>
           ))}
         </div>
       )}
 
-      {erro && <div className="erro conversa-erro" onClick={() => setErro('')}>{erro} <span>✕</span></div>}
+      {erro && <div className="erro conversa-erro" onClick={() => setErro('')}>{erro} <span><X size={14} /></span></div>}
 
       {conectados.length === 0 ? (
         <p className="suave pequeno aviso-sem-numero">Nenhum WhatsApp conectado. Um administrador conecta em <b>Equipe e integrações</b>.</p>

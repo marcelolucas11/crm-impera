@@ -11,6 +11,7 @@ export const BASE_LEADS = `
     l.id, l.name, l.phone, l.email, l.company, l.source, l.stage_id, l.owner_id, l.notes, l.extra,
     l.last_contact_at, l.first_contact_at, l.stage_changed_at, l.created_at, l.updated_at, l.form_started_at,
     l.waiting_since, l.waiting_note, wu.name AS waiting_by_name,
+    l.closing_since, l.closing_note, cu.name AS closing_by_name,
     json_extract(l.extra, '$.formulario') AS form_name,
     json_extract(l.extra, '$.respostas') AS form_answers,
     json_extract(l.extra, '$.parcial') AS form_partial,
@@ -27,7 +28,8 @@ export const BASE_LEADS = `
   FROM leads l
   JOIN stages s ON s.id = l.stage_id
   LEFT JOIN users u ON u.id = l.owner_id
-  LEFT JOIN users wu ON wu.id = l.waiting_by`;
+  LEFT JOIN users wu ON wu.id = l.waiting_by
+  LEFT JOIN users cu ON cu.id = l.closing_by`;
 
 // Ajusta tipos vindos do SQLite (0/1 → booleano, texto JSON → objeto)
 export function mapearLead(row, { comExtra = false } = {}) {

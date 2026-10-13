@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { api } from '../api.js';
+import logo from '../assets/logo-impera.png';
 
 export default function Login({ aoEntrar }) {
   const [email, setEmail] = useState('');
@@ -24,8 +25,11 @@ export default function Login({ aoEntrar }) {
   return (
     <div className="tela-cheia login-fundo">
       <form className="login-caixa" onSubmit={entrar}>
-        <div className="marca marca-grande">IMPERA <span>CRM</span></div>
-        <p className="login-sub">Acesso da equipe</p>
+        <div className="login-marca">
+          <img className="login-logo" src={logo} alt="" />
+          <div className="marca marca-grande">IMPERA <span>CRM</span></div>
+          <p className="login-sub">Acesso da equipe</p>
+        </div>
         <label>
           E-mail
           <input type="email" autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)} required autoFocus />

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { api } from '../api.js';
 import { formatarTelefone, dataHora } from '../utils.js';
 import { useEvento } from '../tempoReal.js';
+import { CircleCheck } from 'lucide-react';
 
 const STATUS = {
   conectado: ['Conectado', 'ok'],
@@ -22,7 +23,7 @@ function ProgressoHistorico({ h, dias }) {
     return (
       <div className="progresso-historico">
         <div className="progresso-rotulo">
-          <span>{h.fase === 'recebido' ? '✓ Celular terminou de mandar o histórico' : '⟳ Recebendo o histórico do celular…'}</span>
+          <span>{h.fase === 'recebido' ? 'Celular terminou de mandar o histórico' : 'Recebendo o histórico do celular…'}</span>
           <b>{(h.importadas || 0).toLocaleString('pt-BR')} mensagens</b>
         </div>
         {pct !== null && <span className="barra-progresso"><i style={{ width: `${pct}%` }} /></span>}
@@ -44,7 +45,7 @@ function ProgressoHistorico({ h, dias }) {
     );
   }
   if (h.fase === 'concluido') {
-    return <p className="suave pequeno numero-historico">✓ Histórico de {meses} meses importado ({(h.importadas || 0).toLocaleString('pt-BR')} mensagens){h.concluido_em ? ` · ${dataHora(h.concluido_em)}` : ''}.</p>;
+    return <p className="suave pequeno numero-historico"><CircleCheck size={14} /> Histórico de {meses} meses importado ({(h.importadas || 0).toLocaleString('pt-BR')} mensagens){h.concluido_em ? ` · ${dataHora(h.concluido_em)}` : ''}.</p>;
   }
   if (h.fase === 'interrompido') {
     return <p className="erro pequeno numero-historico">Importação interrompida: {h.erro}</p>;
