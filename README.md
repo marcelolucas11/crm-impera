@@ -279,6 +279,7 @@ mostra a data da próxima reunião. Funciona em qualquer plano do Calendly e nã
 | `WHATSAPP_MIDIA_AUTO_MB` | Mídias recebidas até este tamanho são baixadas na hora (padrão 25) |
 | `WHATSAPP_ENVIO_MAX_MB` | Tamanho máximo de arquivo enviado pelo CRM (padrão 100) |
 | `WHATSAPP_CONFIRMAR_LEITURA` | `1` = abrir a conversa marca como lida no WhatsApp (padrão); `0` = não avisa o contato |
+| `WHATSAPP_VERSAO` | Fixa a versão do WhatsApp Web (ex.: `2,3000,1043857760`). Em branco (padrão), o CRM consulta a versão atual sozinho, porque o WhatsApp recusa versões antigas ("Connection Terminated" em todos os números) |
 
 Depois de mudar o `.env`, rode `./parar.sh && ./iniciar.sh`.
 

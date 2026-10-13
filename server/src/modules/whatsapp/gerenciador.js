@@ -43,13 +43,57 @@ const pastaDe = (id) => path.join(config.whatsapp.pastaSessoes, `numero-${id}`);
 const temSessao = (id) => fs.existsSync(path.join(pastaDe(id), 'creds.json'));
 const apagarSessao = (id) => fs.rmSync(pastaDe(id), { recursive: true, force: true });
 
+// ---------------------------------------------------------------- versão do WhatsApp Web
+// O WhatsApp recusa conexões de versões antigas do WhatsApp Web: o servidor fecha a conexão logo na
+// abertura ("Connection Terminated") e nenhum número conecta, nem os novos. A versão que vem dentro da
+// biblioteca envelhece, então o CRM pergunta a versão atual ao WhatsApp e guarda por algumas horas.
+// WHATSAPP_VERSAO=2,3000,123456 no .env fixa uma versão manualmente.
+const VERSAO_VALIDA_MS = 6 * 3600000;
+let versaoAtual = null; // { versao: [a, b, c], em, atual }
+let buscandoVersao = null;
+
+function versaoDoEnv() {
+  const v = String(process.env.WHATSAPP_VERSAO || '').split(/[.,\s]+/).filter(Boolean).map(Number);
+  return v.length === 3 && v.every((n) => Number.isInteger(n) && n >= 0) ? v : null;
+}
+
+export async function versaoWhatsApp(lib, { renovar = false } = {}) {
+  const fixa = versaoDoEnv();
+  if (fixa) return fixa;
+  const valida = versaoAtual && versaoAtual.atual && Date.now() - versaoAtual.em < VERSAO_VALIDA_MS;
+  if (valida && !renovar) return versaoAtual.versao;
+  if (!lib.fetchLatestWaWebVersion) return versaoAtual?.versao;
+  buscandoVersao ||= (async () => {
+    try {
+      const r = await lib.fetchLatestWaWebVersion({ signal: AbortSignal.timeout(10000) });
+      if (r?.isLatest && Array.isArray(r.version)) {
+        if (versaoAtual?.versao?.join('.') !== r.version.join('.')) console.log(`[whatsapp] versão do WhatsApp Web: ${r.version.join('.')}`);
+        versaoAtual = { versao: r.version, em: Date.now(), atual: true };
+      } else {
+        console.warn(`[whatsapp] não consegui consultar a versão do WhatsApp Web (${r?.error?.message || 'sem resposta'}); usando ${(versaoAtual?.versao || r?.version || []).join('.')}`);
+        // Guarda a tentativa por 5 minutos para não consultar a cada reconexão
+        versaoAtual = { versao: versaoAtual?.versao || r?.version, em: Date.now() - VERSAO_VALIDA_MS + 300000, atual: Boolean(versaoAtual?.atual) };
+      }
+    } finally {
+      buscandoVersao = null;
+    }
+    return versaoAtual.versao;
+  })();
+  return buscandoVersao;
+}
+export function esquecerVersao() {
+  versaoAtual = null;
+}
+
 // Cria o socket do Baileys. Substituível nos testes.
-let fabricaSocket = async (id, lib) => {
+let fabricaSocket = async (id, lib, opcoes = {}) => {
   const log = await loggerComFigurinhas(id);
   const { state, saveCreds } = await lib.useMultiFileAuthState(pastaDe(id));
   const criar = lib.makeWASocket || lib.default;
   const historico = config.whatsapp.historicoDias > 0;
+  const version = opcoes.versao;
   const sock = criar({
+    ...(version ? { version } : {}),
     auth: { creds: state.creds, keys: lib.makeCacheableSignalKeyStore(state.keys, log) },
     logger: log,
     // "Desktop" + syncFullHistory = o celular manda o histórico completo, como para o WhatsApp do computador
@@ -94,8 +138,25 @@ export async function conectar(id) {
   }
   fs.mkdirSync(pastaDe(id), { recursive: true });
   e.mostrouQr = false;
-  const { sock, saveCreds } = await fabricaSocket(id, lib);
+  // Se a última conexão foi fechada pelo WhatsApp logo na abertura, consulta a versão de novo
+  const versao = await versaoWhatsApp(lib, { renovar: Boolean(e.versaoRecusada) }).catch(() => undefined);
+  e.versaoRecusada = false;
+  let criado;
+  try {
+    criado = await fabricaSocket(id, lib, { versao });
+  } catch (err) {
+    e.status = 'erro';
+    e.erro = `Não foi possível iniciar a conexão: ${err.message}`;
+    avisar({ numeros: true });
+    return;
+  }
+  if (e.parando || e.sock) { // desconectado (ou conectado por outro clique) enquanto preparava
+    try { criado.sock.end?.(undefined); } catch { /* ignora */ }
+    return;
+  }
+  const { sock, saveCreds } = criado;
   e.sock = sock;
+  e.abriu = false;
 
   const protegido = (nome, fn) => (...args) => {
     Promise.resolve()
@@ -103,7 +164,12 @@ export async function conectar(id) {
       .catch((err) => console.error(`[whatsapp #${id}] erro em ${nome}:`, err.message));
   };
 
-  sock.ev.on('creds.update', saveCreds);
+  // Depois que a sessão é apagada (desconectado pelo celular), o Baileys ainda pode tentar salvar:
+  // ignora esses salvamentos para não recriar uma sessão quebrada nem derrubar o servidor
+  sock.ev.on('creds.update', (...args) => {
+    if (!fs.existsSync(pastaDe(id))) return; // sessão apagada
+    Promise.resolve(saveCreds(...args)).catch((err) => console.error(`[whatsapp #${id}] erro ao salvar sessão:`, err.message));
+  });
   sock.ev.on('connection.update', (u) => aoAtualizarConexao(id, sock, u, lib));
   sock.ev.on('messages.upsert', protegido('mensagem', async ({ messages, type }) => {
     for (const m of messages || []) {
@@ -137,12 +203,14 @@ function aoAtualizarConexao(id, sock, u, lib) {
   if (e.sock !== sock) return; // evento de um socket antigo
 
   if (u.qr) {
+    e.abriu = true; // o WhatsApp aceitou a conexão (mandou QR code)
     e.qr = u.qr;
     e.status = 'aguardando_qr';
     e.mostrouQr = true;
   }
 
   if (u.connection === 'open') {
+    e.abriu = true;
     e.status = 'conectado';
     e.qr = null;
     e.erro = null;
@@ -191,6 +259,10 @@ function aoAtualizarConexao(id, sock, u, lib) {
       e.erro = 'O QR code expirou. Clique em Conectar para gerar outro.';
       return;
     }
+    // Fechada pelo WhatsApp antes de aceitar (sem QR code nem conexão): normalmente a versão do
+    // WhatsApp Web ficou velha. A próxima tentativa consulta a versão atual.
+    const recusadaNaAbertura = codigo === motivos.connectionClosed && !e.abriu;
+    if (recusadaNaAbertura) e.versaoRecusada = true;
     // Depois de ler o QR code, o WhatsApp pede um reinício: a próxima conexão ainda é "nova"
     if (codigo === motivos.restartRequired && e.mostrouQr) e.conexaoNova = true;
 
@@ -204,7 +276,11 @@ function aoAtualizarConexao(id, sock, u, lib) {
     }
     const espera = codigo === motivos.restartRequired ? 0 : Math.min(60, 2 ** Math.min(e.tentativas, 6)) * 1000;
     e.status = 'reconectando';
-    e.erro = codigo === motivos.restartRequired ? null : `Conexão caiu (${motivo}). Nova tentativa em ${Math.round(espera / 1000)} s.`;
+    e.erro = codigo === motivos.restartRequired
+      ? null
+      : recusadaNaAbertura
+        ? `O WhatsApp fechou a conexão na abertura (${motivo}). Atualizando a versão e tentando de novo em ${Math.round(espera / 1000)} s.`
+        : `Conexão caiu (${motivo}). Nova tentativa em ${Math.round(espera / 1000)} s.`;
     e.timer = setTimeout(() => conectar(id).catch((err) => { e.status = 'erro'; e.erro = err.message; }), espera);
     e.timer.unref?.();
   }
