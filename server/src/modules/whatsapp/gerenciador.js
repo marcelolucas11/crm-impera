@@ -96,8 +96,9 @@ let fabricaSocket = async (id, lib, opcoes = {}) => {
     ...(version ? { version } : {}),
     auth: { creds: state.creds, keys: lib.makeCacheableSignalKeyStore(state.keys, log) },
     logger: log,
-    // "Desktop" + syncFullHistory = o celular manda o histórico completo, como para o WhatsApp do computador
-    browser: lib.Browsers.macOS('Desktop'),
+    // "Desktop" + syncFullHistory = o celular manda o histórico completo, como para o WhatsApp do computador.
+    // Windows (WIN_HYBRID, ver corrigirPlataforma): o WhatsApp recusa "Mac OS" Desktop desde 30/06/2026.
+    browser: lib.Browsers.windows('Desktop'),
     markOnlineOnConnect: false,
     syncFullHistory: historico,
     // Processa todos os tipos de lote do histórico (INITIAL_BOOTSTRAP, RECENT, FULL, ON_DEMAND...)

@@ -118,3 +118,22 @@ test('falha ao consultar a versão não impede a conexão', async () => {
   assert.deepEqual(versao, [2, 3000, 1]);
   db.run('SELECT 1');
 });
+
+test('apresenta-se como WhatsApp Desktop atual (WIN_HYBRID), que o WhatsApp aceita', async () => {
+  const { carregarBaileys } = inst;
+  const lib = await import('baileys');
+  inst.definirBiblioteca(null);
+  await carregarBaileys();
+  const W = lib.proto.ClientPayload.WebInfo.WebSubPlatform;
+  const config = { browser: lib.Browsers.windows('Desktop'), syncFullHistory: true, version: [2, 3000, 1], countryCode: 'US' };
+  const registro = lib.generateRegistrationNode(lib.initAuthCreds(), config);
+  assert.equal(registro.webInfo.webSubPlatform, W.WIN_HYBRID);
+  const login = lib.generateLoginNode('5511900000000:3@s.whatsapp.net', config);
+  assert.equal(login.webInfo.webSubPlatform, W.WIN_HYBRID);
+  // Codificado de verdade (é o que vai para o WhatsApp)
+  const decod = lib.proto.ClientPayload.decode(lib.proto.ClientPayload.encode(registro).finish());
+  assert.equal(decod.webInfo.webSubPlatform, W.WIN_HYBRID);
+  // Corrigir duas vezes não empilha
+  inst.corrigirPlataforma(lib);
+  assert.equal(lib.generateRegistrationNode(lib.initAuthCreds(), config).webInfo.webSubPlatform, W.WIN_HYBRID);
+});

@@ -29,9 +29,31 @@ export function algumConectado(preferido) {
 
 export const avisar = (dados = {}) => emitir('whatsapp', dados);
 
+// Desde ~30/06/2026 o WhatsApp recusa a conexão (fecha com 428 "Connection Terminated", antes do
+// QR code) de quem se apresenta como WhatsApp Desktop antigo: Mac (DARWIN) ou Windows Electron (WIN32).
+// O WhatsApp Desktop atual se apresenta como WIN_HYBRID, e só um "Desktop" recebe o histórico completo.
+// O Baileys 7.0.0-rc14 ainda manda WIN32 para Windows; a correção (#2741) não saiu no npm. Até sair,
+// troca WIN32 → WIN_HYBRID no pacote de apresentação. Quando o Baileys corrigir, isto não muda nada.
+export function corrigirPlataforma(lib) {
+  const cp = lib?.proto?.ClientPayload;
+  const plataformas = cp?.WebInfo?.WebSubPlatform;
+  if (!cp || !plataformas || cp.fromObject.__crmImpera) return;
+  const original = cp.fromObject.bind(cp);
+  const corrigido = (obj) => {
+    const payload = original(obj);
+    if (payload?.webInfo?.webSubPlatform === plataformas.WIN32) payload.webInfo.webSubPlatform = plataformas.WIN_HYBRID;
+    return payload;
+  };
+  corrigido.__crmImpera = true;
+  cp.fromObject = corrigido;
+}
+
 let biblioteca = null;
 export async function carregarBaileys() {
-  if (!biblioteca) biblioteca = await import('baileys');
+  if (!biblioteca) {
+    biblioteca = await import('baileys');
+    corrigirPlataforma(biblioteca);
+  }
   return biblioteca;
 }
 export const bibliotecaCarregada = () => biblioteca;
