@@ -733,3 +733,5 @@ textarea { resize: vertical; }
 .campo-vis { flex-direction: row; align-items: center; justify-content: space-between; gap: 12px; padding: 6px 0; border-bottom: 1px solid var(--borda); font-size: 13px; color: var(--texto); }
 .campo-vis .olho { background: none; border: none; cursor: pointer; font-size: 15px; }
 .campo-vis .olho.fechado { opacity: .55; }
+.novidades { margin: 6px 0 0 18px; font-size: 13px; color: var(--suave); }
+.log-atualizacao { background: var(--fundo); border: 1px solid var(--borda); border-radius: 8px; padding: 10px; font-size: 11.5px; max-height: 240px; overflow: auto; white-space: pre-wrap; margin-top: 10px; }

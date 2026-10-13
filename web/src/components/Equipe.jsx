@@ -4,6 +4,7 @@ import { dataHora, tempoDesde } from '../utils.js';
 import WhatsAppNumeros from './WhatsAppNumeros.jsx';
 import CalendlyStatus from './CalendlyStatus.jsx';
 import FormulariosYay from './FormulariosYay.jsx';
+import Atualizacao from './Atualizacao.jsx';
 
 export default function Equipe({ user }) {
   const [users, setUsers] = useState([]);
@@ -49,6 +50,8 @@ export default function Equipe({ user }) {
       <div className="pagina">
         {erro && <div className="erro">{erro}</div>}
         {msg && <div className="sucesso">{msg}</div>}
+
+        {user?.role === 'admin' && <Atualizacao />}
 
         <section className="cartao-secao">
           <h2>Equipe</h2>
