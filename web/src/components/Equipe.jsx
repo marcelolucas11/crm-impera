@@ -4,6 +4,7 @@ import { dataHora, tempoDesde } from '../utils.js';
 import WhatsAppNumeros from './WhatsAppNumeros.jsx';
 import CalendlyStatus from './CalendlyStatus.jsx';
 import FormulariosYay from './FormulariosYay.jsx';
+import SegredosYay from './SegredosYay.jsx';
 import Atualizacao from './Atualizacao.jsx';
 
 export default function Equipe({ user }) {
@@ -116,7 +117,9 @@ export default function Equipe({ user }) {
               use o endereço público do Tailscale Funnel e preencha PUBLIC_URL no .env.
             </p>
           )}
-          <p className="suave pequeno">Assinatura HMAC: {yay?.assinatura_ativa ? 'ativa' : 'desativada (opcional)'}</p>
+          <p className="suave pequeno">Assinatura: {yay?.assinatura_ativa ? 'conferida (só entram webhooks com um dos segredos abaixo)' : 'não conferida (nenhum segredo cadastrado)'}</p>
+
+          <SegredosYay aoMensagem={setMsg} aoErro={setErro} aoMudar={carregar} />
 
           <FormulariosYay aoMensagem={setMsg} aoErro={setErro} />
 
@@ -128,10 +131,10 @@ export default function Equipe({ user }) {
                 {eventos.map((ev) => (
                   <tr key={ev.id}>
                     <td>{dataHora(ev.received_at)}</td>
-                    <td className={ev.status === 'error' ? 'alerta' : ''}>{{ processed: 'Processado', duplicado: 'Repetido (já tinha chegado)', error: `Erro: ${ev.error}` }[ev.status] || 'Recebido'}</td>
+                    <td className={ev.status === 'error' || ev.status === 'assinatura_invalida' ? 'alerta' : ''}>{{ processed: 'Processado', duplicado: 'Repetido (já tinha chegado)', error: `Erro: ${ev.error}`, assinatura_invalida: 'Recusado: segredo não cadastrado' }[ev.status] || 'Recebido'}</td>
                     <td>{ev.lead_id ? `#${ev.lead_id}` : '—'}</td>
                     <td>
-                      {(ev.status === 'error' || ev.status === 'received') && (
+                      {(ev.status === 'error' || ev.status === 'received' || ev.status === 'assinatura_invalida') && (
                         <button className="btn btn-pequeno" onClick={() => executar(() => api(`/yayforms/eventos/${ev.id}/reprocessar`, { method: 'POST' }), 'Reprocessado.')}>Reprocessar</button>
                       )}
                     </td>

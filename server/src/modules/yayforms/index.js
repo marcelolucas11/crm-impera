@@ -17,19 +17,43 @@ function iguaisSeguro(a, b) {
   return ba.length === bb.length && crypto.timingSafeEqual(ba, bb);
 }
 
-// Confere a assinatura HMAC SHA256 (só se YAYFORMS_WEBHOOK_SECRET estiver definido).
-// Aceita qualquer cabeçalho com "signature" no nome, em hex ou base64, com ou sem prefixo "sha256=".
-function assinaturaValida(req) {
-  if (!config.yayforms.secret) return true;
-  const digest = crypto.createHmac('sha256', config.yayforms.secret).update(req.rawBody || Buffer.alloc(0)).digest();
-  const hex = digest.toString('hex');
-  const base64 = digest.toString('base64');
-  return Object.entries(req.headers)
+// ---- Segredos de assinatura ----
+// Cada webhook criado no Yay! Forms ganha um "Secret" próprio. O CRM guarda vários (tela Equipe e integrações)
+// e aceita o webhook se a assinatura bater com QUALQUER um deles. Sem nenhum segredo cadastrado, aceita tudo
+// (a URL já tem um token secreto). O YAYFORMS_WEBHOOK_SECRET do .env continua valendo, como mais um da lista.
+function segredosCadastrados() {
+  const lista = Array.isArray(lerEstado('yayforms').segredos) ? lerEstado('yayforms').segredos : [];
+  const env = config.yayforms.secret ? [{ id: 'env', nome: 'Definido no .env', segredo: config.yayforms.secret, fixo: true }] : [];
+  return [...env, ...lista];
+}
+
+function mascarar(segredo) {
+  const s = String(segredo);
+  return s.length <= 4 ? '••••' : `••••${s.slice(-4)}`;
+}
+
+// Devolve { ok, segredoId }. Aceita qualquer cabeçalho com "signature" no nome, em hex ou base64, com ou sem "sha256=".
+function conferirAssinatura(req) {
+  const segredos = segredosCadastrados();
+  if (!segredos.length) return { ok: true, segredoId: null };
+  const assinaturas = Object.entries(req.headers)
     .filter(([nome]) => nome.toLowerCase().includes('signature'))
-    .some(([, valor]) => {
-      const v = String(valor).trim().replace(/^sha256=/i, '');
-      return iguaisSeguro(v.toLowerCase(), hex) || iguaisSeguro(v, base64);
-    });
+    .map(([, valor]) => String(valor).trim().replace(/^sha256=/i, ''));
+  if (!assinaturas.length) return { ok: false, segredoId: null };
+  const corpo = req.rawBody || Buffer.alloc(0);
+  for (const s of segredos) {
+    const digest = crypto.createHmac('sha256', s.segredo).update(corpo).digest();
+    const hex = digest.toString('hex');
+    const base64 = digest.toString('base64');
+    if (assinaturas.some((v) => iguaisSeguro(v.toLowerCase(), hex) || iguaisSeguro(v, base64))) return { ok: true, segredoId: s.id };
+  }
+  return { ok: false, segredoId: null };
+}
+
+function marcarUso(segredoId) {
+  if (!segredoId || segredoId === 'env') return;
+  const lista = (lerEstado('yayforms').segredos || []).map((s) => (s.id === segredoId ? { ...s, ultimo_uso: agora() } : s));
+  salvarEstado('yayforms', { segredos: lista });
 }
 
 function processar(body) {
@@ -108,11 +132,18 @@ export default {
       if (!config.yayforms.token || !iguaisSeguro(req.params.token, config.yayforms.token)) {
         return res.status(404).json({ erro: 'Não encontrado' });
       }
-      if (!assinaturaValida(req)) {
+      const body = req.body && typeof req.body === 'object' ? req.body : {};
+      const assinatura = conferirAssinatura(req);
+      if (!assinatura.ok) {
+        // Guarda mesmo assim (sem processar): depois de cadastrar o segredo certo, dá para reprocessar pela tela
+        run(
+          "INSERT INTO webhook_events (source, payload, status, error) VALUES (?, ?, 'assinatura_invalida', ?)",
+          ['yayforms', JSON.stringify(body), 'Assinatura não bate com nenhum segredo cadastrado']
+        );
         console.warn('[yayforms] assinatura inválida — cabeçalhos recebidos:', Object.keys(req.headers).join(', '));
         return res.status(401).json({ erro: 'Assinatura inválida' });
       }
-      const body = req.body && typeof req.body === 'object' ? req.body : {};
+      marcarUso(assinatura.segredoId);
 
       // 1) Guarda o payload bruto antes de qualquer coisa: nenhum lead se perde
       const eventoId = Number(run('INSERT INTO webhook_events (source, payload) VALUES (?, ?)', ['yayforms', JSON.stringify(body)]).lastInsertRowid);
@@ -202,8 +233,41 @@ export default {
         url: config.publicOrigin
           ? `${config.publicOrigin}${config.basePath}/webhooks/yayforms/${config.yayforms.token}`
           : null,
-        assinatura_ativa: Boolean(config.yayforms.secret),
+        assinatura_ativa: segredosCadastrados().length > 0,
       });
+    });
+
+    // Segredos dos webhooks (um por webhook criado no Yay! Forms). O valor nunca volta inteiro para a tela.
+    adm.get('/segredos', (req, res) => {
+      res.json({
+        segredos: segredosCadastrados().map((s) => ({
+          id: s.id, nome: s.nome, final: mascarar(s.segredo), fixo: Boolean(s.fixo),
+          criado_em: s.criado_em || null, ultimo_uso: s.ultimo_uso || null,
+        })),
+      });
+    });
+
+    adm.post('/segredos', (req, res) => {
+      const segredo = String(req.body?.segredo || '').trim();
+      const nome = String(req.body?.nome || '').trim().slice(0, 80) || 'Webhook';
+      if (segredo.length < 8 || segredo.length > 256 || /\s/.test(segredo)) {
+        return res.status(400).json({ erro: 'Cole o "Secret" exatamente como aparece no Yay! Forms (sem espaços).' });
+      }
+      if (segredosCadastrados().some((s) => s.segredo === segredo)) {
+        return res.status(409).json({ erro: 'Esse segredo já está cadastrado.' });
+      }
+      const lista = Array.isArray(lerEstado('yayforms').segredos) ? lerEstado('yayforms').segredos : [];
+      const novo = { id: crypto.randomUUID(), nome, segredo, criado_em: agora(), ultimo_uso: null };
+      salvarEstado('yayforms', { segredos: [...lista, novo] });
+      res.json({ ok: true, id: novo.id });
+    });
+
+    adm.delete('/segredos/:id', (req, res) => {
+      const lista = Array.isArray(lerEstado('yayforms').segredos) ? lerEstado('yayforms').segredos : [];
+      const resto = lista.filter((s) => s.id !== req.params.id);
+      if (resto.length === lista.length) return res.status(404).json({ erro: 'Segredo não encontrado (os do .env só saem editando o .env).' });
+      salvarEstado('yayforms', { segredos: resto });
+      res.json({ ok: true });
     });
 
     app.use('/api/yayforms', adm);

@@ -71,6 +71,11 @@ Se a versão nova não ligar, o banco continua intacto e `./scripts/voltar-versa
 2. No Yay! Forms: formulário → **Integrar → Webhooks → Add webhook** → cole a URL → formato **V2**.
 3. Use **Test** no Yay! Forms e confira o lead no kanban.
 
+**Segredos (Secret):** cada webhook criado no Yay! Forms ganha um *Secret* próprio. Em **Equipe e integrações → Yay! Forms →
+Segredos dos webhooks**, cole o Secret de cada webhook (dá para guardar vários). O CRM aceita o webhook se a assinatura bater com
+qualquer um deles. Sem nenhum segredo cadastrado, aceita qualquer envio para a URL (que já tem um token secreto). Webhooks recusados
+por segredo errado ficam na lista como **Recusado** — depois de cadastrar o segredo, clique em **Reprocessar**.
+
 O CRM detecta nome, telefone e e-mail sozinho. Se errar em algum formulário, preencha no `.env` os IDs das perguntas
 (`YAYFORMS_CAMPO_NOME`, `YAYFORMS_CAMPO_TELEFONE`, `YAYFORMS_CAMPO_EMAIL`) e rode `./parar.sh && ./iniciar.sh`.
 Todo webhook recebido fica salvo; os que derem erro podem ser reprocessados na tela de integrações.
@@ -168,7 +173,7 @@ mostra a data da próxima reunião. Funciona em qualquer plano do Calendly e nã
 | `HOST` | `127.0.0.1` = só este Mac acessa; `0.0.0.0` = libera para a rede do escritório |
 | `PUBLIC_URL` | Endereço público do CRM, com o caminho se houver (ex.: `https://crm-impera.imperaservices.com/interno`) |
 | `BASE_PATH` | Caminho do CRM no domínio (ex.: `/interno`). Vazio = usa o caminho do `PUBLIC_URL`. A raiz continua funcionando. |
-| `YAYFORMS_WEBHOOK_SECRET` | Opcional: o "Secret" do webhook no Yay! Forms, para conferir a assinatura |
+| `YAYFORMS_WEBHOOK_SECRET` | Opcional: um "Secret" fixo do Yay! Forms. Prefira cadastrar os segredos pela tela (aceita vários) |
 | `WHATSAPP_HISTORICO_DIAS` | Quantos dias de conversas antigas importar ao conectar um número (padrão 30; 0 = nenhum) |
 | `WHATSAPP_MIDIA_AUTO_MB` | Mídias recebidas até este tamanho são baixadas na hora (padrão 25) |
 | `WHATSAPP_ENVIO_MAX_MB` | Tamanho máximo de arquivo enviado pelo CRM (padrão 100) |
