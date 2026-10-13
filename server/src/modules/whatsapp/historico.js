@@ -68,7 +68,7 @@ export async function aoReceberHistorico(id, sock, lib, dados = {}) {
   const sobDemanda = syncType === tipos.ON_DEMAND;
   if (lidPnMappings?.length) aplicarMapeamentos(lib, lidPnMappings);
   if (contacts?.length) aoAtualizarContatos(lib, contacts);
-  if (chats?.length) aplicarEstadoChats(lib, id, chats);
+  if (chats?.length) aplicarEstadoChats(lib, id, chats, { historico: true });
   if (!sobDemanda && config.whatsapp.historicoDias === 0) return { novas: 0 };
 
   // Conversas pedidas à mão (botão na conversa) trazem tudo; o resto respeita a janela de dias
@@ -213,12 +213,18 @@ export async function pedirAnteriores(e, jid, linha, manual = false) {
  * Completa o histórico de todas as conversas de um número até a janela de dias.
  * Um pedido de cada vez, com intervalo. Pode ser chamado pelo botão (sem desconectar).
  */
-export async function importarHistorico(id, { automatico = false } = {}) {
+// Confere se dá para importar agora (usado pelo botão antes de começar)
+export function verificarImportacao(id) {
   const e = socketConectado(id);
   if (!e) throw new ErroHttp(409, 'Este número não está conectado');
   if (!config.whatsapp.historicoDias) throw new ErroHttp(400, 'A importação de histórico está desligada (WHATSAPP_HISTORICO_DIAS=0)');
-  if (e.importando) return progressoDe(id);
   if (typeof e.sock.fetchMessageHistory !== 'function') throw new ErroHttp(501, 'Esta versão da biblioteca do WhatsApp não permite buscar histórico');
+  return e;
+}
+
+export async function importarHistorico(id, { automatico = false } = {}) {
+  const e = verificarImportacao(id);
+  if (e.importando) return progressoDe(id);
   e.importando = true;
   e.complementarAoTerminar = false;
   const limite = limiteDaJanela();
@@ -230,6 +236,7 @@ export async function importarHistorico(id, { automatico = false } = {}) {
     }, { gravar: true });
 
     let feitas = 0;
+    let semResposta = 0;
     for (const conversa of lista) {
       if (!socketConectado(id)) throw new Error('O número desconectou no meio da importação. Ela continua quando ele voltar.');
       let pedidosFeitos = 0;
@@ -243,8 +250,15 @@ export async function importarHistorico(id, { automatico = false } = {}) {
           console.error(`[whatsapp #${id}] pedido de histórico falhou:`, err.message);
         }
         await esperar(INTERVALO_PEDIDOS_MS);
+        if (!respondeu) {
+          // Sem resposta (celular desligado ou sem internet): não marca como concluída, tenta depois
+          semResposta++;
+          if (semResposta >= 3) throw new Error('O celular parou de responder (está ligado e com internet?). Clique em Importar de novo para continuar de onde parou.');
+          break;
+        }
+        semResposta = 0;
         const depois = maisAntigaDaConversa(id, conversa.chat_jid);
-        if (!respondeu || !depois || depois.timestamp >= antes.timestamp) {
+        if (!depois || depois.timestamp >= antes.timestamp) {
           // Nada mais antigo: o celular não tem (ou não quis mandar). Não pede de novo nesta conversa.
           run(
             `INSERT INTO wa_chats (jid, instance_id, history_done, history_checked_at) VALUES (?, ?, 1, ?)

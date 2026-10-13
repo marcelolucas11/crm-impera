@@ -16,25 +16,46 @@ const TEMPO_MS = 4000;
 const MAX_HTML = 600 * 1024;
 const MAX_IMAGEM = 1500 * 1024;
 
+// Endereços que a prévia nunca acessa (localhost, rede local, link-local, multicast, IPv6 local/mapeado)
+// (listas separadas: o BlockList trata IPv4 como "::ffff:x.x.x.x" ao conferir regras IPv6)
+const BLOQUEADOS_V4 = new net.BlockList();
+for (const [rede, bits] of [['0.0.0.0', 8], ['10.0.0.0', 8], ['100.64.0.0', 10], ['127.0.0.0', 8], ['169.254.0.0', 16], ['172.16.0.0', 12],
+  ['192.0.0.0', 24], ['192.168.0.0', 16], ['198.18.0.0', 15], ['224.0.0.0', 3]]) BLOQUEADOS_V4.addSubnet(rede, bits, 'ipv4');
+const BLOQUEADOS_V6 = new net.BlockList();
+for (const [rede, bits] of [['::', 127], ['fc00::', 7], ['fe80::', 10], ['ff00::', 8], ['64:ff9b::', 96], ['2002::', 16]]) {
+  BLOQUEADOS_V6.addSubnet(rede, bits, 'ipv6');
+}
+
 export function ipInterno(ip) {
   if (!ip) return true;
-  if (net.isIPv4(ip)) {
-    const [a, b] = ip.split('.').map(Number);
-    return a === 0 || a === 10 || a === 127 || (a === 169 && b === 254) || (a === 172 && b >= 16 && b <= 31) ||
-      (a === 192 && b === 168) || (a === 100 && b >= 64 && b <= 127) || a >= 224;
+  const limpo = String(ip).replace(/^\[|\]$/g, '');
+  const tipo = net.isIP(limpo);
+  if (!tipo) return true;
+  if (tipo === 6) {
+    // IPv4 escrito dentro do IPv6 (::ffff:127.0.0.1 ou ::ffff:7f00:1)
+    const m = limpo.toLowerCase().match(/^::ffff:(.+)$/);
+    if (m) {
+      if (net.isIPv4(m[1])) return ipInterno(m[1]);
+      const p = m[1].split(':');
+      if (p.length === 2) {
+        const n = (parseInt(p[0], 16) << 16) + parseInt(p[1], 16);
+        return ipInterno([n >>> 24, (n >>> 16) & 255, (n >>> 8) & 255, n & 255].join('.'));
+      }
+    }
+    if (/^::ffff:/i.test(limpo)) return true;
+    return BLOQUEADOS_V6.check(limpo, 'ipv6');
   }
-  const v = ip.toLowerCase();
-  if (v.startsWith('::ffff:')) return ipInterno(v.slice(7));
-  return v === '::' || v === '::1' || v.startsWith('fc') || v.startsWith('fd') || v.startsWith('fe8') || v.startsWith('fe9') ||
-    v.startsWith('fea') || v.startsWith('feb') || v.startsWith('ff');
+  return BLOQUEADOS_V4.check(limpo, 'ipv4');
 }
 
 // Resolve o nome e recusa endereços internos (usado pela própria conexão)
 function lookupSeguro(host, opcoes, cb) {
-  dns.lookup(host, { ...opcoes, all: false }, (err, endereco, familia) => {
+  dns.lookup(host, { ...opcoes, all: true }, (err, enderecos) => {
     if (err) return cb(err);
-    if (ipInterno(endereco)) return cb(new Error('Endereço interno não permitido'));
-    cb(null, endereco, familia);
+    const permitidos = (enderecos || []).filter((e) => !ipInterno(e.address));
+    if (!permitidos.length || permitidos.length !== enderecos.length) return cb(new Error('Endereço interno não permitido'));
+    if (opcoes?.all) return cb(null, permitidos);
+    cb(null, permitidos[0].address, permitidos[0].family);
   });
 }
 
@@ -43,7 +64,8 @@ function baixar(url, max, redirecionamentos = 3) {
     let u;
     try { u = new URL(url); } catch { return reject(new Error('URL inválida')); }
     if (!['http:', 'https:'].includes(u.protocol)) return reject(new Error('Protocolo não permitido'));
-    if (net.isIP(u.hostname.replace(/^\[|\]$/g, '')) && ipInterno(u.hostname.replace(/^\[|\]$/g, ''))) return reject(new Error('Endereço interno'));
+    const host = u.hostname.replace(/^\[|\]$/g, '');
+    if ((net.isIP(host) && ipInterno(host)) || /^localhost$|\.localhost$|\.local$|\.internal$/i.test(host)) return reject(new Error('Endereço interno'));
     const mod = u.protocol === 'https:' ? https : http;
     const req = mod.get(u, {
       lookup: lookupSeguro,
@@ -104,9 +126,13 @@ export async function gerarPrevia(texto) {
       try {
         const img = await baixar(new URL(imagem, pagina.url).toString(), MAX_IMAGEM);
         if (/^image\//i.test(img.tipo) && !img.cortado) {
-          const tmp = path.join(os.tmpdir(), `previa-${crypto.randomUUID()}`);
-          fs.writeFileSync(tmp, img.corpo);
-          try { jpegThumbnail = (await ff.miniatura(tmp)).jpeg || undefined; } finally { fs.rmSync(tmp, { force: true }); }
+          const ext = { 'image/jpeg': '.jpg', 'image/png': '.png', 'image/webp': '.webp' }[img.tipo.split(';')[0].trim().toLowerCase()];
+          if (ext) {
+            const tmp = path.join(os.tmpdir(), `previa-${crypto.randomUUID()}${ext}`);
+            fs.writeFileSync(tmp, img.corpo);
+            // Imagem de terceiros: o FFmpeg só lê este arquivo como imagem (nada de playlists ou outros protocolos)
+            try { jpegThumbnail = (await ff.miniatura(tmp, { seguro: true })).jpeg || undefined; } finally { fs.rmSync(tmp, { force: true }); }
+          }
         }
       } catch { /* sem miniatura */ }
     }

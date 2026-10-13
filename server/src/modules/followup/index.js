@@ -19,7 +19,11 @@ export default {
         .map(({ id, name, phone, stage_name, owner_name, last_activity_at }) => ({ id, name, phone, stage_name, owner_name, last_activity_at }));
       const aguardando = get("SELECT count(*) n FROM leads l JOIN stages s ON s.id = l.stage_id WHERE s.kind = 'open' AND l.waiting_since IS NOT NULL").n;
       const conversasNaoLidas = get(
-        `SELECT count(DISTINCT COALESCE('l' || lead_id, chat_jid)) n FROM wa_messages WHERE from_me = 0 AND read_at IS NULL`
+        // Como no WhatsApp: conversas silenciadas ou arquivadas não contam no contador
+        `SELECT count(DISTINCT COALESCE('l' || lead_id, chat_jid)) n FROM wa_messages
+          WHERE from_me = 0 AND read_at IS NULL AND hidden_at IS NULL
+            AND chat_jid NOT IN (SELECT jid FROM wa_chats WHERE archived = 1 OR muted_until > ?)`,
+        [new Date().toISOString()]
       ).n;
       res.json({ horas: config.followupHours, atrasados: atrasados.length, lista, aguardando, conversas_nao_lidas: conversasNaoLidas });
     });

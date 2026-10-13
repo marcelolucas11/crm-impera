@@ -26,6 +26,10 @@ export const webpAnimado = (buffer) => Buffer.isBuffer(buffer) && buffer.length 
  * Guarda (ou atualiza) uma figurinha. A mesma figurinha (mesmo conteúdo) nunca é guardada duas vezes.
  *  buffer: conteúdo do arquivo · caminho: arquivo já salvo (relativo a FILES_DIR), senão é salvo aqui
  */
+// Só tipos de imagem conhecidos (o tipo vem de quem mandou: nunca é confiável)
+export const mimeDeFigurinha = (mime) => (['image/webp', 'image/png', 'image/gif'].includes(String(mime || '').split(';')[0].trim().toLowerCase())
+  ? String(mime).split(';')[0].trim().toLowerCase() : 'image/webp');
+
 export function registrarFigurinha({ buffer, caminho = null, mime = 'image/webp', largura = null, altura = null, origem = 'recebida', usadaEm = null, favoritaCelular = null, chave = null }) {
   const hash = chave || crypto.createHash('sha256').update(buffer).digest('hex');
   let rel = caminho;
@@ -44,7 +48,7 @@ export function registrarFigurinha({ buffer, caminho = null, mime = 'image/webp'
        last_used_at = CASE WHEN excluded.last_used_at IS NOT NULL AND (wa_stickers.last_used_at IS NULL OR wa_stickers.last_used_at < excluded.last_used_at)
                            THEN excluded.last_used_at ELSE wa_stickers.last_used_at END,
        phone_favorite = COALESCE(?, wa_stickers.phone_favorite)`,
-    [hash, rel, (mime || 'image/webp').split(';')[0], animada, largura, altura, origem, usadaEm, favoritaCelular === null ? 0 : favoritaCelular ? 1 : 0,
+    [hash, rel, mimeDeFigurinha(mime), animada, largura, altura, origem, usadaEm, favoritaCelular === null ? 0 : favoritaCelular ? 1 : 0,
       favoritaCelular === null ? null : favoritaCelular ? 1 : 0]
   );
   return get('SELECT id FROM wa_stickers WHERE hash = ?', [hash])?.id || null;
@@ -77,7 +81,7 @@ export async function favoritarDaMensagem(linhaId, baixar) {
 export function arquivoDaFigurinha(id) {
   const f = get('SELECT path, mime FROM wa_stickers WHERE id = ?', [id]);
   if (!f?.path || !fs.existsSync(absoluto(f.path))) throw new ErroHttp(404, 'Figurinha ainda não baixada');
-  return { caminho: absoluto(f.path), mime: f.mime || 'image/webp', relativo: f.path };
+  return { caminho: absoluto(f.path), mime: mimeDeFigurinha(f.mime), relativo: f.path };
 }
 
 export function marcarUsada(id) {
@@ -131,7 +135,7 @@ export function aoReceberAcaoFigurinha(instanciaId, mutacao) {
     `INSERT INTO wa_stickers (hash, mime, animated, width, height, media, phone_favorite, origin, created_at)
      VALUES (?, ?, 0, ?, ?, ?, ?, 'celular', ?)
      ON CONFLICT(hash) DO UPDATE SET phone_favorite = excluded.phone_favorite, media = COALESCE(excluded.media, wa_stickers.media)`,
-    [chave, midia.mimetype, acao.width || null, acao.height || null, JSON.stringify(midia), favorita ? 1 : 0, agora()]
+    [chave, mimeDeFigurinha(midia.mimetype), acao.width || null, acao.height || null, JSON.stringify(midia), favorita ? 1 : 0, agora()]
   );
   if (estadoSync) estadoSync.recebidas = (estadoSync.recebidas || 0) + 1;
   if (favorita && !midia.lottie) {

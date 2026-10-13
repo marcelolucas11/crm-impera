@@ -81,8 +81,10 @@ export async function analisarAudio(arquivo) {
 }
 
 // Miniatura JPEG (para o WhatsApp mostrar antes de baixar) + dimensões da foto/vídeo
-export async function miniatura(arquivo, { video = false } = {}) {
-  const args = video ? ['-ss', '0.5', '-i', arquivo] : ['-i', arquivo];
+export async function miniatura(arquivo, { video = false, seguro = false } = {}) {
+  // seguro: arquivo vindo de fora — só o demuxer de imagem e só arquivo local
+  const entrada = seguro ? ['-protocol_whitelist', 'file', '-f', 'image2', '-i', arquivo] : ['-i', arquivo];
+  const args = video ? ['-ss', '0.5', ...entrada] : entrada;
   const { stdout, stderr } = await rodar([...args, '-frames:v', '1', '-vf', 'scale=96:-2', '-q:v', '6', '-f', 'image2', '-c:v', 'mjpeg', 'pipe:1']);
   const dim = stderr.match(/Video:.*?\b(\d{2,5})x(\d{2,5})\b/);
   return { jpeg: stdout.length ? stdout : null, largura: dim ? Number(dim[1]) : null, altura: dim ? Number(dim[2]) : null };

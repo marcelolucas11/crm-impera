@@ -520,7 +520,11 @@ export function aplicarMapeamentos(lib, pares) {
  * Estado das conversas vindo do celular (histórico e chats.update): nome do grupo, arquivada,
  * fixada, silenciada, marcada como não lida, mensagens temporárias.
  */
-export function aplicarEstadoChats(lib, instanciaId, chats) {
+export function aplicarEstadoChats(lib, instanciaId, chats, { historico = false } = {}) {
+  // Campos que não vieram chegam como null (protobuf). No histórico, só valores "ligados" contam:
+  // um lote de histórico nunca desfaz o que a equipe marcou no CRM.
+  const veio = (v) => v !== null && v !== undefined;
+  const num = (v) => (veio(v) ? Number(typeof v === 'object' ? v.toString() : v) : null);
   const iso = (s) => (s ? new Date(Number(s) * (Number(s) > 1e12 ? 1 : 1000)).toISOString() : null);
   let mudou = false;
   tx(() => {
@@ -536,17 +540,19 @@ export function aplicarEstadoChats(lib, instanciaId, chats) {
       const vals = [];
       const nome = c.name || c.subject || (grupo ? c.displayName : null);
       if (nome && grupo) { sets.push('name = ?'); vals.push(nome); }
-      if (typeof c.archived === 'boolean') { sets.push('archived = ?'); vals.push(c.archived ? 1 : 0); }
-      if (c.pinned !== undefined) { sets.push('pinned_at = ?'); vals.push(c.pinned ? iso(c.pinned) || agora() : null); }
-      if (c.muteEndTime !== undefined) {
-        const fim = c.muteEndTime ? Number(typeof c.muteEndTime === 'object' ? c.muteEndTime.toString() : c.muteEndTime) : null;
+      if (typeof c.archived === 'boolean' && (!historico || c.archived)) { sets.push('archived = ?'); vals.push(c.archived ? 1 : 0); }
+      const pin = num(c.pinned);
+      if (veio(c.pinned) && (!historico || pin)) { sets.push('pinned_at = ?'); vals.push(pin ? iso(pin) || agora() : null); }
+      const fim = num(c.muteEndTime);
+      if (veio(c.muteEndTime) && (!historico || fim)) {
         sets.push('muted_until = ?');
         // -1 = silenciada para sempre
         vals.push(fim ? (fim < 0 ? '9999-12-31T00:00:00.000Z' : iso(fim)) : null);
       }
-      if (c.markedAsUnread !== undefined) { sets.push('marked_unread = ?'); vals.push(c.markedAsUnread ? 1 : 0); }
+      if (typeof c.markedAsUnread === 'boolean' && (!historico || c.markedAsUnread)) { sets.push('marked_unread = ?'); vals.push(c.markedAsUnread ? 1 : 0); }
       if (c.unreadCount === -1) { sets.push('marked_unread = 1'); }
-      if (c.ephemeralExpiration !== undefined) { sets.push('ephemeral_seconds = ?'); vals.push(Number(c.ephemeralExpiration) || null); }
+      const efem = num(c.ephemeralExpiration);
+      if (veio(c.ephemeralExpiration) && (!historico || efem)) { sets.push('ephemeral_seconds = ?'); vals.push(efem || null); }
       if (!sets.length) continue;
       run(`UPDATE wa_chats SET ${sets.join(', ')}, updated_at = ? WHERE jid = ?`, [...vals, agora(), jid]);
       mudou = true;

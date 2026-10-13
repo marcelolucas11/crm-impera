@@ -423,12 +423,6 @@ export async function definirEstado(chave, mudanca = {}) {
   const vals = [];
   if ('arquivada' in mudanca) { sets.push('archived = ?'); vals.push(mudanca.arquivada ? 1 : 0); }
   if ('fixada' in mudanca) {
-    if (mudanca.fixada) {
-      const fixadas = get('SELECT count(*) AS n FROM wa_chats WHERE pinned_at IS NOT NULL')?.n || 0;
-      if (fixadas >= 3 && !get(`SELECT 1 FROM wa_chats WHERE pinned_at IS NOT NULL AND jid IN (${todos.map(() => '?').join(',')})`, todos)) {
-        throw new ErroHttp(400, 'Dá para fixar no máximo 3 conversas, como no WhatsApp');
-      }
-    }
     sets.push('pinned_at = ?'); vals.push(mudanca.fixada ? agora() : null);
   }
   if ('silenciada_ate' in mudanca) { sets.push('muted_until = ?'); vals.push(mudanca.silenciada_ate || null); }

@@ -123,7 +123,7 @@ export async function conectar(id) {
   sock.ev.on('message-receipt.update', protegido('recibos', (lista) => aoReceberRecibos(lista)));
   sock.ev.on('contacts.upsert', protegido('contatos', (lista) => aoAtualizarContatos(lib, lista)));
   sock.ev.on('contacts.update', protegido('contatos', (lista) => aoAtualizarContatos(lib, lista)));
-  sock.ev.on('chats.upsert', protegido('conversas', (lista) => aplicarEstadoChats(lib, id, lista)));
+  sock.ev.on('chats.upsert', protegido('conversas', (lista) => aplicarEstadoChats(lib, id, lista, { historico: true })));
   sock.ev.on('chats.update', protegido('conversas', (lista) => aplicarEstadoChats(lib, id, lista)));
   sock.ev.on('groups.upsert', protegido('grupos', (lista) => aoAtualizarContatos(lib, lista)));
   sock.ev.on('groups.update', protegido('grupos', (lista) => aoAtualizarContatos(lib, lista)));

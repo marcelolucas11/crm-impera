@@ -12,3 +12,9 @@ test('prévia de link nunca acessa endereços internos', async () => {
   assert.equal(await gerarPrevia('veja http://localhost:3000/api'), null);
   assert.equal(await gerarPrevia('sem link nenhum'), null);
 });
+
+test('IPv4 escrito como IPv6 também é bloqueado', () => {
+  assert.equal(ipInterno('::ffff:7f00:1'), true);
+  assert.equal(ipInterno('::ffff:c0a8:1'), true);
+  assert.equal(ipInterno('[::1]'), true);
+});

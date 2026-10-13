@@ -22,7 +22,7 @@ import {
   enviarFigurinha, enviarEnquete, enviarContato, enviarLocalizacao, avisarDigitando, assinarPresenca, definirTemporarias,
 } from './envio.js';
 import { arquivoDaMidia } from './midia.js';
-import { importarHistorico, buscarMaisAntigas, progressoDe } from './historico.js';
+import { importarHistorico, buscarMaisAntigas, progressoDe, verificarImportacao } from './historico.js';
 import {
   listarConversas, mensagensDaConversa, destinoDaConversa, transformarEmLead, jidsDaChave, jidPrincipal, definirEstado,
   buscarNaConversa, listarFavoritas, listarEtiquetas, criarEtiqueta, editarEtiqueta, marcarConversaLida, dadosDoContato,
@@ -125,9 +125,9 @@ export default {
     r.post('/numeros/:id/importar-historico', exigirAdmin, (req, res) => {
       const id = idValido(req.params.id);
       if (!numeroExiste(id)) return res.status(404).json({ erro: 'Número não encontrado' });
+      verificarImportacao(id);
       importarHistorico(id).catch((err) => console.error(`[whatsapp #${id}] importação:`, err.message));
-      // Dá tempo de recusar na hora (número desconectado etc.)
-      setTimeout(() => res.json({ ok: true, historico: progressoDe(id) }), 300);
+      res.json({ ok: true, historico: progressoDe(id) });
     });
 
     r.get('/numeros/:id/historico', (req, res) => {
@@ -409,6 +409,8 @@ export default {
     r.get('/figurinhas/:id/arquivo', (req, res) => {
       const f = arquivoDaFigurinha(idValido(req.params.id));
       res.setHeader('Cache-Control', 'private, max-age=2592000, immutable');
+      res.setHeader('X-Content-Type-Options', 'nosniff');
+      res.setHeader('Content-Security-Policy', "default-src 'none'; img-src 'self'; sandbox");
       res.type(f.mime).sendFile(f.caminho);
     });
     r.post('/figurinhas/:id/favorita', (req, res) => {

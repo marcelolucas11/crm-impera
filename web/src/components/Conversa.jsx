@@ -123,7 +123,6 @@ function PreviaArquivos({ selecao, onCancelar, onEnviar, onRemover }) {
  */
 export default function Conversa({ chave, nome = '', onEnviado, cheia = false, pularPara = null, painelPedido = null, pedidoSelecao = null, onNumeroAtivo }) {
   const [mensagens, setMensagens] = useState([]);
-  const [primeiroIndice, setPrimeiroIndice] = useState(INICIO);
   const [temMais, setTemMais] = useState(false);
   const [carregou, setCarregou] = useState(false);
   const [carregandoAntigas, setCarregandoAntigas] = useState(false);
@@ -151,6 +150,15 @@ export default function Conversa({ chave, nome = '', onEnviado, cheia = false, p
   chaveAtual.current = chave;
   const mensagensRef = useRef(mensagens);
   mensagensRef.current = mensagens;
+  // Índice virtual da primeira mensagem: calculado a partir de uma mensagem de referência fixa, assim
+  // qualquer mensagem mais antiga que entre na lista (por qualquer caminho) desloca o índice certo.
+  const referencia = useRef(null);
+  const primeiroIndice = useMemo(() => {
+    if (!mensagens.length) return INICIO;
+    let i = referencia.current === null ? -1 : mensagens.findIndex((m) => m.id === referencia.current);
+    if (i < 0) { referencia.current = mensagens[0].id; i = 0; }
+    return INICIO - i;
+  }, [mensagens]);
   const ultimoId = useRef(null);
   const url = `/whatsapp/conversas/${encodeURIComponent(chave)}`;
   const grupo = chave.startsWith('g:');
@@ -176,7 +184,7 @@ export default function Conversa({ chave, nome = '', onEnviado, cheia = false, p
   // Troca de conversa: zera tudo
   useEffect(() => {
     setMensagens([]);
-    setPrimeiroIndice(INICIO);
+    referencia.current = null;
     setTemMais(false);
     setCarregou(false);
     setNumeroId('');
@@ -234,10 +242,7 @@ export default function Conversa({ chave, nome = '', onEnviado, cheia = false, p
     try {
       const d = await api(`${url}/mensagens?antes=${atuais[0].id}`);
       if (d.mensagens.length) {
-        const ids = new Set(atuais.map((m) => m.id));
-        const novas = d.mensagens.filter((m) => !ids.has(m.id));
-        setPrimeiroIndice((i) => i - novas.length);
-        setMensagens((l) => [...novas, ...l]);
+        setMensagens((l) => mesclar(l, d.mensagens));
       }
       setTemMais(d.tem_mais);
     } catch (e) {
@@ -257,8 +262,8 @@ export default function Conversa({ chave, nome = '', onEnviado, cheia = false, p
       try {
         const d = await api(`${url}/mensagens?a_partir=${id}`);
         lista = mesclar([], d.mensagens);
+        referencia.current = lista[0]?.id ?? null;
         setMensagens(lista);
-        setPrimeiroIndice(INICIO - lista.length);
         setTemMais(d.tem_mais);
         indice = lista.findIndex((m) => m.id === id);
       } catch (e) {
