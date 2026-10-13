@@ -362,3 +362,46 @@ input[type='checkbox'], input[type='radio'], input[type='range'], input[type='co
 .fundo-3d-kanban.pronto { opacity: .42; }
 .login-fundo { position: relative; isolation: isolate; }
 @media (prefers-reduced-motion: reduce) { .fundo-3d { transition: none; } }
+
+/* ---------- Seletor de ordem do kanban ---------- */
+.seletor-ordem {
+  display: inline-flex; align-items: center; gap: 2px; padding: 3px; border-radius: 999px;
+  background: var(--vidro); border: 1px solid var(--vidro-borda); box-shadow: var(--vidro-brilho), 0 4px 12px rgba(0, 0, 0, .3);
+  backdrop-filter: var(--desfoque); -webkit-backdrop-filter: var(--desfoque);
+}
+.seletor-ordem-icone { color: #8d8d96; margin: 0 4px 0 8px; flex-shrink: 0; }
+.seletor-ordem button {
+  padding: 5px 12px; border-radius: 999px; border: 1px solid transparent; background: transparent; color: #b5b5bd;
+  font-size: 12.5px; font-weight: 500; white-space: nowrap; cursor: pointer; transition: background .15s ease, color .15s ease, border-color .15s ease;
+}
+.seletor-ordem button:hover { color: var(--texto); }
+.seletor-ordem button.ativo {
+  color: var(--ouro); border-color: rgba(224, 190, 108, .5);
+  background: linear-gradient(180deg, rgba(224, 190, 108, .2), rgba(224, 190, 108, .06));
+}
+
+/* ---------- Notificação "mensagem sem resposta" no cartão ---------- */
+.chip-notif { color: #ffb4a8; }
+.chip-notif.ativo { color: #ff8a78; border-color: rgba(255, 90, 71, .55); background: linear-gradient(180deg, rgba(255, 90, 71, .18), rgba(255, 90, 71, .05)); }
+.cartao.com-notif { border-color: rgba(255, 110, 90, .45); }
+.cartao-notif {
+  position: absolute; top: -9px; right: 10px; z-index: 2; display: inline-flex; align-items: center; gap: 5px;
+  padding: 2px 3px 2px 3px; border-radius: 999px; font-size: 10.5px; font-weight: 700; color: #fff;
+  background: linear-gradient(180deg, #ff7f6e 0%, #e5503d 60%, #b9392a 100%); border: 1px solid rgba(255, 190, 180, .5);
+  box-shadow: 0 0 0 3px rgba(18, 18, 21, .9), 0 4px 14px rgba(229, 80, 61, .45);
+}
+.cartao-notif-sino {
+  display: inline-grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; background: rgba(0, 0, 0, .22);
+  animation: sino-balanca 2.4s ease-in-out infinite; transform-origin: 50% 20%;
+}
+.cartao-notif-texto { font-variant-numeric: tabular-nums; letter-spacing: .01em; }
+.cartao-notif-limpar {
+  display: inline-grid; place-items: center; width: 18px; height: 18px; padding: 0; border-radius: 50%; cursor: pointer;
+  color: #fff; background: rgba(0, 0, 0, .28); border: 1px solid rgba(255, 255, 255, .25); transition: background .15s ease, transform .15s ease;
+}
+.cartao-notif-limpar:hover { background: rgba(0, 0, 0, .55); transform: scale(1.1); }
+@keyframes sino-balanca {
+  0%, 70%, 100% { transform: rotate(0); }
+  75% { transform: rotate(14deg); } 80% { transform: rotate(-12deg); } 85% { transform: rotate(8deg); } 90% { transform: rotate(-5deg); }
+}
+@media (prefers-reduced-motion: reduce) { .cartao-notif-sino { animation: none; } }

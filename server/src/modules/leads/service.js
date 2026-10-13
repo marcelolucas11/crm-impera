@@ -17,6 +17,9 @@ export const BASE_LEADS = `
     json_extract(l.extra, '$.parcial') AS form_partial,
     (SELECT m.timestamp FROM wa_messages m WHERE m.lead_id = l.id ORDER BY m.timestamp DESC LIMIT 1) AS last_msg_at,
     (SELECT m.from_me FROM wa_messages m WHERE m.lead_id = l.id ORDER BY m.timestamp DESC LIMIT 1) AS last_msg_from_me,
+    l.notif_cleared_at,
+    (SELECT max(m.timestamp) FROM wa_messages m WHERE m.lead_id = l.id AND m.from_me = 0 AND m.type <> 'chamada') AS last_in_at,
+    (SELECT max(m.timestamp) FROM wa_messages m WHERE m.lead_id = l.id AND m.from_me = 1 AND m.type <> 'chamada') AS last_out_at,
     s.name AS stage_name, s.kind AS stage_kind,
     u.name AS owner_name,
     COALESCE(l.last_contact_at, l.created_at) AS last_activity_at,
@@ -31,6 +34,16 @@ export const BASE_LEADS = `
   LEFT JOIN users wu ON wu.id = l.waiting_by
   LEFT JOIN users cu ON cu.id = l.closing_by`;
 
+// Notificação do cartão: o lead mandou mensagem depois da nossa última resposta
+// e depois da última vez que alguém limpou o aviso à mão. Responder pelo WhatsApp apaga sozinho.
+export function semResposta(row) {
+  const entrada = row.last_in_at;
+  if (!entrada) return false;
+  if (row.last_out_at && row.last_out_at >= entrada) return false;
+  if (row.notif_cleared_at && row.notif_cleared_at >= entrada) return false;
+  return true;
+}
+
 // Ajusta tipos vindos do SQLite (0/1 → booleano, texto JSON → objeto)
 export function mapearLead(row, { comExtra = false } = {}) {
   if (!row) return null;
@@ -40,6 +53,7 @@ export function mapearLead(row, { comExtra = false } = {}) {
     ...resto,
     followup_overdue: Boolean(row.followup_overdue),
     last_msg_from_me: row.last_msg_from_me == null ? null : Boolean(row.last_msg_from_me),
+    sem_resposta: semResposta(row),
     form_partial: Boolean(row.form_partial),
     respostas: Array.isArray(respostas) ? respostas.map((r) => ({ pergunta: r.pergunta, resposta: r.resposta })) : [],
   };

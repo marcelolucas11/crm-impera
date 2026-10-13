@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../api.js';
 import { useEvento } from '../tempoReal.js';
-import { SlidersHorizontal, Eye, Plus, Columns3 } from 'lucide-react';
-import Kanban from './Kanban.jsx';
+import { SlidersHorizontal, Eye, Plus, Columns3, BellRing, ArrowDownWideNarrow } from 'lucide-react';
+import Kanban, { ORDENS } from './Kanban.jsx';
 import FundoLogo3D from './FundoLogo3D.jsx';
 import CamposVisiveis from './CamposVisiveis.jsx';
 import LeadPanel from './LeadPanel.jsx';
@@ -12,6 +12,7 @@ import PainelFiltros, { FILTROS_VAZIOS, aplicarFiltros, contarFiltros } from './
 
 const ATUALIZAR_A_CADA_MS = 30000;
 const CHAVE_FILTROS = 'crm.filtros.kanban';
+const CHAVE_ORDEM = 'crm.ordem.kanban';
 
 function lerFiltrosSalvos() {
   try {
@@ -30,6 +31,10 @@ export default function KanbanPagina({ user, stages, users, carregarEtapas, aoMu
   const [mostrarCampos, setMostrarCampos] = useState(false);
   const [ocultos, setOcultosEstado] = useState(() => { try { return JSON.parse(localStorage.getItem('crm.camposOcultos') || '[]'); } catch { return []; } });
   const setOcultos = (o) => { setOcultosEstado(o); try { localStorage.setItem('crm.camposOcultos', JSON.stringify(o)); } catch { /* sem armazenamento */ } };
+  const [ordem, setOrdemEstado] = useState(() => {
+    try { const o = localStorage.getItem(CHAVE_ORDEM); return ORDENS.some(([k]) => k === o) ? o : 'formulario'; } catch { return 'formulario'; }
+  });
+  const setOrdem = (o) => { setOrdemEstado(o); try { localStorage.setItem(CHAVE_ORDEM, o); } catch { /* sem armazenamento */ } };
   const [aberto, setAberto] = useState(null);
   const [criando, setCriando] = useState(false);
   const [editandoEtapas, setEditandoEtapas] = useState(false);
@@ -83,6 +88,7 @@ export default function KanbanPagina({ user, stages, users, carregarEtapas, aoMu
   const aguardando = useMemo(() => leads.filter((l) => l.waiting_since).length, [leads]);
   const nuncaContatados = useMemo(() => leads.filter((l) => !l.first_contact_at).length, [leads]);
   const fechando = useMemo(() => leads.filter((l) => l.closing_since).length, [leads]);
+  const semResposta = useMemo(() => leads.filter((l) => l.sem_resposta).length, [leads]);
   const qtdFiltros = contarFiltros(filtros);
 
   const mover = async (leadId, stageId) => {
@@ -93,6 +99,19 @@ export default function KanbanPagina({ user, stages, users, carregarEtapas, aoMu
       const d = await api(`/leads/${leadId}`, { method: 'PATCH', body: { stage_id: stageId } });
       setLeads((ls) => ls.map((l) => (l.id === leadId ? d.lead : l)));
       carregarEtapas();
+    } catch (e) {
+      setLeads(anterior);
+      setErro(e.message);
+    }
+  };
+
+  // Botão do cartão: apaga a notificação de mensagem sem resposta (volta se o lead mandar outra mensagem)
+  const limparNotificacao = async (leadId) => {
+    const anterior = leads;
+    setLeads((ls) => ls.map((l) => (l.id === leadId ? { ...l, sem_resposta: false } : l)));
+    try {
+      const d = await api(`/leads/${leadId}/notificacao/limpar`, { method: 'POST' });
+      setLeads((ls) => ls.map((l) => (l.id === leadId ? d.lead : l)));
     } catch (e) {
       setLeads(anterior);
       setErro(e.message);
@@ -121,6 +140,9 @@ export default function KanbanPagina({ user, stages, users, carregarEtapas, aoMu
         <button className={`chip ${mostrarFiltros || qtdFiltros ? 'ativo' : ''}`} onClick={() => setMostrarFiltros(!mostrarFiltros)}>
           <SlidersHorizontal size={14} /> Filtros{qtdFiltros ? ` (${qtdFiltros})` : ''}
         </button>
+        <button className={`chip chip-led chip-notif ${filtros.semResposta ? 'ativo' : ''}`} onClick={() => alternar('semResposta')} title="Leads que mandaram mensagem e ainda não foram respondidos">
+          <BellRing size={13} strokeWidth={2.2} /> {semResposta} sem resposta
+        </button>
         <button className={`chip chip-led chip-ambar ${filtros.aguardando ? 'ativo' : ''}`} onClick={() => alternar('aguardando')} title="Leads esperando a sua resposta">
           <i className="led led-ambar" /> {aguardando} aguardando resposta
         </button>
@@ -138,6 +160,14 @@ export default function KanbanPagina({ user, stages, users, carregarEtapas, aoMu
           <i className={`led ${atrasados ? 'led-vermelho' : 'led-apagado'}`} /> {atrasados ? `${atrasados} sem contato` : 'Follow-up em dia'}
         </button>
         <div className="espaco" />
+        <div className="seletor-ordem" role="radiogroup" aria-label="Ordem dos cartões" title="Ordem dos cartões em todas as etapas (mais recente em cima)">
+          <ArrowDownWideNarrow size={14} className="seletor-ordem-icone" />
+          {ORDENS.map(([k, rotulo]) => (
+            <button key={k} type="button" role="radio" aria-checked={ordem === k} className={ordem === k ? 'ativo' : ''} onClick={() => setOrdem(k)}>
+              {rotulo}
+            </button>
+          ))}
+        </div>
         <button className={`chip ${mostrarCampos ? 'ativo' : ''}`} onClick={() => setMostrarCampos(!mostrarCampos)} title="Escolher o que aparece nos cartões">
           <Eye size={14} /> Campos{ocultos.length ? ` (${ocultos.length} ocultos)` : ''}
         </button>
@@ -157,7 +187,7 @@ export default function KanbanPagina({ user, stages, users, carregarEtapas, aoMu
 
       {mostrarCampos && <CamposVisiveis leads={leads} ocultos={ocultos} setOcultos={setOcultos} onFechar={() => setMostrarCampos(false)} />}
 
-      <Kanban stages={stages} leads={visiveis} ocultos={ocultos} onMover={mover} onAbrir={(l) => setAberto(l.id)} />
+      <Kanban stages={stages} leads={visiveis} ocultos={ocultos} ordem={ordem} onMover={mover} onAbrir={(l) => setAberto(l.id)} onLimparNotificacao={limparNotificacao} />
 
       {aberto && (
         <LeadPanel

@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { MessageCircle, CalendarDays, CircleDashed } from 'lucide-react';
+import { MessageCircle, CalendarDays, CircleDashed, BellRing } from 'lucide-react';
 
 export const FILTROS_VAZIOS = {
   comNome: false,
@@ -13,6 +13,7 @@ export const FILTROS_VAZIOS = {
   aguardando: false,
   fechando: false,
   mensagensNovas: false,
+  semResposta: false,
   comReuniao: false,
   nuncaContatado: false,
   formIncompleto: false,
@@ -36,7 +37,7 @@ const PERIODOS = [
 
 export function contarFiltros(f) {
   let n = 0;
-  for (const k of ['comNome', 'comTelefone', 'comEmail', 'semNome', 'atrasados', 'aguardando', 'fechando', 'mensagensNovas', 'comReuniao', 'nuncaContatado', 'formIncompleto', 'formCompleto']) if (f[k]) n++;
+  for (const k of ['comNome', 'comTelefone', 'comEmail', 'semNome', 'atrasados', 'aguardando', 'fechando', 'mensagensNovas', 'semResposta', 'comReuniao', 'nuncaContatado', 'formIncompleto', 'formCompleto']) if (f[k]) n++;
   if (f.origens.length) n++;
   if (f.formulario) n++;
   if (f.responsavel !== 'todos') n++;
@@ -63,6 +64,7 @@ export function aplicarFiltros(leads, f, user) {
     if (f.aguardando && !l.waiting_since) return false;
     if (f.fechando && !l.closing_since) return false;
     if (f.mensagensNovas && !(l.unread_count > 0)) return false;
+    if (f.semResposta && !l.sem_resposta) return false;
     if (f.comReuniao && !l.next_meeting_at) return false;
     if (f.nuncaContatado && l.first_contact_at) return false;
     if (f.formIncompleto && !l.form_partial) return false;
@@ -107,6 +109,7 @@ export default function PainelFiltros({ filtros, setFiltros, leads, users, total
         <Marcar marcado={filtros.atrasados} aoMudar={muda('atrasados')}><i className="led led-vermelho" /> Follow-up atrasado</Marcar>
         <Marcar marcado={filtros.nuncaContatado} aoMudar={muda('nuncaContatado')}><i className="led led-azul" /> Nunca contatado</Marcar>
         <Marcar marcado={filtros.mensagensNovas} aoMudar={muda('mensagensNovas')}><MessageCircle size={14} /> Mensagem nova</Marcar>
+        <Marcar marcado={filtros.semResposta} aoMudar={muda('semResposta')}><BellRing size={14} /> Mensagem sem resposta</Marcar>
         <Marcar marcado={filtros.comReuniao} aoMudar={muda('comReuniao')}><CalendarDays size={14} /> Reunião marcada</Marcar>
         <Marcar marcado={filtros.formIncompleto} aoMudar={(v) => setFiltros({ ...filtros, formIncompleto: v, formCompleto: v ? false : filtros.formCompleto })}><CircleDashed size={14} /> Formulário incompleto</Marcar>
         <Marcar marcado={filtros.formCompleto} aoMudar={(v) => setFiltros({ ...filtros, formCompleto: v, formIncompleto: v ? false : filtros.formIncompleto })}>Formulário completo</Marcar>

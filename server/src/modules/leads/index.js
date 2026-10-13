@@ -144,10 +144,20 @@ export default {
       const ok = tx(() => {
         if (!get('SELECT 1 FROM leads WHERE id = ?', [id])) return false;
         registrarContatoLead(id, agora());
+        // Falei com o lead por outro canal: a notificação de mensagem sem resposta some
+        run('UPDATE leads SET notif_cleared_at = ? WHERE id = ?', [agora(), id]);
         registrarEvento({ leadId: id, userId: req.user.id, type: 'contact', data: { canal, nota } });
         return true;
       });
       if (!ok) return res.status(404).json({ erro: 'Lead não encontrado' });
+      res.json({ lead: buscarLead(id) });
+    });
+
+    // Limpa à mão a notificação "mensagem sem resposta" do cartão (volta a acender se o lead mandar outra)
+    r.post('/:id/notificacao/limpar', (req, res) => {
+      const id = idValido(req.params.id);
+      const { changes } = run('UPDATE leads SET notif_cleared_at = ? WHERE id = ?', [agora(), id]);
+      if (!changes) return res.status(404).json({ erro: 'Lead não encontrado' });
       res.json({ lead: buscarLead(id) });
     });
 

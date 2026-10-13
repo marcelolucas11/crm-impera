@@ -4,7 +4,13 @@ CRM da agência: leads do Yay! Forms caindo direto num kanban, alerta de follow-
 Roda direto no Mac, a partir do SSD externo, sem Docker e sem instalar nada no sistema.
 A mesma pasta funciona depois na VPS da Contabo.
 
-**Versão atual: 0.7.2** — o número fica no arquivo `VERSAO` e é o que aparece em **Equipe e integrações → Atualização do CRM**.
+**Versão atual: 0.7.3** — o número fica no arquivo `VERSAO` e é o que aparece em **Equipe e integrações → Atualização do CRM**.
+
+**Versão 0.7.3:** seletor **Ordenar** na barra do kanban — **Início do formulário** (leads mais novos em cima) ou
+**Última interação** (última mensagem no WhatsApp mais recente em cima; quem nunca trocou mensagem fica embaixo). A ordem vale para todas
+as etapas, então o cartão continua no lugar certo ao trocar de fase, e a escolha fica salva no navegador · **sino vermelho no cartão**
+quando o lead mandou mensagem e ninguém respondeu, com o tempo de espera e um **✕ para limpar à mão**; some sozinho quando você responde
+pelo WhatsApp (ou registra um contato) e volta se o lead escrever de novo · chip e filtro **"sem resposta"**.
 
 **Versão 0.7.2:** fundo com a flor-de-lis da Impera em ouro 3D flutuando no espaço (mesmo visual dos relatórios) no login e no kanban —
 só decoração, acompanha o mouse com um giro leve e fica apagada atrás dos cartões; nada mudou no funcionamento.

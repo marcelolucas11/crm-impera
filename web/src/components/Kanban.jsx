@@ -1,11 +1,40 @@
 import { useState, useEffect } from 'react';
 import { formatarTelefone, tempoDesde, iniciais, dataCurta } from '../utils.js';
-import { CalendarDays, MessageCircle, CircleDashed } from 'lucide-react';
+import { CalendarDays, MessageCircle, CircleDashed, BellRing, X } from 'lucide-react';
 import Avatar from './Avatar.jsx';
 
 const ORIGENS = { yayforms: 'Yay! Forms', whatsapp: 'WhatsApp', calendly: 'Calendly', manual: 'Manual' };
 
-export default function Kanban({ stages, leads, onMover, onAbrir, ocultos = [] }) {
+// Ordem dos cartões dentro de cada coluna (de cima para baixo). Vale igual em todas as etapas,
+// então um lead movido de fase cai na mesma posição relativa na coluna nova.
+export const ORDENS = [
+  ['formulario', 'Início do formulário'],
+  ['interacao', 'Última interação'],
+];
+
+const dataFormulario = (l) => l.form_started_at || l.created_at || '';
+
+export function ordenarLeads(lista, ordem) {
+  const copia = [...lista];
+  if (ordem === 'interacao') {
+    // Última mensagem no WhatsApp (de qualquer lado) mais recente em cima; quem nunca trocou mensagem vai
+    // para baixo, do formulário mais novo para o mais velho
+    return copia.sort((a, b) => {
+      const ma = a.last_msg_at || '';
+      const mb = b.last_msg_at || '';
+      if (ma !== mb) return ma < mb ? 1 : -1;
+      const fa = dataFormulario(a), fb = dataFormulario(b);
+      return fa === fb ? b.id - a.id : fa < fb ? 1 : -1;
+    });
+  }
+  // Leads mais novos (início do formulário) em cima, mais velhos embaixo
+  return copia.sort((a, b) => {
+    const fa = dataFormulario(a), fb = dataFormulario(b);
+    return fa === fb ? b.id - a.id : fa < fb ? 1 : -1;
+  });
+}
+
+export default function Kanban({ stages, leads, onMover, onAbrir, onLimparNotificacao, ordem = 'formulario', ocultos = [] }) {
   const [sobre, setSobre] = useState(null);
   const [, setTique] = useState(0);
   useEffect(() => { const t = setInterval(() => setTique((n) => n + 1), 60000); return () => clearInterval(t); }, []);
@@ -14,7 +43,7 @@ export default function Kanban({ stages, leads, onMover, onAbrir, ocultos = [] }
   return (
     <main className="kanban">
       {stages.map((etapa) => {
-        const doEstagio = leads.filter((l) => l.stage_id === etapa.id);
+        const doEstagio = ordenarLeads(leads.filter((l) => l.stage_id === etapa.id), ordem);
         return (
           <section
             key={etapa.id}
@@ -35,7 +64,7 @@ export default function Kanban({ stages, leads, onMover, onAbrir, ocultos = [] }
               <span className="contagem">{doEstagio.length}</span>
             </header>
             <div className="coluna-cartoes">
-              {doEstagio.map((lead) => <Cartao key={lead.id} lead={lead} onAbrir={onAbrir} oculto={oculto} />)}
+              {doEstagio.map((lead) => <Cartao key={lead.id} lead={lead} onAbrir={onAbrir} onLimparNotificacao={onLimparNotificacao} oculto={oculto} />)}
               {!doEstagio.length && <div className="vazio">Arraste leads para cá</div>}
             </div>
           </section>
@@ -54,17 +83,34 @@ function dataDia(d) {
   return d ? new Date(d).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '';
 }
 
-function Cartao({ lead, onAbrir, oculto }) {
+function Cartao({ lead, onAbrir, onLimparNotificacao, oculto }) {
   const ver = (k) => !oculto.has(k);
   const titulo = lead.name || formatarTelefone(lead.phone) || lead.email || `Lead #${lead.id}`;
   const respostas = (lead.respostas || []).filter((r) => r.pergunta && ver(`q:${r.pergunta}`) && String(r.resposta ?? '').trim());
   return (
     <article
-      className={`cartao ${lead.followup_overdue ? 'atrasado' : ''} ${lead.waiting_since ? 'aguardando' : ''} ${!lead.first_contact_at ? 'nunca' : ''} ${lead.closing_since ? 'fechando' : ''}`}
+      className={`cartao ${lead.sem_resposta ? 'com-notif' : ''} ${lead.followup_overdue ? 'atrasado' : ''} ${lead.waiting_since ? 'aguardando' : ''} ${!lead.first_contact_at ? 'nunca' : ''} ${lead.closing_since ? 'fechando' : ''}`}
       draggable
       onDragStart={(e) => { e.dataTransfer.setData('text/plain', String(lead.id)); e.dataTransfer.effectAllowed = 'move'; }}
       onClick={() => onAbrir(lead)}
     >
+      {lead.sem_resposta && (
+        <div className="cartao-notif" title={`O lead mandou mensagem ${tempoDesde(lead.last_in_at)} e ainda não foi respondido`}>
+          <span className="cartao-notif-sino"><BellRing size={12} strokeWidth={2.2} /></span>
+          <span className="cartao-notif-texto">{tempoDesde(lead.last_in_at).replace('há ', '')}</span>
+          <button
+            type="button"
+            className="cartao-notif-limpar"
+            title="Limpar notificação"
+            aria-label="Limpar notificação"
+            draggable={false}
+            onMouseDown={(e) => e.stopPropagation()}
+            onClick={(e) => { e.stopPropagation(); onLimparNotificacao?.(lead.id); }}
+          >
+            <X size={11} strokeWidth={2.6} />
+          </button>
+        </div>
+      )}
       {(lead.closing_since || lead.waiting_since || lead.followup_overdue || !lead.first_contact_at) && (
         <div className="cartao-status">
           {lead.closing_since && (
