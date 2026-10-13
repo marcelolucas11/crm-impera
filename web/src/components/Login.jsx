@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { api } from '../api.js';
 import logo from '../assets/logo-impera.png';
+import FundoLogo3D from './FundoLogo3D.jsx';
 
 export default function Login({ aoEntrar }) {
   const [email, setEmail] = useState('');
@@ -24,6 +25,7 @@ export default function Login({ aoEntrar }) {
 
   return (
     <div className="tela-cheia login-fundo">
+      <FundoLogo3D modo="login" />
       <form className="login-caixa" onSubmit={entrar}>
         <div className="login-marca">
           <img className="login-logo" src={logo} alt="" />

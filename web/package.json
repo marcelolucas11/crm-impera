@@ -1,6 +1,6 @@
 {
   "name": "crm-impera-web",
-  "version": "0.7.1",
+  "version": "0.7.2",
   "private": true,
   "type": "module",
   "scripts": {
@@ -15,7 +15,8 @@
     "lucide-react": "^1.56.0",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
-    "react-virtuoso": "^4.18.17"
+    "react-virtuoso": "^4.18.17",
+    "three": "^0.160.0"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^6.1.2",

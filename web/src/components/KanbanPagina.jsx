@@ -3,6 +3,7 @@ import { api } from '../api.js';
 import { useEvento } from '../tempoReal.js';
 import { SlidersHorizontal, Eye, Plus, Columns3 } from 'lucide-react';
 import Kanban from './Kanban.jsx';
+import FundoLogo3D from './FundoLogo3D.jsx';
 import CamposVisiveis from './CamposVisiveis.jsx';
 import LeadPanel from './LeadPanel.jsx';
 import NovoLead from './NovoLead.jsx';
@@ -108,6 +109,7 @@ export default function KanbanPagina({ user, stages, users, carregarEtapas, aoMu
 
   return (
     <>
+      <FundoLogo3D modo="kanban" />
       <div className="barra-ferramentas">
         <input
           className="busca"

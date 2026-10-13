@@ -350,3 +350,15 @@ input[type='checkbox'], input[type='radio'], input[type='range'], input[type='co
   .barra-ferramentas { padding: 10px 12px; }
   .kanban { padding: 12px; }
 }
+
+/* ---------- Fundo 3D (login e kanban) ----------
+   Logo da Impera em ouro 3D flutuando no espaço, atrás de tudo. Só decoração: não recebe cliques
+   e fica apagado no kanban para não atrapalhar a leitura dos cartões. */
+.fundo-3d {
+  position: fixed; inset: 0; width: 100%; height: 100%; display: block;
+  z-index: -1; pointer-events: none; opacity: 0; transition: opacity 1.2s ease;
+}
+.fundo-3d.pronto { opacity: .8; }
+.fundo-3d-kanban.pronto { opacity: .42; }
+.login-fundo { position: relative; isolation: isolate; }
+@media (prefers-reduced-motion: reduce) { .fundo-3d { transition: none; } }

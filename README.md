@@ -4,7 +4,10 @@ CRM da agência: leads do Yay! Forms caindo direto num kanban, alerta de follow-
 Roda direto no Mac, a partir do SSD externo, sem Docker e sem instalar nada no sistema.
 A mesma pasta funciona depois na VPS da Contabo.
 
-**Versão atual: 0.7.0** — o número fica no arquivo `VERSAO` e é o que aparece em **Equipe e integrações → Atualização do CRM**.
+**Versão atual: 0.7.2** — o número fica no arquivo `VERSAO` e é o que aparece em **Equipe e integrações → Atualização do CRM**.
+
+**Versão 0.7.2:** fundo com a flor-de-lis da Impera em ouro 3D flutuando no espaço (mesmo visual dos relatórios) no login e no kanban —
+só decoração, acompanha o mouse com um giro leve e fica apagada atrás dos cartões; nada mudou no funcionamento.
 
 **Versão 0.7:** visual novo — logo da Impera no login e no topo, nome em fonte Cinzel, botões e cartões do kanban em vidro escuro
 com cantos suaves, ícones em linha no lugar dos emojis da interface · LEDs de situação nos cartões (vermelho sem contato, âmbar aguardando
