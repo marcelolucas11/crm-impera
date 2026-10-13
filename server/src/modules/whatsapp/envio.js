@@ -16,6 +16,7 @@ import { aplicarReacao, marcarApagada } from './recebimento.js';
 import { caminhoRelativo, absoluto, baixarMidia } from './midia.js';
 import { arquivoDaFigurinha, marcarUsada, registrarFigurinha } from './figurinhas.js';
 import * as ff from './ffmpeg.js';
+import { gerarPrevia } from './previa.js';
 
 const INTERVALO_MINIMO_ENVIO_MS = 1500;
 const EDITAR_ATE_MS = 15 * 60000;
@@ -272,15 +273,9 @@ async function despachar(e, lib, { linhaId, jid, waId, conteudo, citada, leadId 
 }
 
 // Prévia de link (título, descrição, miniatura) como o WhatsApp Web faz ao enviar um link
-async function previaDeLink(lib, texto) {
-  const url = String(texto || '').match(/https?:\/\/[^\s<>"']+/i)?.[0];
-  if (!config.whatsapp.previaLinks || !url) return null;
-  try {
-    const info = await lib.getUrlInfo(url.replace(/[.,;:!?)\]]+$/, ''), { thumbnailWidth: 192, fetchOpts: { timeout: 4000 } });
-    return info || null;
-  } catch {
-    return null;
-  }
+async function previaDeLink(texto) {
+  if (!config.whatsapp.previaLinks) return null;
+  return gerarPrevia(texto);
 }
 
 /**
@@ -329,8 +324,8 @@ export async function enviar(numeroId, destino, { texto = null, arquivo = null, 
     };
     if (preparo.gif || arquivo.unica) extra = { ...(preparo.gif ? { gif: true } : {}), ...(arquivo.unica ? { unica: true } : {}) };
   } else {
-    const info = await previaDeLink(lib, texto);
-    conteudo = { text: texto, ...(info ? { linkPreview: info } : {}) };
+    const info = await previaDeLink(texto);
+    conteudo = { text: texto, linkPreview: info || null };
     if (info) extra = { previa: { url: info['canonical-url'] || info['matched-text'], titulo: info.title || null, descricao: info.description || null, thumb: info.jpegThumbnail ? Buffer.from(info.jpegThumbnail).toString('base64') : null } };
   }
   if (mencoes?.length && grupo) {

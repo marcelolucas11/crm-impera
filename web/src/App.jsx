@@ -7,6 +7,7 @@ import KanbanPagina from './components/KanbanPagina.jsx';
 import WhatsAppPagina from './components/WhatsAppPagina.jsx';
 import Estatisticas from './components/Estatisticas.jsx';
 import Equipe from './components/Equipe.jsx';
+import ChamadaRecebida from './components/ChamadaRecebida.jsx';
 
 const PAGINAS = new Set(['kanban', 'whatsapp', 'estatisticas', 'equipe']);
 const paginaInicial = () => {
@@ -69,6 +70,11 @@ function Sistema({ user, aoSair }) {
       {pagina === 'whatsapp' && <WhatsAppPagina {...comum} />}
       {pagina === 'estatisticas' && <Estatisticas {...comum} />}
       {pagina === 'equipe' && <Equipe user={user} />}
+      <ChamadaRecebida aoAbrirConversa={(chave) => {
+        window.__waAbrir = chave;
+        setPagina('whatsapp');
+        setTimeout(() => window.dispatchEvent(new CustomEvent('wa-abrir', { detail: chave })), 50);
+      }} />
     </div>
   );
 }

@@ -199,7 +199,7 @@ export default {
       const jids = jidsDaChave(req.params.chave, { incluirTelefone: false });
       const principal = jidPrincipal(req.params.chave);
       if (principal) assinarPresenca(principal).catch(() => {});
-      res.json(presencaDe(jids));
+      res.json({ ...presencaDe(jids), jids: principal && !jids.includes(principal) ? [...jids, principal] : jids });
     });
 
     // Avisa o contato que alguém está digitando/gravando (estado: composing | recording | paused)
@@ -427,6 +427,13 @@ export default {
     // Favoritar uma figurinha recebida numa mensagem
     r.post('/mensagens/:id/figurinha-favorita', async (req, res) => {
       res.json({ id: await favoritarDaMensagem(idValido(req.params.id), baixarMidia) });
+    });
+
+    // QR code de um link (ex.: "Ligar pelo celular": aponte a câmera do celular)
+    r.get('/qr', async (req, res) => {
+      const conteudo = String(req.query.texto || '').slice(0, 500);
+      if (!/^https:\/\/(wa\.me|call\.whatsapp\.com|api\.whatsapp\.com|web\.whatsapp\.com)\//.test(conteudo)) return res.status(400).json({ erro: 'Link inválido' });
+      res.json({ qr: await QRCode.toDataURL(conteudo, { margin: 1, width: 240 }) });
     });
 
     // ------------------------------------------------------------ chamadas
