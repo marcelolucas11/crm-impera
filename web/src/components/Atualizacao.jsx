@@ -40,15 +40,32 @@ export default function Atualizacao() {
   };
 
   const temNova = info?.novidades?.length > 0;
+  // Commit com link para a mesma página no GitHub, para conferir que é a mesma versão
+  const commit = (hash) => (info?.github
+    ? <a href={`${info.github}/commit/${hash}`} target="_blank" rel="noopener noreferrer"><code>{hash}</code></a>
+    : <code>{hash}</code>);
+  const numeroNovo = temNova && info.versaoRemota && info.versaoRemota !== info.versao ? info.versaoRemota : null;
   return (
     <section className="cartao-secao">
       <h2>Atualização do CRM</h2>
-      {info && <p className="suave">Versão instalada: <b>{info.atual}</b>{info.data ? ` · ${dataHora(info.data)}` : ''}</p>}
+      {info && (
+        <p className="suave">
+          Versão instalada: <b>{info.versao || info.atual}</b>
+          {info.versao && <> · {commit(info.atual)}</>}
+          {info.data ? ` · ${dataHora(info.data)}` : ''}
+        </p>
+      )}
       {erro && <div className="erro">{erro}</div>}
-      {info?.remota && !temNova && <div className="sucesso">✓ O CRM está na versão mais recente.</div>}
+      {info?.remota && !temNova && (
+        <div className="sucesso">✓ O CRM está na versão mais recente{info.versao ? ` (${info.versao})` : ''}, igual à do GitHub.</div>
+      )}
       {temNova && (
         <>
-          <p>Há <b>{info.novidades.length}</b> {info.novidades.length === 1 ? 'novidade' : 'novidades'}:</p>
+          <p>
+            Versão nova no GitHub: <b>{numeroNovo || info.remota}</b>
+            {numeroNovo && <> · {commit(info.remota)}</>}
+            {' '}— <b>{info.novidades.length}</b> {info.novidades.length === 1 ? 'novidade' : 'novidades'}:
+          </p>
           <ul className="novidades">{info.novidades.slice(0, 15).map((n, i) => <li key={i}>{n}</li>)}</ul>
         </>
       )}

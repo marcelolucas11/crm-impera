@@ -91,6 +91,13 @@ versao_git() {
   git -C "$APP_DIR" rev-parse --short HEAD 2>/dev/null || echo "dev"
 }
 
+# Versão para mostrar: o número do arquivo VERSAO (o mesmo do GitHub) + o commit. Ex.: 0.5.2 (1c2d16e)
+versao_crm() {
+  local numero
+  numero=$(head -n 1 "$APP_DIR/VERSAO" 2>/dev/null | tr -d '[:space:]')
+  if [ -n "$numero" ]; then echo "$numero ($(versao_git))"; else versao_git; fi
+}
+
 crm_rodando() {
   [ -f "$PID_FILE" ] || return 1
   local pid

@@ -14,6 +14,20 @@ const git = async (...args) => (await sh('git', args, { cwd: APP_DIR, timeout: 6
 
 let iniciadaEm = null; // evita dois cliques seguidos
 
+// O número da versão fica no arquivo VERSAO (raiz do repositório), o mesmo que aparece no README e nas tags do GitHub
+const limparVersao = (t) => String(t || '').trim().split('\n')[0].replace(/^v/i, '') || null;
+const versaoInstalada = () => { try { return limparVersao(fs.readFileSync(path.join(APP_DIR, 'VERSAO'), 'utf8')); } catch { return null; } };
+const versaoRemota = async () => { try { return limparVersao(await git('show', '@{u}:VERSAO')); } catch { return null; } };
+
+// Endereço do repositório no GitHub (sem usuário/token que possa estar na URL do remote), para o link do commit
+async function enderecoGithub() {
+  try {
+    const url = await git('remote', 'get-url', 'origin');
+    const m = url.match(/github\.com[:/]([\w.-]+)\/([\w.-]+?)(?:\.git)?\/?$/i);
+    return m ? `https://github.com/${m[1]}/${m[2]}` : null;
+  } catch { return null; }
+}
+
 export default {
   name: 'sistema',
   register(app) {
@@ -22,13 +36,20 @@ export default {
 
     r.get('/versao', async (req, res) => {
       try {
+        // "atual" continua sendo o commit: é ele que a tela compara para saber que a atualização terminou
         const atual = await git('rev-parse', '--short', 'HEAD');
         const data = await git('log', '-1', '--format=%cI');
-        if (req.query.buscar !== '1') return res.json({ atual, data });
+        const base = { atual, data, versao: versaoInstalada(), github: await enderecoGithub() };
+        if (req.query.buscar !== '1') return res.json(base);
         await git('fetch', '--quiet', 'origin');
         const remota = await git('rev-parse', '--short', '@{u}');
         const log = await git('log', '--format=%s', 'HEAD..@{u}');
-        res.json({ atual, data, remota, novidades: log ? log.split('\n').map((l) => l.trim()).filter(Boolean) : [] });
+        res.json({
+          ...base,
+          remota,
+          versaoRemota: await versaoRemota(),
+          novidades: log ? log.split('\n').map((l) => l.trim()).filter(Boolean) : [],
+        });
       } catch (e) {
         res.status(500).json({ erro: `Não consegui consultar o GitHub: ${String(e.stderr || e.message).trim().slice(0, 300)}` });
       }

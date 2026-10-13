@@ -18,14 +18,14 @@ fazer_backup
 passo "2/5 Baixando a versão nova"
 if git remote get-url origin >/dev/null 2>&1; then
   if ! git pull --ff-only --quiet; then
-    falha "Não consegui baixar a versão nova. O CRM continua ligado na versão atual ($(versao_git))."
+    falha "Não consegui baixar a versão nova. O CRM continua ligado na versão atual ($(versao_crm))."
     echo "  Se você editou arquivos dentro de app/, rode 'git status' para ver quais foram."
     exit 1
   fi
 else
   aviso "Sem repositório remoto configurado — usando os arquivos desta pasta."
 fi
-NOVA=$(versao_git)
+NOVA=$(versao_crm)
 [ -n "$ANTERIOR" ] && echo "$ANTERIOR" > "$BACKUP_DIR/versao-anterior.txt"
 
 passo "3/5 Preparando a versão $NOVA (o CRM continua ligado)"

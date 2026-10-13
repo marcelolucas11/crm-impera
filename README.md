@@ -4,6 +4,13 @@ CRM da agência: leads do Yay! Forms caindo direto num kanban, alerta de follow-
 Roda direto no Mac, a partir do SSD externo, sem Docker e sem instalar nada no sistema.
 A mesma pasta funciona depois na VPS da Contabo.
 
+**Versão atual: 0.5.2** — o número fica no arquivo `VERSAO` e é o que aparece em **Equipe e integrações → Atualização do CRM**.
+
+**Versão 0.5.2:** cartões do kanban com respostas do formulário, data e timers (entrada e última resposta no WhatsApp) · campos visíveis
+configuráveis · atualização do CRM pela tela (administrador) · "Iniciado há…" a partir do início do formulário · vários segredos de webhook do Yay! Forms.
+
+**Versão 0.5.1:** CRM funciona num subcaminho do domínio (ex.: `/interno`).
+
 **Versão 0.5:** chat de WhatsApp completo, igual ao do celular — fotos, áudios (com gravação pelo navegador), vídeos, documentos,
 figurinhas, localização, foto de perfil dos contatos (também no kanban), ✓✓ azul, responder citando, reações, mensagens apagadas e editadas,
 importação das conversas antigas e atualização em tempo real · três telas — **Kanban**, **WhatsApp** e **Estatísticas** · filtros no kanban ·
@@ -64,6 +71,9 @@ pede nome, e-mail e senha do primeiro administrador e liga o CRM. Depois, abra *
 5. Aplica as mudanças de banco (migrações) e confere se subiu.
 
 Se a versão nova não ligar, o banco continua intacto e `./scripts/voltar-versao.sh` volta para a anterior.
+
+Também dá para atualizar pela tela: menu do avatar → **Equipe e integrações → Atualização do CRM** (só administrador). Ali aparecem
+a versão instalada — o número do arquivo `VERSAO` e o commit, com link para a mesma página no GitHub — e as novidades da versão nova.
 
 ## Ligar o Yay! Forms
 
@@ -202,3 +212,5 @@ web/src/              ← interface React (o chat fica em web/src/components/cha
 Novo módulo: criar `server/src/modules/<nome>/index.js` exportando `{ name, register(app) }` e registrar em `modules/index.js`.
 Mudança no banco: criar `server/migrations/00X_descricao.sql`. Ela roda sozinha na próxima atualização, dentro de uma transação.
 Nunca reescreva o histórico do Git (`push --force`) no repositório: o `atualizar.sh` só avança versões.
+Versão nova: mude o número no arquivo `VERSAO` e no topo deste README no mesmo commit, e crie a tag no GitHub
+(`git tag v0.5.3 && git push origin v0.5.3`). É esse número que a tela de atualização mostra.

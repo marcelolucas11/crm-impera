@@ -15,7 +15,7 @@ if [ -z "$ALVO" ]; then
 fi
 git cat-file -e "${ALVO}^{commit}" 2>/dev/null || { falha "Versão não encontrada: $ALVO"; exit 1; }
 
-ATUAL=$(versao_git)
+ATUAL=$(versao_crm)
 passo "Voltando de $ATUAL para $(git rev-parse --short "$ALVO")"
 git reset --hard "$ALVO" >/dev/null
 

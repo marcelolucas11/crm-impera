@@ -19,7 +19,7 @@ if [ ! -f "$APP_DIR/server/public/index.html" ] || servidor_precisa_instalar; th
 fi
 
 export APP_VERSION
-APP_VERSION=$(versao_git)
+APP_VERSION=$(versao_crm)
 echo "----- $(date '+%Y-%m-%d %H:%M:%S') iniciando versão $APP_VERSION -----" >> "$LOG_FILE"
 nohup "$NODE_DIR/bin/node" --disable-warning=ExperimentalWarning server/src/index.js >> "$LOG_FILE" 2>&1 &
 echo $! > "$PID_FILE"
