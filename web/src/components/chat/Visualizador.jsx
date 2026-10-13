@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { rota } from '../../base.js';
 
 // Foto ou vídeo em tela cheia (Esc ou clique fora fecha)
 export default function Visualizador({ midia, onFechar }) {
@@ -9,7 +10,7 @@ export default function Visualizador({ midia, onFechar }) {
   }, [onFechar]);
 
   if (!midia) return null;
-  const url = `/api/whatsapp/midia/${midia.id}`;
+  const url = rota(`/api/whatsapp/midia/${midia.id}`);
   return (
     <div className="visualizador" onMouseDown={(e) => e.target === e.currentTarget && onFechar()}>
       <div className="visualizador-topo">

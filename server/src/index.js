@@ -20,6 +20,24 @@ function iniciar() {
   app.set('trust proxy', 1);
   app.disable('x-powered-by');
 
+  // CRM num subcaminho (ex.: /interno): tira o prefixo e segue como se fosse a raiz.
+  // /interno/webhooks/... vira /webhooks/..., /interno/api/... vira /api/... e assim por diante.
+  const base = config.basePath;
+  if (base) {
+    app.use((req, res, next) => {
+      const [caminho, ...resto] = req.url.split('?');
+      const busca = resto.length ? `?${resto.join('?')}` : '';
+      if (caminho === base) {
+        // Sem a barra final os arquivos da interface não carregam: /interno → /interno/
+        if (req.method === 'GET' || req.method === 'HEAD') return res.redirect(301, `${base}/${busca}`);
+        req.url = `/${busca}`;
+      } else if (caminho.startsWith(`${base}/`)) {
+        req.url = caminho.slice(base.length) + busca;
+      }
+      next();
+    });
+  }
+
   app.use(
     helmet({
       contentSecurityPolicy: {
@@ -81,7 +99,11 @@ function iniciar() {
     if (req.method !== 'GET' && req.method !== 'HEAD') return next();
     if (!fs.existsSync(indexHtml)) return res.status(503).send('Interface não compilada. Rode ./atualizar.sh');
     res.setHeader('Cache-Control', 'no-cache');
-    res.sendFile(indexHtml);
+    // Diz à interface em que caminho ela está (raiz ou /interno), para os arquivos e a API irem ao lugar certo
+    const html = fs
+      .readFileSync(indexHtml, 'utf8')
+      .replace('<head>', `<head><base href="${base}/"><meta name="base-path" content="${base}">`);
+    res.type('html').send(html);
   });
 
   // Tratamento de erros

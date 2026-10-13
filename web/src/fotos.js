@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { api } from './api.js';
 import { ouvir } from './tempoReal.js';
+import { rota } from './base.js';
 
 const versoes = new Map(); // chave → versão (texto) ou null
 const assinantes = new Map(); // chave → Set(setState)
@@ -57,4 +58,4 @@ export function useFoto(chave) {
   return versao;
 }
 
-export const urlFoto = (chave, versao) => `/api/whatsapp/fotos/${encodeURIComponent(chave)}?v=${versao}`;
+export const urlFoto = (chave, versao) => rota(`/api/whatsapp/fotos/${encodeURIComponent(chave)}?v=${versao}`);

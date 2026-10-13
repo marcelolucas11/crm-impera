@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { rota } from '../../base.js';
 
 // O Safari antigo não toca OGG/Opus (formato das mensagens de voz): pede uma versão convertida
 const tocaOgg = typeof Audio !== 'undefined' && new Audio().canPlayType('audio/ogg; codecs="opus"') !== '';
@@ -21,7 +22,7 @@ export default function PlayerAudio({ id, segundos, ptt, avatar }) {
   const [erro, setErro] = useState('');
   const querTocar = useRef(false);
 
-  const src = `/api/whatsapp/midia/${id}${tocaOgg ? '' : '?compat=1'}`;
+  const src = rota(`/api/whatsapp/midia/${id}${tocaOgg ? '' : '?compat=1'}`);
 
   useEffect(() => {
     if (ativo && querTocar.current && ref.current) {

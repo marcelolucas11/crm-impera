@@ -5,6 +5,7 @@ import Avatar from './Avatar.jsx';
 import Mensagem, { tamanhoArquivo } from './chat/Mensagem.jsx';
 import Compositor from './chat/Compositor.jsx';
 import Visualizador from './chat/Visualizador.jsx';
+import { rota } from '../base.js';
 
 const RESERVA_MS = 15000; // atualização de segurança caso o tempo real caia
 
@@ -301,7 +302,7 @@ export default function Conversa({ chave, nome = '', onEnviado, cheia = false })
       if (i === 0 && legenda) p.set('legenda', legenda);
       if (i === 0 && resposta) p.set('responder_id', resposta.id);
       try {
-        await enviarArquivo(`/api${url}/arquivo?${p}`, arquivo, (progresso) =>
+        await enviarArquivo(rota(`/api${url}/arquivo?${p}`), arquivo, (progresso) =>
           setEnvios((e) => e.map((x) => (x.id === id ? { ...x, progresso } : x)))
         );
         setEnvios((e) => e.filter((x) => x.id !== id));

@@ -19,12 +19,36 @@ const numero = (valor, padrao) => {
 // Caminhos relativos no .env são relativos à pasta do app
 const caminho = (valor, padrao) => path.resolve(RAIZ_APP, valor || padrao);
 
+// Caminho em que o CRM fica no domínio (ex.: /interno). Vem de BASE_PATH ou do caminho do PUBLIC_URL.
+// Vazio = CRM na raiz. O CRM continua atendendo também na raiz, então nada quebra no Mac.
+function caminhoBase() {
+  let bruto = process.env.BASE_PATH;
+  if (bruto === undefined || bruto === '') {
+    try {
+      bruto = new URL(process.env.PUBLIC_URL || '').pathname;
+    } catch {
+      bruto = '';
+    }
+  }
+  const limpo = String(bruto).trim().replace(/\/+$/, '').replace(/^\/*/, '/');
+  return limpo === '/' ? '' : limpo;
+}
+
 export const config = {
+  basePath: caminhoBase(),
   host: process.env.HOST || '127.0.0.1',
   port: numero(process.env.APP_PORT ?? process.env.PORT, 3000),
   version: process.env.APP_VERSION || 'dev',
   sessionSecret: process.env.SESSION_SECRET || '',
   publicUrl: (process.env.PUBLIC_URL || '').replace(/\/+$/, ''),
+  // Só o domínio do PUBLIC_URL (https://crm.exemplo.com), sem caminho; vazio se não estiver preenchido
+  publicOrigin: (() => {
+    try {
+      return new URL(process.env.PUBLIC_URL).origin;
+    } catch {
+      return '';
+    }
+  })(),
   dbFile: caminho(process.env.DB_FILE, '../dados/crm.db'),
   filesDir: caminho(process.env.FILES_DIR, '../arquivos'),
   followupHours: numero(process.env.FOLLOWUP_HORAS, 24),

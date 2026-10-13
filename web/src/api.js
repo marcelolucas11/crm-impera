@@ -1,9 +1,10 @@
 // Cliente da API. Lança erro com a mensagem do servidor; 401 avisa o app para mostrar o login.
+import { rota } from './base.js';
 let aoDeslogar = () => {};
 export const definirAoDeslogar = (fn) => { aoDeslogar = fn; };
 
 export async function api(caminho, { method = 'GET', body } = {}) {
-  const resp = await fetch(`/api${caminho}`, {
+  const resp = await fetch(rota(`/api${caminho}`), {
     method,
     credentials: 'same-origin',
     headers: body ? { 'Content-Type': 'application/json' } : undefined,

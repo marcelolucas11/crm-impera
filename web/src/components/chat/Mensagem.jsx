@@ -3,6 +3,7 @@ import { TextoFormatado } from './formatacao.jsx';
 import PlayerAudio from './PlayerAudio.jsx';
 import { REACOES } from './emojis.js';
 import { formatarTelefone } from '../../utils.js';
+import { rota } from '../../base.js';
 
 const TIPOS_MIDIA = new Set(['imagem', 'video', 'audio', 'documento', 'figurinha']);
 
@@ -55,7 +56,7 @@ function Imagem({ m, onAbrir, figurinha = false }) {
   const [tentativa, setTentativa] = useState(0);
   const proporcao = m.media_w && m.media_h ? m.media_w / m.media_h : figurinha ? 1 : 4 / 3;
   const largura = figurinha ? 130 : Math.min(300, Math.max(160, proporcao >= 1 ? 300 : 300 * proporcao));
-  const src = `/api/whatsapp/midia/${m.id}${tentativa ? `?t=${tentativa}` : ''}`;
+  const src = rota(`/api/whatsapp/midia/${m.id}${tentativa ? `?t=${tentativa}` : ''}`);
   return (
     <div
       className={`midia-imagem ${figurinha ? 'figurinha' : ''} ${carregou ? 'pronta' : ''}`}
@@ -80,7 +81,7 @@ function Video({ m, onAbrir }) {
   return (
     <button type="button" className="midia-imagem midia-video" style={{ width: largura, aspectRatio: String(Math.max(0.5, Math.min(2.2, proporcao))) }} onClick={onAbrir}>
       {m.thumb && <img className="midia-thumb nitida" src={`data:image/jpeg;base64,${m.thumb}`} alt="" />}
-      {!m.thumb && m.media_pronta && <video className="midia-real" src={`/api/whatsapp/midia/${m.id}#t=0.5`} preload="metadata" muted playsInline />}
+      {!m.thumb && m.media_pronta && <video className="midia-real" src={rota(`/api/whatsapp/midia/${m.id}#t=0.5`)} preload="metadata" muted playsInline />}
       <span className="midia-play">
         <svg viewBox="0 0 24 24" width="28" height="28"><path fill="currentColor" d="M8 5v14l11-7z" /></svg>
       </span>
@@ -91,7 +92,7 @@ function Video({ m, onAbrir }) {
 
 function Documento({ m }) {
   const { ext, cor } = iconeDocumento(m.media_name, m.media_mime);
-  const url = `/api/whatsapp/midia/${m.id}`;
+  const url = rota(`/api/whatsapp/midia/${m.id}`);
   const pdf = /pdf/i.test(m.media_mime || '') || ext === 'PDF';
   return (
     <div className="midia-documento">
@@ -167,7 +168,7 @@ function Menu({ m, paraCima, onFechar, onResponder, onReagir, onApagar, onCopiar
       </div>
       <button type="button" onClick={() => { onResponder(); onFechar(); }}>↩ Responder</button>
       {texto && <button type="button" onClick={() => { onCopiar(texto); onFechar(); }}>⧉ Copiar texto</button>}
-      {TIPOS_MIDIA.has(m.type) && m.media_mime && <a href={`/api/whatsapp/midia/${m.id}?download=1`} onClick={onFechar}>⬇ Baixar</a>}
+      {TIPOS_MIDIA.has(m.type) && m.media_mime && <a href={rota(`/api/whatsapp/midia/${m.id}?download=1`)} onClick={onFechar}>⬇ Baixar</a>}
       {m.from_me && !m.deleted_at && m.status !== 0 && <button type="button" className="perigo" onClick={() => { onFechar(); onApagar(); }}>🗑 Apagar para todos</button>}
     </div>
   );

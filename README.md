@@ -163,7 +163,8 @@ mostra a data da próxima reunião. Funciona em qualquer plano do Calendly e nã
 | `FOLLOWUP_HORAS` | Depois de quantas horas sem contato o lead fica vermelho (padrão 24) |
 | `DDI_PADRAO` | DDI colocado em telefones digitados só com DDD (padrão 55) |
 | `HOST` | `127.0.0.1` = só este Mac acessa; `0.0.0.0` = libera para a rede do escritório |
-| `PUBLIC_URL` | Endereço público do CRM |
+| `PUBLIC_URL` | Endereço público do CRM, com o caminho se houver (ex.: `https://crm-impera.imperaservices.com/interno`) |
+| `BASE_PATH` | Caminho do CRM no domínio (ex.: `/interno`). Vazio = usa o caminho do `PUBLIC_URL`. A raiz continua funcionando. |
 | `YAYFORMS_WEBHOOK_SECRET` | Opcional: o "Secret" do webhook no Yay! Forms, para conferir a assinatura |
 | `WHATSAPP_HISTORICO_DIAS` | Quantos dias de conversas antigas importar ao conectar um número (padrão 30; 0 = nenhum) |
 | `WHATSAPP_MIDIA_AUTO_MB` | Mídias recebidas até este tamanho são baixadas na hora (padrão 25) |

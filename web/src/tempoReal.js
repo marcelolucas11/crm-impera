@@ -1,6 +1,7 @@
 // Atualização em tempo real: uma única conexão (/api/eventos) por aba, compartilhada pelas telas.
 // O servidor só avisa "mudou algo em X"; quem escuta busca os dados de novo.
 import { useEffect, useRef } from 'react';
+import { rota } from './base.js';
 
 let fonte = null;
 const ouvintes = new Map(); // tipo → Set(funções)
@@ -25,7 +26,7 @@ function anexar(tipo) {
 
 function garantirConexao() {
   if (fonte || typeof EventSource === 'undefined') return;
-  fonte = new EventSource('/api/eventos');
+  fonte = new EventSource(rota('/api/eventos'));
   anexados.clear();
   for (const tipo of ouvintes.keys()) anexar(tipo);
   fonte.onopen = () => {

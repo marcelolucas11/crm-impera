@@ -168,8 +168,10 @@ export default {
 
     adm.get('/config', (req, res) => {
       res.json({
-        caminho: `/webhooks/yayforms/${config.yayforms.token}`,
-        url: config.publicUrl ? `${config.publicUrl}/webhooks/yayforms/${config.yayforms.token}` : null,
+        caminho: `${config.basePath}/webhooks/yayforms/${config.yayforms.token}`,
+        url: config.publicOrigin
+          ? `${config.publicOrigin}${config.basePath}/webhooks/yayforms/${config.yayforms.token}`
+          : null,
         assinatura_ativa: Boolean(config.yayforms.secret),
       });
     });
