@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../api.js';
 import { useEvento } from '../tempoReal.js';
-import { SlidersHorizontal, Eye, Plus, Columns3, BellRing, ArrowDownWideNarrow } from 'lucide-react';
+import { SlidersHorizontal, Eye, Plus, Columns3, BellRing, ArrowDownWideNarrow, SquareCheckBig } from 'lucide-react';
 import Kanban, { ORDENS } from './Kanban.jsx';
 import FundoLogo3D from './FundoLogo3D.jsx';
 import CamposVisiveis from './CamposVisiveis.jsx';
@@ -9,10 +9,14 @@ import LeadPanel from './LeadPanel.jsx';
 import NovoLead from './NovoLead.jsx';
 import EditorEtapas from './EditorEtapas.jsx';
 import PainelFiltros, { FILTROS_VAZIOS, aplicarFiltros, contarFiltros } from './Filtros.jsx';
+import { ChipResponsavel, ChipWhatsApp } from './SeletoresRapidos.jsx';
+import { BarraSelecao, CriarPublico } from './SelecaoKanban.jsx';
 
 const ATUALIZAR_A_CADA_MS = 30000;
 const CHAVE_FILTROS = 'crm.filtros.kanban';
 const CHAVE_ORDEM = 'crm.ordem.kanban';
+// WhatsApp escolhido na barra do kanban: é o número que manda mensagem pela conversa dentro do cartão
+const CHAVE_WHATSAPP = 'crm.whatsapp.kanban';
 
 function lerFiltrosSalvos() {
   try {
@@ -22,7 +26,7 @@ function lerFiltrosSalvos() {
   }
 }
 
-export default function KanbanPagina({ user, stages, users, carregarEtapas, aoMudarAlgo, setErro }) {
+export default function KanbanPagina({ user, stages, users, carregarEtapas, aoMudarAlgo, setErro, usarPublico }) {
   const [leads, setLeads] = useState([]);
   const [horas, setHoras] = useState(24);
   const [busca, setBusca] = useState('');
@@ -40,6 +44,20 @@ export default function KanbanPagina({ user, stages, users, carregarEtapas, aoMu
   const [editandoEtapas, setEditandoEtapas] = useState(false);
   const buscaRef = useRef(busca);
   buscaRef.current = busca;
+
+  // WhatsApp que manda mensagem pelo cartão ('' = automático: o último número usado com o lead)
+  const [numeros, setNumeros] = useState([]);
+  const [numeroWa, setNumeroWaEstado] = useState(() => { try { return localStorage.getItem(CHAVE_WHATSAPP) || ''; } catch { return ''; } });
+  const setNumeroWa = (v) => { setNumeroWaEstado(v); try { localStorage.setItem(CHAVE_WHATSAPP, v); } catch { /* sem armazenamento */ } };
+  const carregarNumeros = useCallback(() => api('/whatsapp/numeros').then((d) => setNumeros(d.numeros)).catch(() => {}), []);
+  useEffect(() => { carregarNumeros(); }, [carregarNumeros]);
+  useEvento('whatsapp', (d) => { if (d?.numeros || d?.reconectou) carregarNumeros(); });
+
+  // Seleção em massa: null = desligada; Set de ids = ligada (clicar no cartão marca/desmarca)
+  const [selecionados, setSelecionados] = useState(null);
+  const [criandoPublico, setCriandoPublico] = useState(false);
+  const [emMassa, setEmMassa] = useState(false);
+  const [avisoMassa, setAvisoMassa] = useState('');
 
   const setFiltros = (f) => {
     setFiltrosEstado(f);
@@ -91,6 +109,74 @@ export default function KanbanPagina({ user, stages, users, carregarEtapas, aoMu
   const semResposta = useMemo(() => leads.filter((l) => l.sem_resposta).length, [leads]);
   const qtdFiltros = contarFiltros(filtros);
 
+  // Quantos leads de cada responsável (para a lista do chip "Responsável")
+  const porResponsavel = useMemo(() => {
+    const c = { todos: leads.length, ninguem: 0 };
+    for (const l of leads) {
+      if (!l.owner_id) c.ninguem++;
+      else c[String(l.owner_id)] = (c[String(l.owner_id)] || 0) + 1;
+    }
+    return c;
+  }, [leads]);
+
+  // A seleção fica só com o que está visível (mudar filtro/busca tira da seleção quem sumiu da tela)
+  useEffect(() => {
+    if (!selecionados?.size) return;
+    const ids = new Set(visiveis.map((l) => l.id));
+    if ([...selecionados].some((id) => !ids.has(id))) setSelecionados(new Set([...selecionados].filter((id) => ids.has(id))));
+  }, [visiveis]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const alternarSelecao = (id) => setSelecionados((atual) => {
+    const s = new Set(atual || []);
+    if (s.has(id)) s.delete(id); else s.add(id);
+    return s;
+  });
+  const marcarVarios = (ids, marcar) => setSelecionados((atual) => {
+    const s = new Set(atual || []);
+    ids.forEach((id) => (marcar ? s.add(id) : s.delete(id)));
+    return s;
+  });
+  const sairDaSelecao = useCallback(() => { setSelecionados(null); setAvisoMassa(''); }, []);
+  const leadsSelecionados = useMemo(() => (selecionados ? leads.filter((l) => selecionados.has(l.id)) : []), [leads, selecionados]);
+
+  // Esc sai da seleção (quando não há ficha ou janela aberta por cima)
+  useEffect(() => {
+    if (!selecionados || aberto || criandoPublico) return undefined;
+    const tecla = (e) => { if (e.key === 'Escape') sairDaSelecao(); };
+    window.addEventListener('keydown', tecla);
+    return () => window.removeEventListener('keydown', tecla);
+  }, [selecionados, aberto, criandoPublico, sairDaSelecao]);
+
+  const aplicarEmMassa = async (dados, descricao) => {
+    if (!selecionados?.size) return;
+    setEmMassa(true);
+    try {
+      const d = await api('/leads/em-massa', { method: 'POST', body: { ids: [...selecionados], ...dados } });
+      setAvisoMassa(`${descricao} — ${d.alterados} lead${d.alterados === 1 ? '' : 's'} alterado${d.alterados === 1 ? '' : 's'}.`);
+      await carregarLeads();
+      if (dados.stage_id) carregarEtapas();
+      aoMudarAlgo();
+    } catch (e) {
+      setErro(e.message);
+    } finally {
+      setEmMassa(false);
+    }
+  };
+
+  // Foto do responsável no cartão: troca na hora
+  const mudarResponsavel = async (leadId, ownerId) => {
+    const anterior = leads;
+    const dono = users.find((u) => u.id === ownerId);
+    setLeads((ls) => ls.map((l) => (l.id === leadId ? { ...l, owner_id: ownerId, owner_name: dono?.name || null, owner_foto: dono?.foto || null } : l)));
+    try {
+      const d = await api(`/leads/${leadId}`, { method: 'PATCH', body: { owner_id: ownerId } });
+      setLeads((ls) => ls.map((l) => (l.id === leadId ? d.lead : l)));
+    } catch (e) {
+      setLeads(anterior);
+      setErro(e.message);
+    }
+  };
+
   const mover = async (leadId, stageId) => {
     const anterior = leads;
     const etapa = stages.find((s) => s.id === stageId);
@@ -140,6 +226,9 @@ export default function KanbanPagina({ user, stages, users, carregarEtapas, aoMu
         <button className={`chip ${mostrarFiltros || qtdFiltros ? 'ativo' : ''}`} onClick={() => setMostrarFiltros(!mostrarFiltros)}>
           <SlidersHorizontal size={14} /> Filtros{qtdFiltros ? ` (${qtdFiltros})` : ''}
         </button>
+        <ChipResponsavel valor={filtros.responsavel} aoMudar={(v) => setFiltros({ ...filtros, responsavel: v })} users={users} user={user} contagem={porResponsavel} />
+        <ChipWhatsApp numeros={numeros} valor={numeroWa} aoMudar={setNumeroWa} textoVazio="Automático"
+          detalheVazio="Usa o último número que falou com o lead" titulo="WhatsApp que manda mensagem pelo cartão do lead" />
         <button className={`chip chip-led chip-notif ${filtros.semResposta ? 'ativo' : ''}`} onClick={() => alternar('semResposta')} title="Leads que mandaram mensagem e ainda não foram respondidos">
           <BellRing size={13} strokeWidth={2.2} /> {semResposta} sem resposta
         </button>
@@ -171,6 +260,10 @@ export default function KanbanPagina({ user, stages, users, carregarEtapas, aoMu
         <button className={`chip ${mostrarCampos ? 'ativo' : ''}`} onClick={() => setMostrarCampos(!mostrarCampos)} title="Escolher o que aparece nos cartões">
           <Eye size={14} /> Campos{ocultos.length ? ` (${ocultos.length} ocultos)` : ''}
         </button>
+        <button className={`chip ${selecionados ? 'ativo' : ''}`} onClick={() => (selecionados ? sairDaSelecao() : setSelecionados(new Set()))}
+          title="Selecionar vários cartões (também: Ctrl/⌘ + clique no cartão)">
+          <SquareCheckBig size={14} /> {selecionados ? 'Selecionando' : 'Selecionar'}
+        </button>
         {user.role === 'admin' && <button className="btn" onClick={() => setEditandoEtapas(true)}><Columns3 size={15} /> Editar etapas</button>}
         <button className="btn btn-ouro" onClick={() => setCriando(true)}><Plus size={16} strokeWidth={2.2} /> Novo lead</button>
       </div>
@@ -187,11 +280,36 @@ export default function KanbanPagina({ user, stages, users, carregarEtapas, aoMu
 
       {mostrarCampos && <CamposVisiveis leads={leads} ocultos={ocultos} setOcultos={setOcultos} onFechar={() => setMostrarCampos(false)} />}
 
-      <Kanban stages={stages} leads={visiveis} ocultos={ocultos} ordem={ordem} onMover={mover} onAbrir={(l) => setAberto(l.id)} onLimparNotificacao={limparNotificacao} />
+      {avisoMassa && selecionados && <div className="faixa-filtros faixa-sucesso">{avisoMassa} <button className="link" onClick={() => setAvisoMassa('')}>OK</button></div>}
+
+      <Kanban
+        stages={stages} leads={visiveis} ocultos={ocultos} ordem={ordem} onMover={mover} onAbrir={(l) => setAberto(l.id)} onLimparNotificacao={limparNotificacao}
+        users={users} onMudarResponsavel={mudarResponsavel}
+        selecionados={selecionados} onAlternarSelecao={alternarSelecao} onMarcarVarios={marcarVarios}
+      />
+
+      {selecionados && (
+        <BarraSelecao
+          selecionados={selecionados}
+          totalVisiveis={visiveis.length}
+          onSelecionarTodos={() => setSelecionados(new Set(visiveis.map((l) => l.id)))}
+          onLimpar={() => setSelecionados(new Set())}
+          onSair={sairDaSelecao}
+          onCriarPublico={() => setCriandoPublico(true)}
+          onEmMassa={aplicarEmMassa}
+          users={users}
+          stages={stages}
+          ocupado={emMassa}
+        />
+      )}
+      {criandoPublico && (
+        <CriarPublico leads={leadsSelecionados} onFechar={() => setCriandoPublico(false)} usarPublico={usarPublico} />
+      )}
 
       {aberto && (
         <LeadPanel
           leadId={aberto}
+          numeroPreferido={numeroWa}
           stages={stages}
           users={users}
           user={user}

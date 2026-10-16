@@ -5,7 +5,7 @@ import { config } from '../../config.js';
 import { registrarEvento, lerJson } from '../../events.js';
 import { exigirLogin, exigirAdmin } from '../auth/middleware.js';
 import { normalizarTelefone, normalizarEmail, texto, idValido, ErroHttp } from '../../util.js';
-import { buscarLead, listarLeads, criarLead, registrarContatoLead, vincularConversasExistentes } from './service.js';
+import { buscarLead, listarLeads, criarLead, registrarContatoLead, vincularConversasExistentes, alterarLeadsEmMassa } from './service.js';
 
 const ROTULOS = { name: 'nome', phone: 'telefone', email: 'e-mail', company: 'empresa', notes: 'observações' };
 
@@ -63,6 +63,23 @@ export default {
       const ownerId = idValido(req.body?.owner_id) || req.user.id;
       const id = tx(() => criarLead({ ...campos, stage_id: stageId, owner_id: ownerId, source: 'manual' }, { userId: req.user.id }));
       res.status(201).json({ lead: buscarLead(id) });
+    });
+
+    // Cartões selecionados no kanban: muda etapa e/ou responsável de todos de uma vez
+    r.post('/em-massa', (req, res) => {
+      const body = req.body || {};
+      const dados = {};
+      if (body.stage_id !== undefined) {
+        dados.stage_id = idValido(body.stage_id);
+        if (!dados.stage_id) throw new ErroHttp(400, 'Etapa inválida');
+      }
+      if (body.owner_id !== undefined) {
+        dados.owner_id = body.owner_id === null || body.owner_id === '' ? null : idValido(body.owner_id);
+        if (body.owner_id !== null && body.owner_id !== '' && !dados.owner_id) throw new ErroHttp(400, 'Responsável inválido');
+      }
+      if (!Object.keys(dados).length) throw new ErroHttp(400, 'Nada para alterar');
+      if (!Array.isArray(body.ids) || !body.ids.length) throw new ErroHttp(400, 'Selecione pelo menos um lead');
+      res.json(tx(() => alterarLeadsEmMassa(body.ids, dados, req.user.id)));
     });
 
     r.get('/:id', (req, res) => {

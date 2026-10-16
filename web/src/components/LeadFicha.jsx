@@ -43,7 +43,7 @@ const valoresIniciais = (l) => ({
 
 // Ficha completa do lead. Usada no painel lateral do kanban e ao lado da conversa na tela de WhatsApp.
 export default function LeadFicha({
-  leadId, stages, users, user, horas, onAtualizado, onExcluido, acaoTopo = null, comConversa = false, haNumeroConectado = true,
+  leadId, stages, users, user, horas, onAtualizado, onExcluido, acaoTopo = null, comConversa = false, haNumeroConectado = true, numeroPreferido = '',
 }) {
   const [lead, setLead] = useState(null);
   const [eventos, setEventos] = useState([]);
@@ -203,7 +203,7 @@ export default function LeadFicha({
           {comConversa && (
             <>
               <h4>WhatsApp</h4>
-              <Conversa chave={`l:${leadId}`} nome={lead.name || formatarTelefone(lead.phone)} onEnviado={aposEnviarMensagem} />
+              <Conversa chave={`l:${leadId}`} nome={lead.name || formatarTelefone(lead.phone)} onEnviado={aposEnviarMensagem} numeroPreferido={numeroPreferido} />
             </>
           )}
 

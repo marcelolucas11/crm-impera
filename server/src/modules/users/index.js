@@ -4,8 +4,10 @@ import bcrypt from 'bcryptjs';
 import { get, all, run } from '../../db.js';
 import { exigirLogin, exigirAdmin } from '../auth/middleware.js';
 import { normalizarEmail, texto, idValido } from '../../util.js';
+import { salvarFoto, removerFoto, arquivoDaFoto, lerImagem } from './foto.js';
 
-const CAMPOS = 'id, name, email, role, active, last_login_at, created_at';
+// foto = versão da foto (data em que mudou) ou null; a imagem vem de /api/users/:id/foto?v=<foto>
+const CAMPOS = 'id, name, email, role, active, last_login_at, created_at, photo_at AS foto';
 const mapear = (u) => (u ? { ...u, active: Boolean(u.active) } : null);
 const buscar = (id) => mapear(get(`SELECT ${CAMPOS} FROM users WHERE id = ?`, [id]));
 
@@ -26,12 +28,43 @@ export default {
       const role = req.body?.role === 'admin' ? 'admin' : 'member';
       if (!name || !email) return res.status(400).json({ erro: 'Nome e e-mail válidos são obrigatórios' });
       if (senha.length < 8) return res.status(400).json({ erro: 'A senha precisa ter pelo menos 8 caracteres' });
+      // Foto opcional já no cadastro: confere antes de criar, para não sobrar usuário pela metade
+      if (req.body?.foto) lerImagem(req.body.foto);
       if (get('SELECT 1 FROM users WHERE lower(email) = ?', [email])) {
         return res.status(409).json({ erro: 'Já existe um usuário com esse e-mail' });
       }
       const hash = await bcrypt.hash(senha, 12);
       const { lastInsertRowid } = run('INSERT INTO users (name, email, password_hash, role) VALUES (?, ?, ?, ?)', [name, email, hash, role]);
-      res.status(201).json({ user: buscar(Number(lastInsertRowid)) });
+      const id = Number(lastInsertRowid);
+      if (req.body?.foto) salvarFoto(id, req.body.foto);
+      res.status(201).json({ user: buscar(id) });
+    });
+
+    // Foto da pessoa (qualquer um da equipe vê; é a que aparece no cartão do kanban)
+    r.get('/:id/foto', (req, res) => {
+      const arq = arquivoDaFoto(idValido(req.params.id));
+      if (!arq) return res.status(404).json({ erro: 'Sem foto' });
+      res.setHeader('Content-Type', arq.mime);
+      res.setHeader('Cache-Control', 'private, max-age=604800, immutable');
+      res.setHeader('X-Content-Type-Options', 'nosniff');
+      res.sendFile(arq.caminho);
+    });
+
+    // Trocar/remover a foto: o administrador muda a de qualquer pessoa; cada um muda a própria
+    const podeMudarFoto = (req, res, next) => {
+      const id = idValido(req.params.id);
+      if (!id) return res.status(400).json({ erro: 'ID inválido' });
+      if (req.user.role !== 'admin' && req.user.id !== id) return res.status(403).json({ erro: 'Você só pode mudar a sua própria foto' });
+      req.alvoId = id;
+      next();
+    };
+    r.put('/:id/foto', podeMudarFoto, (req, res) => {
+      salvarFoto(req.alvoId, req.body?.foto);
+      res.json({ user: buscar(req.alvoId) });
+    });
+    r.delete('/:id/foto', podeMudarFoto, (req, res) => {
+      removerFoto(req.alvoId);
+      res.json({ user: buscar(req.alvoId) });
     });
 
     r.patch('/:id', exigirAdmin, async (req, res) => {

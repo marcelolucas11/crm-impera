@@ -3,7 +3,8 @@ import { api } from '../api.js';
 import LeadFicha from './LeadFicha.jsx';
 
 // Painel lateral do kanban: ficha do lead + conversa de WhatsApp
-export default function LeadPanel({ leadId, stages, users, user, horas, onFechar, onAtualizado, onExcluido }) {
+// numeroPreferido: WhatsApp escolhido na barra do kanban (vazio = automático)
+export default function LeadPanel({ leadId, stages, users, user, horas, onFechar, onAtualizado, onExcluido, numeroPreferido = '' }) {
   const [haNumero, setHaNumero] = useState(true);
 
   useEffect(() => {
@@ -29,6 +30,7 @@ export default function LeadPanel({ leadId, stages, users, user, horas, onFechar
           onExcluido={onExcluido}
           comConversa
           haNumeroConectado={haNumero}
+          numeroPreferido={numeroPreferido}
           acaoTopo={<button className="fechar" onClick={onFechar} aria-label="Fechar">×</button>}
         />
       </aside>

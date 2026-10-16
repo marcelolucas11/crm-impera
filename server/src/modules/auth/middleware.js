@@ -4,7 +4,7 @@ import { get } from '../../db.js';
 export function exigirLogin(req, res, next) {
   const userId = req.session?.userId;
   if (!userId) return res.status(401).json({ erro: 'Faça login para continuar' });
-  const user = get('SELECT id, name, email, role, active FROM users WHERE id = ?', [userId]);
+  const user = get('SELECT id, name, email, role, active, photo_at FROM users WHERE id = ?', [userId]);
   if (!user || !user.active) {
     req.session.destroy(() => {});
     return res.status(401).json({ erro: 'Sessão inválida, faça login de novo' });

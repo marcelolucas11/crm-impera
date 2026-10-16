@@ -2,7 +2,7 @@
 import { get, all, run } from '../../db.js';
 import { config } from '../../config.js';
 import { registrarEvento, lerJson } from '../../events.js';
-import { variantesTelefone } from '../../util.js';
+import { variantesTelefone, ErroHttp } from '../../util.js';
 import { ligarConversasDoLead } from '../whatsapp/ligacao.js';
 
 // 1º parâmetro (?) = horas de follow-up. Calcula a última atividade e se o lead está atrasado.
@@ -21,7 +21,7 @@ export const BASE_LEADS = `
     (SELECT max(m.timestamp) FROM wa_messages m WHERE m.lead_id = l.id AND m.from_me = 0 AND m.type <> 'chamada') AS last_in_at,
     (SELECT max(m.timestamp) FROM wa_messages m WHERE m.lead_id = l.id AND m.from_me = 1 AND m.type <> 'chamada') AS last_out_at,
     s.name AS stage_name, s.kind AS stage_kind,
-    u.name AS owner_name,
+    u.name AS owner_name, u.photo_at AS owner_foto,
     COALESCE(l.last_contact_at, l.created_at) AS last_activity_at,
     (s.kind = 'open'
       AND (julianday('now') - julianday(COALESCE(l.last_contact_at, l.created_at))) * 24 > ?) AS followup_overdue,
@@ -154,4 +154,37 @@ export function criarLead(dados, { userId = null } = {}) {
   registrarEvento({ leadId: id, userId, type: 'created', data: { origem: dados.source || 'manual' } });
   if (dados.phone) vincularConversasExistentes(id, dados.phone);
   return id;
+}
+
+// Ações em massa do kanban (cartões selecionados): mudar etapa e/ou responsável de vários leads de uma vez.
+// Registra no histórico de cada lead só o que mudou de fato. Precisa rodar dentro de tx().
+export function alterarLeadsEmMassa(ids, { stage_id, owner_id } = {}, userId = null) {
+  const lista = [...new Set((Array.isArray(ids) ? ids : []).map(Number).filter((n) => Number.isInteger(n) && n > 0))].slice(0, 5000);
+  if (!lista.length) return { alterados: 0 };
+  const mudarEtapa = stage_id !== undefined;
+  const mudarDono = owner_id !== undefined;
+  const etapa = mudarEtapa ? get('SELECT id, name FROM stages WHERE id = ?', [stage_id]) : null;
+  if (mudarEtapa && !etapa) throw new ErroHttp(400, 'Etapa não existe');
+  const dono = mudarDono && owner_id ? get('SELECT id, name FROM users WHERE id = ?', [owner_id]) : null;
+  if (mudarDono && owner_id && !dono) throw new ErroHttp(400, 'Responsável não existe');
+  const agoraIso = new Date().toISOString();
+  let alterados = 0;
+  for (const id of lista) {
+    const atual = get('SELECT l.stage_id, l.owner_id, s.name AS etapa FROM leads l JOIN stages s ON s.id = l.stage_id WHERE l.id = ?', [id]);
+    if (!atual) continue;
+    let mudou = false;
+    if (mudarEtapa && atual.stage_id !== etapa.id) {
+      run('UPDATE leads SET stage_id = ?, stage_changed_at = ?, updated_at = ? WHERE id = ?', [etapa.id, agoraIso, agoraIso, id]);
+      registrarEvento({ leadId: id, userId, type: 'stage_changed', data: { de: atual.etapa, para: etapa.name } });
+      mudou = true;
+    }
+    const novoDono = dono ? dono.id : null;
+    if (mudarDono && (atual.owner_id ?? null) !== novoDono) {
+      run('UPDATE leads SET owner_id = ?, updated_at = ? WHERE id = ?', [novoDono, agoraIso, id]);
+      registrarEvento({ leadId: id, userId, type: 'owner_changed', data: { para: dono?.name || null } });
+      mudou = true;
+    }
+    if (mudou) alterados++;
+  }
+  return { alterados };
 }

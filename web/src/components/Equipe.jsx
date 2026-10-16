@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '../api.js';
 import { dataHora, tempoDesde } from '../utils.js';
 import WhatsAppNumeros from './WhatsAppNumeros.jsx';
@@ -6,10 +6,40 @@ import CalendlyStatus from './CalendlyStatus.jsx';
 import FormulariosYay from './FormulariosYay.jsx';
 import SegredosYay from './SegredosYay.jsx';
 import Atualizacao from './Atualizacao.jsx';
+import { FotoUsuario, CampoFoto, prepararFoto } from './FotoUsuario.jsx';
 
-export default function Equipe({ user }) {
+const NOVO_VAZIO = { name: '', email: '', senha: '', role: 'member', foto: '' };
+
+// Foto na tabela da equipe: clicar troca, o ✕ remove
+function FotoDaLinha({ u, executar, aoErro }) {
+  const entrada = useRef(null);
+  const escolher = async (e) => {
+    const arquivo = e.target.files?.[0];
+    e.target.value = '';
+    if (!arquivo) return;
+    try {
+      const foto = await prepararFoto(arquivo);
+      executar(() => api(`/users/${u.id}/foto`, { method: 'PUT', body: { foto } }), `Foto de ${u.name} atualizada.`);
+    } catch (err) { aoErro(err.message); }
+  };
+  return (
+    <span className="foto-linha">
+      <button type="button" className="foto-linha-botao" onClick={() => entrada.current?.click()} title={u.foto ? 'Trocar a foto' : 'Adicionar uma foto'}>
+        <FotoUsuario usuario={u} tamanho={34} titulo="" />
+        <span className="foto-linha-camera">+</span>
+      </button>
+      {u.foto && (
+        <button type="button" className="foto-linha-remover" title="Remover a foto" aria-label={`Remover a foto de ${u.name}`}
+          onClick={() => executar(() => api(`/users/${u.id}/foto`, { method: 'DELETE' }), `Foto de ${u.name} removida.`)}>×</button>
+      )}
+      <input ref={entrada} type="file" accept="image/jpeg,image/png,image/webp" hidden onChange={escolher} />
+    </span>
+  );
+}
+
+export default function Equipe({ user, aoMudarUsuarios }) {
   const [users, setUsers] = useState([]);
-  const [novo, setNovo] = useState({ name: '', email: '', senha: '', role: 'member' });
+  const [novo, setNovo] = useState(NOVO_VAZIO);
   const [erro, setErro] = useState('');
   const [msg, setMsg] = useState('');
   const [yay, setYay] = useState(null);
@@ -19,10 +49,11 @@ export default function Equipe({ user }) {
     try {
       const [u, c, ev] = await Promise.all([api('/users'), api('/yayforms/config'), api('/yayforms/eventos')]);
       setUsers(u.users);
+      aoMudarUsuarios?.(u.users);
       setYay(c);
       setEventos(ev.eventos);
     } catch (e) { setErro(e.message); }
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => { carregar(); }, [carregar]);
 
@@ -34,8 +65,8 @@ export default function Equipe({ user }) {
   const criar = (e) => {
     e.preventDefault();
     executar(async () => {
-      await api('/users', { method: 'POST', body: novo });
-      setNovo({ name: '', email: '', senha: '', role: 'member' });
+      await api('/users', { method: 'POST', body: { ...novo, foto: novo.foto || undefined } });
+      setNovo(NOVO_VAZIO);
     }, 'Usuário criado.');
   };
 
@@ -57,10 +88,11 @@ export default function Equipe({ user }) {
         <section className="cartao-secao">
           <h2>Equipe</h2>
           <table className="tabela">
-            <thead><tr><th>Nome</th><th>E-mail</th><th>Papel</th><th>Último acesso</th><th>Status</th><th /></tr></thead>
+            <thead><tr><th>Foto</th><th>Nome</th><th>E-mail</th><th>Papel</th><th>Último acesso</th><th>Status</th><th /></tr></thead>
             <tbody>
               {users.map((u) => (
                 <tr key={u.id} className={u.active ? '' : 'inativo'}>
+                  <td><FotoDaLinha u={u} executar={executar} aoErro={setErro} /></td>
                   <td>{u.name}</td>
                   <td>{u.email}</td>
                   <td>
@@ -89,7 +121,8 @@ export default function Equipe({ user }) {
           </table>
 
           <h3>Adicionar pessoa</h3>
-          <form className="form-linha" onSubmit={criar}>
+          <form className="form-linha form-com-foto" onSubmit={criar}>
+            <CampoFoto valor={novo.foto} aoMudar={(foto) => setNovo({ ...novo, foto })} aoErro={setErro} nome={novo.name} rotulo="Foto (aparece nos cartões)" />
             <input placeholder="Nome" value={novo.name} onChange={(e) => setNovo({ ...novo, name: e.target.value })} required />
             <input type="email" placeholder="E-mail" value={novo.email} onChange={(e) => setNovo({ ...novo, email: e.target.value })} required />
             <input type="text" placeholder="Senha inicial (mín. 8)" value={novo.senha} onChange={(e) => setNovo({ ...novo, senha: e.target.value })} minLength={8} required />

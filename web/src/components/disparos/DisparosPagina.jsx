@@ -1,4 +1,4 @@
-// Aba "Disparos": saudação automática do Yay! Forms, disparo personalizado, listas de contatos e monitor da fila
+// Aba "Disparos": saudação automática do Yay! Forms, disparo personalizado, públicos (listas de contatos) e monitor da fila
 import { useCallback, useEffect, useState } from 'react';
 import { Zap, Megaphone, Users, Activity } from 'lucide-react';
 import { api } from '../../api.js';
@@ -13,12 +13,13 @@ import './disparos.css';
 const SUBABAS = [
   { id: 'yayforms', rotulo: 'Automação Yay! Forms', icone: Zap },
   { id: 'campanha', rotulo: 'Disparo personalizado', icone: Megaphone },
-  { id: 'listas', rotulo: 'Listas de contatos', icone: Users },
+  { id: 'listas', rotulo: 'Públicos e listas', icone: Users },
   { id: 'monitor', rotulo: 'Monitor, modelos e bloqueio', icone: Activity },
 ];
 const CHAVE = 'crm.disparos.subaba';
 
-export default function DisparosPagina() {
+// pedidoLista: { id, nome } — público criado no kanban com "Usar num disparo" (abre o disparo com ele escolhido)
+export default function DisparosPagina({ pedidoLista = null, aoConsumirPedido }) {
   const [aba, setAbaEstado] = useState(() => {
     try { const a = localStorage.getItem(CHAVE); return SUBABAS.some((s) => s.id === a) ? a : 'yayforms'; } catch { return 'yayforms'; }
   });
@@ -34,6 +35,13 @@ export default function DisparosPagina() {
   useEffect(() => { carregarNumeros(); carregarAtivas(); }, [carregarNumeros, carregarAtivas]);
   useEvento('whatsapp', (d) => { if (d?.numeros || d?.reconectou) carregarNumeros(); });
   useEvento('disparos', carregarAtivas);
+
+  useEffect(() => {
+    if (!pedidoLista) return;
+    setLista(pedidoLista);
+    setAba('campanha');
+    aoConsumirPedido?.();
+  }, [pedidoLista]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <ProvedorAvisos>

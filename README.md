@@ -4,7 +4,14 @@ CRM da agência: leads do Yay! Forms caindo direto num kanban, alerta de follow-
 Roda direto no Mac, a partir do SSD externo, sem Docker e sem instalar nada no sistema.
 A mesma pasta funciona depois na VPS da Contabo.
 
-**Versão atual: 0.8.0** — o número fica no arquivo `VERSAO` e é o que aparece em **Equipe e integrações → Atualização do CRM**.
+**Versão atual: 0.9.0** — o número fica no arquivo `VERSAO` e é o que aparece em **Equipe e integrações → Atualização do CRM**.
+
+**Versão 0.9.0:** **responsável com foto** no canto inferior esquerdo do cartão — clique na foto para escolher ou trocar o responsável ·
+campo de **foto no cadastro** da equipe (Equipe e integrações) e **"Adicionar minha foto"** no menu do avatar · chip **Responsável** na barra rápida
+(abre a lista da equipe com a contagem de leads de cada um) · **seleção em massa** no kanban (botão **Selecionar**, caixinha no topo de cada etapa
+ou Ctrl/⌘ + clique) com ações **Criar público**, **Responsável** e **Mover para** · **público** = lista de contatos com nome, pronta para os
+disparos (botão "Usar num disparo") · chip **WhatsApp** no kanban (número que manda mensagem pela conversa do cartão) e na aba WhatsApp
+(mostra as conversas do número escolhido e responde por ele) — para atuar com mais de um WhatsApp.
 
 **Versão 0.8.0:** aba nova **Disparos** · **saudação automática** para todo lead novo do Yay! Forms (sequência de mensagens com
 atraso inicial, "digitando…/gravando áudio…", variáveis do formulário e proteção contra repetição) · **disparo personalizado** com fluxo de

@@ -120,8 +120,9 @@ function PreviaArquivos({ selecao, onCancelar, onEnviar, onRemover }) {
  * chave: "l:<id do lead>", "t:<telefone>", "j:<identificador>" ou "g:<grupo>"
  * pularPara: { id } — leva até essa mensagem (busca, favoritas)
  * painelPedido: { qual: 'emoji' | 'figurinhas' } — atalhos de teclado
+ * numeroPreferido: id do WhatsApp escolhido na barra (kanban ou aba WhatsApp); vazio = o último número usado na conversa
  */
-export default function Conversa({ chave, nome = '', onEnviado, cheia = false, pularPara = null, painelPedido = null, pedidoSelecao = null, onNumeroAtivo }) {
+export default function Conversa({ chave, nome = '', onEnviado, cheia = false, pularPara = null, painelPedido = null, pedidoSelecao = null, onNumeroAtivo, numeroPreferido = '' }) {
   const [mensagens, setMensagens] = useState([]);
   const [temMais, setTemMais] = useState(false);
   const [carregou, setCarregou] = useState(false);
@@ -160,6 +161,8 @@ export default function Conversa({ chave, nome = '', onEnviado, cheia = false, p
     return INICIO - i;
   }, [mensagens]);
   const ultimoId = useRef(null);
+  const preferido = useRef(numeroPreferido);
+  preferido.current = numeroPreferido ? String(numeroPreferido) : '';
   const url = `/whatsapp/conversas/${encodeURIComponent(chave)}`;
   const grupo = chave.startsWith('g:');
 
@@ -172,7 +175,7 @@ export default function Conversa({ chave, nome = '', onEnviado, cheia = false, p
         if (!atual.length) setTemMais(d.tem_mais);
         return mesclar(atual, d.mensagens, { substituirFim: true });
       });
-      setNumeroId((atual) => atual || (d.ultimo_numero ? String(d.ultimo_numero) : ''));
+      setNumeroId((atual) => atual || preferido.current || (d.ultimo_numero ? String(d.ultimo_numero) : ''));
       setCarregou(true);
     } catch { /* tenta de novo no próximo aviso */ }
   }, [url, chave]);
@@ -217,6 +220,8 @@ export default function Conversa({ chave, nome = '', onEnviado, cheia = false, p
   });
 
   const conectados = numeros.filter((n) => n.status === 'conectado');
+  // Trocou o WhatsApp na barra: a conversa aberta passa a enviar por ele
+  useEffect(() => { if (numeroPreferido) setNumeroId(String(numeroPreferido)); }, [numeroPreferido]);
   useEffect(() => {
     if (conectados.length && !conectados.some((n) => String(n.id) === numeroId)) setNumeroId(String(conectados[0].id));
   }, [conectados, numeroId]);

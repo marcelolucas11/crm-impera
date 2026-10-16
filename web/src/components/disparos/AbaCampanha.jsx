@@ -76,7 +76,7 @@ export default function AbaCampanha({ numeros, modeloInicial, aoConsumirModelo, 
   useEffect(() => {
     if (!listaInicial) return;
     setListasEscolhidas(new Set([listaInicial.id]));
-    aviso(`Lista “${listaInicial.nome}” escolhida como destino`, 'info');
+    aviso(`Público “${listaInicial.nome}” escolhido como destino`, 'info');
     aoConsumirLista?.();
   }, [listaInicial]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -172,7 +172,7 @@ export default function AbaCampanha({ numeros, modeloInicial, aoConsumirModelo, 
           <Passo numero={2} icone={Users} titulo="Para quem">
             {listas.length > 0 && (
               <div className="dp-escolha-listas">
-                <span className="dp-config-titulo"><ListChecks size={15} /> Listas salvas</span>
+                <span className="dp-config-titulo"><ListChecks size={15} /> Públicos e listas salvas</span>
                 <div className="dp-listas-chips">
                   {listas.map((l) => (
                     <button key={l.id} type="button" className={`chip chip-pequeno ${listasEscolhidas.has(l.id) ? 'ativo' : ''}`}

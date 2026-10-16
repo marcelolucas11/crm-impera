@@ -1,8 +1,9 @@
-import { useState } from 'react';
-import { iniciais } from '../utils.js';
+import { useRef, useState } from 'react';
+import { api } from '../api.js';
 import TrocarSenha from './TrocarSenha.jsx';
+import { FotoUsuario, prepararFoto } from './FotoUsuario.jsx';
 import logo from '../assets/logo-impera.png';
-import { Users, KeyRound, LogOut } from 'lucide-react';
+import { Users, KeyRound, LogOut, Camera, Trash2 } from 'lucide-react';
 
 const ABAS = [
   { id: 'kanban', rotulo: 'Kanban' },
@@ -11,9 +12,26 @@ const ABAS = [
   { id: 'estatisticas', rotulo: 'Estatísticas' },
 ];
 
-export default function Topo({ user, pagina, setPagina, resumo, sair }) {
+export default function Topo({ user, pagina, setPagina, resumo, sair, aoMudarFoto, setErro }) {
   const [menu, setMenu] = useState(false);
   const [trocandoSenha, setTrocandoSenha] = useState(false);
+  const entradaFoto = useRef(null);
+
+  // Minha foto (aparece nos cartões dos leads de que sou responsável)
+  const escolherFoto = async (e) => {
+    const arquivo = e.target.files?.[0];
+    e.target.value = '';
+    if (!arquivo) return;
+    try {
+      const foto = await prepararFoto(arquivo);
+      const d = await api(`/users/${user.id}/foto`, { method: 'PUT', body: { foto } });
+      aoMudarFoto?.(d.user);
+    } catch (err) { setErro?.(err.message); }
+  };
+  const removerFoto = async () => {
+    setMenu(false);
+    try { const d = await api(`/users/${user.id}/foto`, { method: 'DELETE' }); aoMudarFoto?.(d.user); } catch (err) { setErro?.(err.message); }
+  };
 
   const contador = (id) => {
     if (id === 'whatsapp' && resumo?.conversas_nao_lidas) return resumo.conversas_nao_lidas;
@@ -47,16 +65,21 @@ export default function Topo({ user, pagina, setPagina, resumo, sair }) {
       </nav>
 
       <div className="usuario">
-        <button className="avatar" onClick={() => setMenu(!menu)} title={user.name}>{iniciais(user.name)}</button>
+        <button className={`avatar ${user.foto ? 'avatar-com-foto' : ''}`} onClick={() => setMenu(!menu)} title={user.name}>
+          <FotoUsuario usuario={user} tamanho={34} titulo="" />
+        </button>
         {menu && (
           <div className="menu" onMouseLeave={() => setMenu(false)}>
             <div className="menu-nome">{user.name}<small>{user.email}</small></div>
+            <button onClick={() => { setMenu(false); entradaFoto.current?.click(); }}><Camera size={15} /> {user.foto ? 'Trocar minha foto' : 'Adicionar minha foto'}</button>
+            {user.foto && <button onClick={removerFoto}><Trash2 size={15} /> Remover minha foto</button>}
             {user.role === 'admin' && <button onClick={() => { setMenu(false); setPagina('equipe'); }}><Users size={15} /> Equipe e integrações</button>}
             <button onClick={() => { setMenu(false); setTrocandoSenha(true); }}><KeyRound size={15} /> Trocar minha senha</button>
             <button onClick={sair}><LogOut size={15} /> Sair</button>
           </div>
         )}
       </div>
+      <input ref={entradaFoto} type="file" accept="image/jpeg,image/png,image/webp" hidden onChange={escolherFoto} />
       {trocandoSenha && <TrocarSenha onFechar={() => setTrocandoSenha(false)} />}
     </header>
   );

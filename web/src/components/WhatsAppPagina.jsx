@@ -13,6 +13,7 @@ import ListaConversas from './chat/ListaConversas.jsx';
 import PainelLateral from './chat/PainelLateral.jsx';
 import Visualizador from './chat/Visualizador.jsx';
 import { Ligar, Atalhos } from './chat/Modais.jsx';
+import { ChipWhatsApp } from './SeletoresRapidos.jsx';
 import logo from '../assets/logo-impera.png';
 
 const ler = (k, padrao) => { try { return localStorage.getItem(k) ?? padrao; } catch { return padrao; } };
@@ -285,12 +286,9 @@ export default function WhatsAppPagina({ user, stages, users, horas, aoMudarAlgo
     <div className="lista-cabecalho">
       <b className="lista-titulo">Conversas</b>
       <span className="espaco" />
-      {(numeros?.length || 0) > 1 && (
-        <select className="seletor-numero-lista" value={numeroFiltro} onChange={(e) => setNumeroFiltro(e.target.value)} title="Mostrar conversas de qual número">
-          <option value="">Todos os números</option>
-          {numeros.map((n) => <option key={n.id} value={n.id}>{n.name}{n.status !== 'conectado' ? ' (desconectado)' : ''}</option>)}
-        </select>
-      )}
+      {/* Com um WhatsApp escolhido, a lista mostra só as conversas dele e as mensagens saem por ele */}
+      <ChipWhatsApp numeros={numeros} valor={numeroFiltro} aoMudar={setNumeroFiltro} textoVazio="Todos os números"
+        detalheVazio="Conversas de todos; responde pelo último número usado" titulo="Com qual WhatsApp atuar" />
       <button type="button" className="botao-icone" title={tema === 'escuro' ? 'Tema claro' : 'Tema escuro'} onClick={() => setTema((t) => (t === 'escuro' ? 'claro' : 'escuro'))}>
         {tema === 'escuro' ? <Sun size={20} /> : <Moon size={20} />}
       </button>
@@ -388,6 +386,7 @@ export default function WhatsAppPagina({ user, stages, users, horas, aoMudarAlgo
               painelPedido={painelPedido}
               pedidoSelecao={pedidoSelecao}
               onNumeroAtivo={setNumeroAtivo}
+              numeroPreferido={numeroFiltro}
               onEnviado={() => { carregar(); aoMudarAlgo(); }}
             />
           </>

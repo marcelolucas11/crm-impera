@@ -13,7 +13,7 @@ const limiteLogin = rateLimit({
   message: { erro: 'Muitas tentativas. Aguarde 15 minutos.' },
 });
 
-const publico = (u) => ({ id: u.id, name: u.name, email: u.email, role: u.role });
+const publico = (u) => ({ id: u.id, name: u.name, email: u.email, role: u.role, foto: u.photo_at || null });
 
 export default {
   name: 'auth',

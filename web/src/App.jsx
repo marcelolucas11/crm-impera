@@ -26,16 +26,17 @@ export default function App() {
 
   if (user === undefined) return <div className="tela-cheia"><div className="carregando" /></div>;
   if (!user) return <Login aoEntrar={setUser} />;
-  return <Sistema user={user} aoSair={() => { encerrarTempoReal(); setUser(null); }} />;
+  return <Sistema user={user} aoMudarUser={setUser} aoSair={() => { encerrarTempoReal(); setUser(null); }} />;
 }
 
 // Estrutura comum: barra do topo com as abas + a tela escolhida (tudo dentro do CRM, sem abrir abas no navegador)
-function Sistema({ user, aoSair }) {
+function Sistema({ user, aoMudarUser, aoSair }) {
   const [pagina, setPaginaEstado] = useState(paginaInicial);
   const [stages, setStages] = useState([]);
   const [users, setUsers] = useState([]);
   const [resumo, setResumo] = useState(null);
   const [erro, setErro] = useState('');
+  const [pedidoDisparo, setPedidoDisparo] = useState(null);
 
   const setPagina = (p) => {
     setPaginaEstado(p);
@@ -44,14 +45,15 @@ function Sistema({ user, aoSair }) {
 
   const carregarEtapas = useCallback(() => api('/stages').then((d) => setStages(d.stages)).catch((e) => setErro(e.message)), []);
   const carregarResumo = useCallback(() => api('/followup/resumo').then(setResumo).catch(() => {}), []);
+  const carregarUsuarios = useCallback(() => api('/users').then((d) => setUsers(d.users)).catch(() => {}), []);
 
   useEffect(() => {
     carregarEtapas();
-    api('/users').then((d) => setUsers(d.users)).catch(() => {});
+    carregarUsuarios();
     carregarResumo();
     const id = setInterval(() => { if (!document.hidden) carregarResumo(); }, 15000);
     return () => clearInterval(id);
-  }, [carregarEtapas, carregarResumo]);
+  }, [carregarEtapas, carregarResumo, carregarUsuarios]);
 
   // Mensagem nova: atualiza o contador da aba WhatsApp
   useEvento('whatsapp', (d) => { if (d?.chat || d?.reconectou) carregarResumo(); });
@@ -62,16 +64,24 @@ function Sistema({ user, aoSair }) {
   };
 
   const comum = { user, stages, users, horas: resumo?.horas || 24, carregarEtapas, aoMudarAlgo: carregarResumo, setErro };
+  // Público criado no kanban → abre Disparos com ele já escolhido
+  const usarPublico = (lista) => { setPedidoDisparo(lista); setPagina('disparos'); };
+  // Minha foto mudou (menu do avatar): atualiza o topo e a lista da equipe (fotos nos cartões)
+  const aoMudarMinhaFoto = (u) => { aoMudarUser({ ...user, foto: u.foto }); carregarUsuarios(); };
 
   return (
     <div className="app">
-      <Topo user={user} pagina={pagina} setPagina={setPagina} resumo={resumo} sair={sair} />
+      <Topo user={user} pagina={pagina} setPagina={setPagina} resumo={resumo} sair={sair} aoMudarFoto={aoMudarMinhaFoto} setErro={setErro} />
       {erro && <div className="faixa-erro" onClick={() => setErro('')}>{erro} <span>×</span></div>}
-      {pagina === 'kanban' && <KanbanPagina {...comum} />}
+      {pagina === 'kanban' && <KanbanPagina {...comum} usarPublico={usarPublico} />}
       {pagina === 'whatsapp' && <WhatsAppPagina {...comum} />}
-      {pagina === 'disparos' && <DisparosPagina />}
+      {pagina === 'disparos' && <DisparosPagina pedidoLista={pedidoDisparo} aoConsumirPedido={() => setPedidoDisparo(null)} />}
       {pagina === 'estatisticas' && <Estatisticas {...comum} />}
-      {pagina === 'equipe' && <Equipe user={user} />}
+      {pagina === 'equipe' && <Equipe user={user} aoMudarUsuarios={(lista) => {
+        setUsers(lista);
+        const eu = lista.find((u) => u.id === user.id);
+        if (eu && eu.foto !== user.foto) aoMudarUser({ ...user, foto: eu.foto });
+      }} />}
       <ChamadaRecebida aoAbrirConversa={(chave) => {
         window.__waAbrir = chave;
         setPagina('whatsapp');
