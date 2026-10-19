@@ -99,6 +99,17 @@ pede nome, e-mail e senha do primeiro administrador e liga o CRM. Depois, abra *
 | Conectar o Calendly | `./scripts/configurar-calendly.sh` |
 | Ver o log | `tail -f ../logs/crm.log` |
 
+**O CRM se religa sozinho.** O `./iniciar.sh` liga junto um vigia: se o servidor cair ou ficar mais de ~2 min sem
+responder, ele é religado em segundos (fica registrado no log com `[vigia]`). Na VPS (Linux), o `./iniciar.sh` também
+deixa uma checagem a cada minuto no cron: se a VPS reiniciar ou o vigia sumir, o CRM volta sozinho.
+Quem desliga com `./parar.sh` desliga de propósito: nada religa até rodar `./iniciar.sh`.
+
+**Histórico do WhatsApp sem clique.** A importação dos 90 dias roda sozinha. Se o celular bloquear ou ficar sem internet,
+ela espera (30 s, 1 min, 2 min, até 5 min entre tentativas) e continua de onde parou — na hora, se você mandar uma
+mensagem pelo celular. Se o número cair, retoma quando ele reconectar, e a cada 6 h o CRM completa o que faltar.
+Mensagens que chegaram com o CRM fora do ar são entregues pelo WhatsApp quando ele volta (desde que o número não tenha
+sido desconectado no celular).
+
 ### O que o `./atualizar.sh` faz
 
 1. Copia o banco para `backups/` (funciona com o CRM ligado).

@@ -29,7 +29,7 @@ import {
   gravarMensagem, aoAtualizarMensagens, aoReceberRecibos, aoAtualizarContatos, aplicarMapeamentos, aplicarEstadoChats,
   completarNomesDosGrupos, mensagemOriginal,
 } from './recebimento.js';
-import { aoReceberHistorico, aoConectar, agendarReligar, progressoDe } from './historico.js';
+import { aoReceberHistorico, aoConectar, agendarReligar, progressoDe, celularDeuSinal } from './historico.js';
 import { aoReceberChamadas } from './chamadas.js';
 import { aoAtualizarPresenca } from './presenca.js';
 import { loggerComFigurinhas } from './figurinhas.js';
@@ -173,6 +173,8 @@ export async function conectar(id) {
   });
   sock.ev.on('connection.update', (u) => aoAtualizarConexao(id, sock, u, lib));
   sock.ev.on('messages.upsert', protegido('mensagem', async ({ messages, type }) => {
+    // Mensagem enviada pelo próprio celular: ele está acordado, a importação do histórico pode continuar já
+    if (type === 'notify' && (messages || []).some((m) => m?.key?.fromMe)) celularDeuSinal(id);
     for (const m of messages || []) {
       await gravarMensagem(id, sock, lib, m, type === 'notify' ? 'ao_vivo' : 'offline').catch((err) =>
         console.error(`[whatsapp #${id}] erro ao gravar mensagem:`, err.message)

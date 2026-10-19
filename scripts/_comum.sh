@@ -24,6 +24,9 @@ NODE_DIR="$BASE_DIR/node"
 LOG_DIR="$BASE_DIR/logs"
 PID_FILE="$LOG_DIR/crm.pid"
 LOG_FILE="$LOG_DIR/crm.log"
+VIGIA_PID_FILE="$LOG_DIR/vigia.pid"
+# Existe quando o CRM foi desligado de propósito (./parar.sh): a checagem automática não religa
+PARADO_FILE="$LOG_DIR/desligado-de-proposito"
 cd "$APP_DIR"
 
 # Lê uma variável do .env sem executar o arquivo
@@ -118,13 +121,35 @@ crm_rodando() {
   [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null && ps -p "$pid" -o command= 2>/dev/null | grep -q "server/src/index.js"
 }
 
+# O vigia (scripts/vigia.sh), que religa o servidor se ele cair, está rodando?
+vigia_rodando() {
+  [ -f "$VIGIA_PID_FILE" ] || return 1
+  local pid
+  pid=$(cat "$VIGIA_PID_FILE" 2>/dev/null)
+  [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null && ps -p "$pid" -o command= 2>/dev/null | grep -q "vigia.sh"
+}
+
+# Linux (VPS): checagem a cada minuto pelo cron do sistema. Religa o CRM se o vigia sumir
+# (servidor reiniciado, processo encerrado). Não faz nada se ele foi desligado com ./parar.sh.
+instalar_checagem_automatica() {
+  [ "$(uname -s)" = "Linux" ] || return 0
+  command -v crontab >/dev/null 2>&1 || return 0
+  local linha="* * * * * \"$APP_DIR/iniciar.sh\" --automatico >/dev/null 2>&1 # crm-impera"
+  local atual
+  atual=$(crontab -l 2>/dev/null || true)
+  if ! printf '%s\n' "$atual" | grep -qF "$linha"; then
+    { printf '%s\n' "$atual" | grep -v '# crm-impera$' | grep -v '^$' || true; echo "$linha"; } | crontab - 2>/dev/null \
+      && echo "  checagem automática ligada (o CRM volta sozinho se cair ou se a VPS reiniciar)"
+  fi
+}
+
 # Espera o app responder em /api/health (até ~40 s)
 aguardar_app() {
   local porta tentativas=0
   porta=$(env_get APP_PORT 3000)
   while [ $tentativas -lt 40 ]; do
     if curl -fsS "http://127.0.0.1:${porta}/api/health" >/dev/null 2>&1; then return 0; fi
-    if ! crm_rodando; then return 1; fi
+    if ! crm_rodando && ! vigia_rodando; then return 1; fi
     tentativas=$((tentativas + 1))
     sleep 1
   done

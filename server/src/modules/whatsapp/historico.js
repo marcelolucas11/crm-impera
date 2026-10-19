@@ -5,6 +5,8 @@
 // 2) Se o celular mandou menos que a janela, o CRM completa conversa por conversa com
 //    fetchMessageHistory (um pedido de cada vez, com intervalo), até cobrir a janela ou o celular não ter mais.
 // 3) Números já conectados: o botão "Importar 3 meses de histórico" faz o passo 2 sem desconectar.
+// 4) Tudo sozinho: se o celular não responde (tela bloqueada), espera e tenta de novo; se o número cai,
+//    retoma ao reconectar; e a cada 6 h (WHATSAPP_HISTORICO_REVISAO_MS) completa o que faltar.
 //    (O passo 1 só acontece numa conexão nova: conversas que o CRM nunca viu só chegam reconectando.)
 // O progresso vai para a tela em tempo real (evento "importacao").
 import { get, all, run, agora } from '../../db.js';
@@ -18,8 +20,15 @@ import { gravarLote, aplicarMapeamentos, aoAtualizarContatos, aplicarEstadoChats
 import { religarTudo } from './ligacao.js';
 
 const POR_PEDIDO = 50;
-const INTERVALO_PEDIDOS_MS = Number(process.env.WHATSAPP_HISTORICO_INTERVALO_MS || 2500);
-const ESPERA_RESPOSTA_MS = Number(process.env.WHATSAPP_HISTORICO_ESPERA_MS || 25000);
+const INTERVALO_PEDIDOS_MS = Number(process.env.WHATSAPP_HISTORICO_INTERVALO_MS || 1500);
+const ESPERA_RESPOSTA_MS = Number(process.env.WHATSAPP_HISTORICO_ESPERA_MS || 20000);
+// Celular sem responder (tela bloqueada, sem internet): espera e tenta de novo sozinho, cada vez esperando mais
+const PAUSAS_CELULAR_MS = (process.env.WHATSAPP_HISTORICO_PAUSAS_MS || '30000,60000,120000,300000')
+  .split(',').map(Number).filter((n) => n > 0);
+// De tempos em tempos completa sozinho o que faltar (conversas novas, pedidos que ficaram sem resposta)
+const REVISAO_AUTOMATICA_MS = Number(process.env.WHATSAPP_HISTORICO_REVISAO_MS || 6 * 3600000);
+// Fases em que a importação ainda não terminou (retoma sozinha ao reconectar ou reiniciar o CRM)
+const FASES_PENDENTES = new Set(['completando', 'aguardando_celular', 'interrompido']);
 const SILENCIO_ANTES_DE_COMPLETAR_MS = Number(process.env.WHATSAPP_HISTORICO_SILENCIO_MS || 90000);
 const MAX_PEDIDOS_POR_CONVERSA = 40;
 
@@ -155,9 +164,45 @@ export function aoConectar(id, { conexaoNova = false } = {}) {
   const e = estado(id);
   const salvo = lerEstado(nomeEstado(id));
   e.historico = e.historico || salvo || null;
-  // Conexão nova pelo QR code, ou importação que ficou pela metade (CRM reiniciado no meio)
-  e.complementarAoTerminar = conexaoNova || salvo?.fase === 'completando';
+  // Conexão nova pelo QR code, ou importação que ficou pela metade (queda, celular sem responder, CRM reiniciado)
+  e.complementarAoTerminar = conexaoNova || FASES_PENDENTES.has(salvo?.fase);
   if (e.complementarAoTerminar) agendarComplemento(id, conexaoNova ? SILENCIO_ANTES_DE_COMPLETAR_MS : 15000);
+  agendarRevisao(id);
+}
+
+// Revisão periódica: enquanto o número estiver conectado, completa sozinho o que faltar
+const timersRevisao = new Map();
+export function agendarRevisao(id) {
+  if (!config.whatsapp.historicoDias || !REVISAO_AUTOMATICA_MS) return;
+  clearTimeout(timersRevisao.get(id));
+  const t = setTimeout(() => {
+    timersRevisao.delete(id);
+    if (!socketConectado(id)) return; // volta a ser agendada na próxima conexão
+    const e = estado(id);
+    if (!e.importando && conversasParaCompletar(id).length) {
+      importarHistorico(id, { automatico: true }).catch((err) => console.error(`[whatsapp #${id}] revisão do histórico:`, err.message));
+    }
+    agendarRevisao(id);
+  }, REVISAO_AUTOMATICA_MS);
+  t.unref?.();
+  timersRevisao.set(id, t);
+}
+
+// Pausa enquanto o celular não responde. Termina antes se o celular der sinal de vida
+// (mensagem enviada por ele) ou se o número desconectar.
+const despertadores = new Map();
+function pausaAteOCelularVoltar(id, ms) {
+  return new Promise((resolve) => {
+    const fim = () => { clearTimeout(t); clearInterval(checagem); despertadores.delete(id); resolve(); };
+    const t = setTimeout(fim, ms);
+    const checagem = setInterval(() => { if (!socketConectado(id)) fim(); }, 2000);
+    checagem.unref?.();
+    despertadores.set(id, fim);
+  });
+}
+// Chamado quando chega mensagem enviada pelo próprio celular: ele está acordado, a importação continua já
+export function celularDeuSinal(id) {
+  despertadores.get(Number(id))?.();
 }
 
 function conversasParaCompletar(id) {
@@ -236,13 +281,13 @@ export async function importarHistorico(id, { automatico = false } = {}) {
     }, { gravar: true });
 
     let feitas = 0;
-    let semResposta = 0;
+    let semResposta = 0; // pedidos seguidos sem resposta (em qualquer conversa)
     for (const conversa of lista) {
-      if (!socketConectado(id)) throw new Error('O número desconectou no meio da importação. Ela continua quando ele voltar.');
       let pedidosFeitos = 0;
+      let falhasNestaConversa = 0;
       let antes = maisAntigaDaConversa(id, conversa.chat_jid);
       while (antes && new Date(antes.timestamp).getTime() > limite && pedidosFeitos < MAX_PEDIDOS_POR_CONVERSA) {
-        pedidosFeitos++;
+        if (!socketConectado(id)) throw new Error('O número desconectou no meio da importação. Ela continua sozinha quando ele voltar.');
         let respondeu = false;
         try {
           respondeu = await (await pedirAnteriores(e, conversa.chat_jid, antes)).resposta;
@@ -251,12 +296,25 @@ export async function importarHistorico(id, { automatico = false } = {}) {
         }
         await esperar(INTERVALO_PEDIDOS_MS);
         if (!respondeu) {
-          // Sem resposta (celular desligado ou sem internet): não marca como concluída, tenta depois
+          // Sem resposta (tela bloqueada, sem internet): espera e repete o MESMO pedido, sem pular a conversa
           semResposta++;
-          if (semResposta >= 3) throw new Error('O celular parou de responder (está ligado e com internet?). Clique em Importar de novo para continuar de onde parou.');
-          break;
+          falhasNestaConversa++;
+          // Uma conversa que o celular nunca responde não trava as outras: fica para a próxima revisão
+          if (falhasNestaConversa >= 6) break;
+          if (semResposta >= 2) {
+            const pausa = PAUSAS_CELULAR_MS[Math.min(semResposta - 2, PAUSAS_CELULAR_MS.length - 1)] || 60000;
+            atualizarProgresso(id, {
+              fase: 'aguardando_celular', feitas,
+              retoma_em: new Date(Date.now() + pausa).toISOString(),
+            }, { gravar: true });
+            await pausaAteOCelularVoltar(id, pausa);
+            atualizarProgresso(id, { fase: 'completando', retoma_em: null });
+          }
+          continue;
         }
+        if (semResposta) atualizarProgresso(id, { fase: 'completando', retoma_em: null });
         semResposta = 0;
+        pedidosFeitos++;
         const depois = maisAntigaDaConversa(id, conversa.chat_jid);
         if (!depois || depois.timestamp >= antes.timestamp) {
           // Nada mais antigo: o celular não tem (ou não quis mandar). Não pede de novo nesta conversa.
@@ -270,14 +328,15 @@ export async function importarHistorico(id, { automatico = false } = {}) {
         antes = depois;
       }
       feitas++;
-      atualizarProgresso(id, { feitas }, { gravar: feitas % 10 === 0 });
+      atualizarProgresso(id, { feitas }, { gravar: feitas % 5 === 0 });
     }
     religarTudo();
-    atualizarProgresso(id, { fase: 'concluido', feitas, concluido_em: agora() }, { gravar: true });
+    atualizarProgresso(id, { fase: 'concluido', feitas, retoma_em: null, concluido_em: agora() }, { gravar: true });
     avisar({ historico: true });
   } catch (err) {
-    atualizarProgresso(id, { fase: 'interrompido', erro: err.message }, { gravar: true });
-    if (!automatico) throw err;
+    // Fica pendente: retoma sozinha quando o número reconectar (aoConectar) ou na próxima revisão
+    atualizarProgresso(id, { fase: 'interrompido', erro: err.message, retoma_em: null }, { gravar: true });
+    console.error(`[whatsapp #${id}] importação pausada:`, err.message);
   } finally {
     e.importando = false;
   }

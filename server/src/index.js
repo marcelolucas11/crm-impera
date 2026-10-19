@@ -142,6 +142,18 @@ function iniciar() {
     setTimeout(() => process.exit(0), 5000).unref();
   };
   process.on('SIGTERM', () => encerrar('SIGTERM'));
+  // Erro sem tratamento numa promessa (comum na biblioteca do WhatsApp): registra e continua no ar.
+  // Antes, um erro desses derrubava o servidor inteiro e a página dava 502 até alguém religar.
+  process.on('unhandledRejection', (err) => {
+    console.error('[crm] erro não tratado (o servidor continua no ar):', err?.stack || err);
+  });
+  // Erro grave fora de promessa: o estado pode ter ficado inconsistente. Registra e sai;
+  // o vigia (scripts/vigia.sh) religa o CRM em poucos segundos.
+  process.on('uncaughtException', (err) => {
+    console.error('[crm] erro grave, reiniciando:', err?.stack || err);
+    try { fecharBanco(); } catch { /* ignora */ }
+    process.exit(1);
+  });
   process.on('SIGINT', () => encerrar('SIGINT'));
   // Fechar a janela do Terminal manda SIGHUP; o Node ignora o "nohup", então o CRM ignora aqui
   process.on('SIGHUP', () => console.log('[crm] Terminal fechado — o CRM continua ligado'));

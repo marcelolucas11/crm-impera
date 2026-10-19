@@ -31,16 +31,23 @@ function ProgressoHistorico({ h, dias }) {
       </div>
     );
   }
-  if (h.fase === 'completando') {
+  if (h.fase === 'completando' || h.fase === 'aguardando_celular') {
     const pct = h.total ? Math.round(((h.feitas || 0) / h.total) * 100) : 0;
+    const esperando = h.fase === 'aguardando_celular';
     return (
       <div className="progresso-historico">
         <div className="progresso-rotulo">
-          <span>⟳ Completando {meses} meses, conversa por conversa ({h.feitas || 0} de {h.total || 0})</span>
+          <span>
+            {esperando ? '⏸ Esperando o celular responder' : '⟳ Completando'} {meses} meses, conversa por conversa ({h.feitas || 0} de {h.total || 0})
+          </span>
           <b>{(h.importadas || 0).toLocaleString('pt-BR')} mensagens</b>
         </div>
         <span className="barra-progresso"><i style={{ width: `${pct}%` }} /></span>
-        <small className="suave">Um pedido de cada vez ao celular, com intervalo. Pode levar alguns minutos — o celular precisa estar ligado e com internet.</small>
+        <small className="suave">
+          {esperando
+            ? `O celular parou de responder (tela bloqueada ou sem internet). Continua sozinho${h.retoma_em ? ` às ${dataHora(h.retoma_em)}` : ''} — ou na hora, se você abrir o WhatsApp no celular.`
+            : 'Roda sozinho, sem precisar clicar. Vai mais rápido com o WhatsApp aberto no celular; se o celular bloquear, a importação espera e continua sozinha.'}
+        </small>
       </div>
     );
   }
@@ -48,7 +55,7 @@ function ProgressoHistorico({ h, dias }) {
     return <p className="suave pequeno numero-historico"><CircleCheck size={14} /> Histórico de {meses} meses importado ({(h.importadas || 0).toLocaleString('pt-BR')} mensagens){h.concluido_em ? ` · ${dataHora(h.concluido_em)}` : ''}.</p>;
   }
   if (h.fase === 'interrompido') {
-    return <p className="erro pequeno numero-historico">Importação interrompida: {h.erro}</p>;
+    return <p className="suave pequeno numero-historico">Importação pausada: {h.erro} Continua sozinha quando o número voltar.</p>;
   }
   return null;
 }
@@ -136,14 +143,14 @@ export default function WhatsAppNumeros({ aoMensagem, aoErro }) {
 
               <div className="acoes-linha">
                 {n.status === 'conectado' && dias > 0 && (
-                  <button className="btn btn-pequeno btn-ouro" disabled={ocupado || n.historico?.fase === 'completando'}
+                  <button className="btn btn-pequeno btn-ouro" disabled={ocupado || ['completando', 'aguardando_celular'].includes(n.historico?.fase)}
                     title="Pede ao celular, conversa por conversa, as mensagens que faltam até completar a janela de dias. Não desconecta o número."
                     onClick={() => confirm(
                       `Importar ${Math.round(dias / 30)} meses de histórico de ${n.name}?\n\n`
                       + 'O CRM pede ao celular, uma conversa de cada vez, as mensagens que faltam. Não desconecta o número.\n'
                       + 'Deixe o celular ligado e com internet. Conversas que o CRM nunca recebeu só chegam desconectando e conectando de novo pelo QR code.'
                     ) && acao(() => api(`/whatsapp/numeros/${n.id}/importar-historico`, { method: 'POST' }), 'Importação iniciada. Acompanhe o progresso aqui.')}>
-                    {n.historico?.fase === 'completando' ? 'Importando…' : `Importar ${Math.round(dias / 30)} meses de histórico`}
+                    {['completando', 'aguardando_celular'].includes(n.historico?.fase) ? 'Importando…' : `Importar ${Math.round(dias / 30)} meses de histórico`}
                   </button>
                 )}
                 {n.status === 'conectado' && (
