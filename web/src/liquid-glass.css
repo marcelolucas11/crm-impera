@@ -23,14 +23,15 @@
   --suave: #9ea3b3;
 
   /* ---- Material ---- */
-  --lg-fill: linear-gradient(135deg, rgba(255, 255, 255, .15) 0%, rgba(255, 255, 255, .055) 42%, rgba(255, 255, 255, .095) 100%);
-  --lg-fill-forte: linear-gradient(135deg, rgba(255, 255, 255, .22) 0%, rgba(255, 255, 255, .09) 45%, rgba(255, 255, 255, .15) 100%);
-  --lg-fill-fraco: linear-gradient(135deg, rgba(255, 255, 255, .085) 0%, rgba(255, 255, 255, .03) 50%, rgba(255, 255, 255, .055) 100%);
-  --lg-tinta: rgba(10, 12, 20, .34);              /* escurece um pouco o vidro para o texto ter contraste */
-  --lg-tinta-forte: rgba(8, 10, 17, .58);
-  --lg-blur: blur(22px) saturate(185%) brightness(1.07);
-  --lg-blur-forte: blur(34px) saturate(200%) brightness(1.1);
-  --lg-blur-leve: blur(12px) saturate(160%);
+  --lg-fill: linear-gradient(135deg, rgba(255, 255, 255, .075) 0%, rgba(255, 255, 255, .012) 45%, rgba(255, 255, 255, .04) 100%);
+  --lg-fill-forte: linear-gradient(135deg, rgba(255, 255, 255, .14) 0%, rgba(255, 255, 255, .03) 45%, rgba(255, 255, 255, .08) 100%);
+  --lg-fill-fraco: linear-gradient(135deg, rgba(255, 255, 255, .04) 0%, rgba(255, 255, 255, .008) 50%, rgba(255, 255, 255, .02) 100%);
+  --lg-tinta: transparent;              /* escurece um pouco o vidro para o texto ter contraste */
+  --lg-tinta-forte: rgba(8, 10, 17, .12);
+  --lg-base: transparent;                          /* vidro 100% transparente; só as janelas por cima de tudo ganham um véu leve (veja o fim do arquivo) */
+  --lg-blur: blur(2px) saturate(165%) brightness(1.04);
+  --lg-blur-forte: blur(10px) saturate(180%) brightness(1.06);
+  --lg-blur-leve: blur(2px) saturate(150%);
 
   /* Borda de luz: topo-esquerda acende, base-direita apaga — como vidro lapidado */
   --lg-borda:
@@ -55,7 +56,7 @@
   /* Reaproveita as variáveis do tema anterior para que tudo acompanhe o novo material */
   --vidro: var(--lg-fill);
   --vidro-forte: var(--lg-fill-forte);
-  --vidro-painel: rgba(14, 16, 24, .55);
+  --vidro-painel: rgba(14, 16, 24, .1);
   --vidro-borda: rgba(255, 255, 255, .13);
   --vidro-borda-forte: rgba(255, 255, 255, .26);
   --vidro-brilho: var(--lg-borda);
@@ -66,27 +67,27 @@
 }
 
 /* ---------- Fundo vivo: luz colorida que o vidro refrata ---------- */
-html { background: var(--fundo); }
-body {
-  font-family: var(--lg-fonte);
+html {
   background:
     radial-gradient(1200px 700px at 6% -12%, rgba(224, 190, 108, .10), transparent 62%),
     radial-gradient(1000px 700px at 108% 112%, rgba(70, 120, 255, .09), transparent 62%),
     var(--fundo);
   background-attachment: fixed;
 }
+/* O fundo fica no <html> e o <body> transparente: assim o logo 3D da Impera (canvas atrás de tudo) aparece de novo */
+body { font-family: var(--lg-fonte); background: transparent; }
 body::before, body::after {
   content: ''; position: fixed; z-index: -2; pointer-events: none; border-radius: 50%; will-change: transform;
 }
 body::before {
   width: 62vmax; height: 62vmax; left: -18vmax; top: -24vmax;
-  background: radial-gradient(closest-side, rgba(236, 190, 90, .30), rgba(236, 190, 90, .08) 55%, transparent 72%);
+  background: radial-gradient(closest-side, rgba(236, 190, 90, .18), rgba(236, 190, 90, .05) 55%, transparent 72%);
   filter: blur(18px); animation: lg-deriva-a 46s ease-in-out infinite alternate;
 }
 body::after {
   width: 70vmax; height: 70vmax; right: -26vmax; bottom: -34vmax;
   background:
-    radial-gradient(closest-side at 40% 40%, rgba(64, 112, 255, .26), rgba(64, 112, 255, .07) 55%, transparent 72%),
+    radial-gradient(closest-side at 40% 40%, rgba(64, 112, 255, .16), rgba(64, 112, 255, .05) 55%, transparent 72%),
     radial-gradient(closest-side at 72% 70%, rgba(168, 84, 255, .18), transparent 70%);
   filter: blur(18px); animation: lg-deriva-b 58s ease-in-out infinite alternate;
 }
@@ -134,14 +135,14 @@ html.lg-refrata .menu,
 html.lg-refrata .menu-flutuante,
 html.lg-refrata .abas,
 html.lg-refrata .seletor-ordem {
-  -webkit-backdrop-filter: blur(14px) saturate(190%) brightness(1.08) url(#lg-refracao);
-  backdrop-filter: blur(14px) saturate(190%) brightness(1.08) url(#lg-refracao);
+  -webkit-backdrop-filter: blur(1.5px) saturate(170%) brightness(1.05) url(#lg-refracao);
+  backdrop-filter: blur(1.5px) saturate(170%) brightness(1.05) url(#lg-refracao);
 }
 html.lg-refrata .btn-pequeno,
 html.lg-refrata .chip,
 html.lg-refrata .aba.ativa {
-  -webkit-backdrop-filter: blur(8px) saturate(190%) brightness(1.1) url(#lg-refracao-leve);
-  backdrop-filter: blur(8px) saturate(190%) brightness(1.1) url(#lg-refracao-leve);
+  -webkit-backdrop-filter: blur(1px) saturate(170%) brightness(1.06) url(#lg-refracao-leve);
+  backdrop-filter: blur(1px) saturate(170%) brightness(1.06) url(#lg-refracao-leve);
 }
 
 /* Brilho especular que acompanha o ponteiro dentro de cada superfície grande */
@@ -169,15 +170,15 @@ h2, h3, h4 { letter-spacing: -.012em; }
    Barra do topo — flutua sobre o conteúdo como a barra de abas do iOS 26
    ============================================================ */
 .topo {
-  margin: 10px 14px 0; padding: 9px 12px 9px 16px; border-radius: 26px; gap: 12px;
+  margin: 10px 14px 0; padding: 9px 12px 9px 16px; border-radius: 15px; gap: 12px;
   background: var(--lg-fill), var(--lg-tinta); border: 0;
   box-shadow: var(--lg-material-alto); position: relative; z-index: 20;
 }
 .abas {
-  padding: 4px; border-radius: 999px; border: 0;
+  padding: 4px; border-radius: 12px; border: 0;
   background: rgba(0, 0, 0, .28); box-shadow: inset 0 2px 6px rgba(0, 0, 0, .5), inset 0 0 0 1px rgba(255, 255, 255, .07), 0 1px 0 rgba(255, 255, 255, .06);
 }
-.aba { border-radius: 999px; padding: 8px 18px; color: #c4c8d6; transition: color .25s, background .3s var(--lg-suave), box-shadow .3s, transform .3s var(--lg-mola); }
+.aba { border-radius: 12px; padding: 8px 18px; color: #c4c8d6; transition: color .25s, background .3s var(--lg-suave), box-shadow .3s, transform .3s var(--lg-mola); }
 .aba:hover { color: #fff; }
 .aba:active { transform: scale(.96); }
 .aba.ativa {
@@ -191,10 +192,10 @@ h2, h3, h4 { letter-spacing: -.012em; }
 .avatar:active { transform: scale(.95); }
 
 .menu, .menu-flutuante {
-  background: var(--lg-fill), rgba(14, 16, 26, .5); border: 0; border-radius: 22px;
+  background: var(--lg-fill), var(--lg-base); border: 0; border-radius: 14px;
   box-shadow: var(--lg-material-alto); overflow: hidden;
 }
-.menu button, .opcao-menu { border-radius: 14px; transition: background .2s, color .2s, transform .2s var(--lg-mola); }
+.menu button, .opcao-menu { border-radius: 10px; transition: background .2s, color .2s, transform .2s var(--lg-mola); }
 .menu button:hover { background: rgba(255, 255, 255, .1); color: var(--ouro); }
 .opcao-menu:hover:not(:disabled) { background: rgba(255, 255, 255, .11); }
 .opcao-menu.marcada { background: linear-gradient(135deg, rgba(224, 190, 108, .22), rgba(224, 190, 108, .07)); box-shadow: inset 0 0 0 1px rgba(224, 190, 108, .3); }
@@ -205,7 +206,7 @@ h2, h3, h4 { letter-spacing: -.012em; }
    Botões — pílulas de vidro que cedem ao toque
    ============================================================ */
 .btn {
-  position: relative; border: 0; border-radius: 999px; padding: 9px 18px; color: var(--texto); font-weight: 550; letter-spacing: .005em;
+  position: relative; border: 0; border-radius: 12px; padding: 9px 18px; color: var(--texto); font-weight: 550; letter-spacing: .005em;
   background:
     radial-gradient(90px circle at var(--px, 50%) var(--py, 0%), rgba(255, 255, 255, 0), rgba(255, 255, 255, 0) 70%),
     var(--lg-fill), var(--lg-tinta);
@@ -288,7 +289,7 @@ h2, h3, h4 { letter-spacing: -.012em; }
    Campos — cavidades de vidro
    ============================================================ */
 input, select, textarea {
-  border: 0; border-radius: 16px; padding: 11px 14px; color: var(--texto);
+  border: 0; border-radius: 10px; padding: 11px 14px; color: var(--texto);
   background: rgba(0, 0, 0, .3);
   box-shadow: inset 0 2px 6px rgba(0, 0, 0, .5), inset 0 0 0 1px rgba(255, 255, 255, .1), 0 1px 0 rgba(255, 255, 255, .07);
   transition: box-shadow .3s var(--lg-suave), background .3s, transform .3s var(--lg-mola);
@@ -299,23 +300,23 @@ input:focus, select:focus, textarea:focus {
   box-shadow: inset 0 2px 6px rgba(0, 0, 0, .5), inset 0 0 0 1px rgba(255, 224, 150, .65), 0 0 0 4px rgba(224, 190, 108, .16), 0 0 26px -4px rgba(224, 190, 108, .35);
 }
 input[type='checkbox'], input[type='radio'], input[type='range'], input[type='color'] { box-shadow: none; background: transparent; padding: 0; accent-color: var(--ouro); }
-.busca { border-radius: 999px; padding-left: 18px; }
+.busca { border-radius: 12px; padding-left: 18px; }
 select { background-color: rgba(0, 0, 0, .3); }
 select option { background: #11131b; color: var(--texto); }
-.campo-busca { border-radius: 999px; }
+.campo-busca { border-radius: 12px; }
 
 /* ============================================================
    Kanban — colunas e cartões em camadas
    ============================================================ */
 .kanban { gap: 18px; padding: 22px 24px 24px; perspective: 1400px; }
 .coluna {
-  border: 0; border-radius: 28px;
-  background: var(--lg-fill-fraco), rgba(8, 10, 18, .28);
+  border: 0; border-radius: 16px;
+  background: var(--lg-fill-fraco), var(--lg-base);
   box-shadow: var(--lg-borda), inset 0 20px 40px -30px rgba(255, 255, 255, .22), 0 24px 50px -24px rgba(0, 0, 0, .7);
   transition: box-shadow .35s var(--lg-suave), background .35s, transform .35s var(--lg-mola);
 }
 .coluna-alvo {
-  background: linear-gradient(160deg, rgba(255, 226, 150, .2), rgba(224, 190, 108, .05)), rgba(8, 10, 18, .3);
+  background: linear-gradient(160deg, rgba(255, 226, 150, .2), rgba(224, 190, 108, .05)), var(--lg-base);
   box-shadow: var(--lg-borda), inset 0 0 0 1.5px rgba(224, 190, 108, .65), 0 0 40px -6px rgba(224, 190, 108, .4), 0 24px 50px -24px rgba(0, 0, 0, .7);
   transform: scale(1.008);
 }
@@ -324,11 +325,11 @@ select option { background: #11131b; color: var(--texto); }
 .coluna-topo .ponto { box-shadow: 0 0 0 2px rgba(0, 0, 0, .35), 0 0 12px currentColor, inset 0 1px 1px rgba(255, 255, 255, .6); }
 .contagem { border: 0; color: #dfe2ee; background: rgba(0, 0, 0, .3); box-shadow: inset 0 1px 3px rgba(0, 0, 0, .5), inset 0 0 0 1px rgba(255, 255, 255, .08); }
 .coluna-cartoes { padding: 8px 12px 14px; gap: 12px; }
-.vazio { border-radius: 18px; border: 1.5px dashed rgba(255, 255, 255, .14); color: var(--suave); }
+.vazio { border-radius: 12px; border: 1.5px dashed rgba(255, 255, 255, .14); color: var(--suave); }
 
 .cartao {
-  border: 0; border-radius: 22px; padding: 14px 16px; gap: 6px;
-  background: var(--lg-fill), rgba(12, 14, 24, .38);
+  border: 0; border-radius: 14px; padding: 14px 16px; gap: 6px;
+  background: var(--lg-fill), var(--lg-base);
   box-shadow: var(--lg-material);
   transform-style: preserve-3d; will-change: transform;
   transition: transform .45s var(--lg-mola), box-shadow .35s var(--lg-suave), background .3s;
@@ -342,27 +343,27 @@ select option { background: #11131b; color: var(--texto); }
 .cartao.em-selecao:hover { transform: none; }
 .cartao::before { left: 0; top: 18px; bottom: 18px; width: 3.5px; border-radius: 0 4px 4px 0; z-index: 2; }
 /* tingimento por estado — o vidro absorve a cor */
-.cartao.atrasado { background: linear-gradient(135deg, rgba(255, 90, 71, .22), rgba(255, 90, 71, .04) 60%), var(--lg-fill), rgba(12, 14, 24, .38); }
-.cartao.aguardando { background: linear-gradient(135deg, rgba(242, 165, 58, .22), rgba(242, 165, 58, .04) 60%), var(--lg-fill), rgba(12, 14, 24, .38); }
-.cartao.fechando { background: linear-gradient(135deg, rgba(52, 209, 123, .24), rgba(52, 209, 123, .05) 60%), var(--lg-fill), rgba(12, 14, 24, .38); box-shadow: var(--lg-material), inset 0 0 0 1px rgba(52, 209, 123, .3); }
+.cartao.atrasado { background: linear-gradient(135deg, rgba(255, 90, 71, .22), rgba(255, 90, 71, .04) 60%), var(--lg-fill), var(--lg-base); }
+.cartao.aguardando { background: linear-gradient(135deg, rgba(242, 165, 58, .22), rgba(242, 165, 58, .04) 60%), var(--lg-fill), var(--lg-base); }
+.cartao.fechando { background: linear-gradient(135deg, rgba(52, 209, 123, .24), rgba(52, 209, 123, .05) 60%), var(--lg-fill), var(--lg-base); box-shadow: var(--lg-material), inset 0 0 0 1px rgba(52, 209, 123, .3); }
 .cartao.com-notif { box-shadow: var(--lg-material), inset 0 0 0 1px rgba(255, 110, 90, .5); }
 .cartao.selecionado { box-shadow: var(--lg-borda), var(--lg-brilho), inset 0 0 0 1.5px rgba(224, 190, 108, .8), 0 0 30px -4px rgba(224, 190, 108, .35), var(--lg-sombra); }
 .cartao-titulo { font-weight: 620; color: #fff; }
 .cartao-linha, .cartao-respostas { color: #c9ccda; }
 .selo, .tag, .contagem { backdrop-filter: none; }
 .selo { background: rgba(0, 0, 0, .3); border: 0; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .1), inset 0 1px 0 rgba(255, 255, 255, .12); }
-.tag { border: 0; border-radius: 9px; background: rgba(0, 0, 0, .28); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .09); }
+.tag { border: 0; border-radius: 7px; background: rgba(0, 0, 0, .28); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .09); }
 .tag-mensagens { background: linear-gradient(180deg, rgba(60, 200, 125, .95), rgba(31, 150, 86, .92)); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .45), 0 4px 10px -3px rgba(52, 209, 123, .5); }
-.cartao-notif { box-shadow: 0 0 0 3px rgba(12, 14, 24, .85), 0 6px 18px -2px rgba(229, 80, 61, .6), inset 0 1px 0 rgba(255, 255, 255, .5); }
-.cartao-caixa { box-shadow: 0 0 0 3px rgba(12, 14, 24, .85); }
-.marca-kanban { border-radius: 8px; background: rgba(0, 0, 0, .3); border: 0; box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, .35); }
+.cartao-notif { box-shadow: 0 0 0 3px var(--lg-base), 0 6px 18px -2px rgba(229, 80, 61, .6), inset 0 1px 0 rgba(255, 255, 255, .5); }
+.cartao-caixa { box-shadow: 0 0 0 3px var(--lg-base); }
+.marca-kanban { border-radius: 6px; background: rgba(0, 0, 0, .3); border: 0; box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, .35); }
 .marca-kanban.marcada, .marca-kanban.parcial { background: linear-gradient(180deg, #ffe7a6, #e0be6c); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .8), 0 0 12px rgba(224, 190, 108, .6); }
 .foto-usuario, .mini-avatar { box-shadow: var(--lg-borda), 0 3px 8px rgba(0, 0, 0, .4); }
 
 /* ---------- Barra de seleção em massa (flutuante) ---------- */
 .barra-selecao {
-  border: 0; border-radius: 28px; padding: 10px 12px 10px 20px;
-  background: var(--lg-fill), rgba(10, 12, 20, .5);
+  border: 0; border-radius: 16px; padding: 10px 12px 10px 20px;
+  background: var(--lg-fill), var(--lg-base);
   box-shadow: var(--lg-material-alto), inset 0 0 0 1px rgba(224, 190, 108, .3);
   animation: lg-barra .42s var(--lg-mola);
 }
@@ -373,8 +374,8 @@ select option { background: #11131b; color: var(--texto); }
    ============================================================ */
 .barra-ferramentas { border-bottom: 0; padding: 14px 24px 4px; gap: 10px; }
 .painel-filtros, .painel-campos {
-  margin: 8px 24px 0; border: 0; border-radius: 24px;
-  background: var(--lg-fill), rgba(10, 12, 20, .42); box-shadow: var(--lg-material);
+  margin: 8px 24px 0; border: 0; border-radius: 14px;
+  background: var(--lg-fill), var(--lg-base); box-shadow: var(--lg-material);
 }
 .faixa-filtros { background: linear-gradient(90deg, rgba(224, 190, 108, .12), transparent); border: 0; }
 .faixa-erro { background: rgba(229, 99, 75, .14); backdrop-filter: var(--lg-blur-leve); }
@@ -389,14 +390,14 @@ select option { background: #11131b; color: var(--texto); }
 }
 @keyframes lg-fade { from { opacity: 0; } }
 .modal {
-  border: 0; border-radius: 34px; background: var(--lg-fill), rgba(10, 12, 22, .5);
+  border: 0; border-radius: 18px; background: var(--lg-fill), var(--lg-base);
   box-shadow: var(--lg-material-alto), 0 0 80px -20px rgba(120, 140, 255, .25);
   animation: lg-modal .5s var(--lg-mola);
 }
 @keyframes lg-modal { from { opacity: 0; transform: translateY(18px) scale(.9); filter: blur(6px); } to { opacity: 1; transform: none; filter: none; } }
 .painel {
-  border: 0; border-radius: 34px 0 0 34px; margin: 10px 0 10px 0; height: calc(100% - 20px);
-  background: var(--lg-fill), rgba(10, 12, 22, .52);
+  border: 0; border-radius: 18px 0 0 18px; margin: 10px 0 10px 0; height: calc(100% - 20px);
+  background: var(--lg-fill), var(--lg-base);
   box-shadow: var(--lg-material-alto), -30px 0 80px -30px rgba(0, 0, 0, .8);
   animation: lg-painel .5s var(--lg-mola);
 }
@@ -406,19 +407,19 @@ select option { background: #11131b; color: var(--texto); }
 .fechar:hover { background: var(--lg-fill-forte), var(--lg-tinta); transform: rotate(90deg) scale(1.08); }
 
 .cartao-secao, .indicador {
-  border: 0; border-radius: 28px; background: var(--lg-fill), rgba(10, 12, 22, .4);
+  border: 0; border-radius: 16px; background: var(--lg-fill), var(--lg-base);
   box-shadow: var(--lg-material); transition: transform .45s var(--lg-mola), box-shadow .35s;
 }
-.indicador { border-radius: 24px; }
+.indicador { border-radius: 14px; }
 .indicador:hover { transform: translateY(-3px) perspective(900px) rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg)); }
 .indicador.destaque { box-shadow: var(--lg-material), inset 0 0 0 1px rgba(224, 190, 108, .5), 0 0 40px -8px rgba(224, 190, 108, .3); }
 .indicador-valor { background: linear-gradient(180deg, #fff 30%, #c5c9d8); -webkit-background-clip: text; background-clip: text; color: transparent; font-weight: 650; letter-spacing: -.02em; }
 .indicador.destaque .indicador-valor { background: linear-gradient(180deg, #fff2c8 20%, #e0be6c); -webkit-background-clip: text; background-clip: text; color: transparent; }
-.numero, .linha-etapa, .respostas div, .dados-integracao div, .analise-ia { border: 0; border-radius: 16px; background: rgba(0, 0, 0, .22); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .08), inset 0 1px 0 rgba(255, 255, 255, .06); }
-.copiar { border: 0; border-radius: 16px; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .1), inset 0 2px 5px rgba(0, 0, 0, .4); }
-.erro { border-radius: 16px; background: rgba(229, 99, 75, .16); box-shadow: inset 0 0 0 1px rgba(255, 90, 71, .3); }
-.sucesso { border-radius: 16px; background: rgba(52, 209, 123, .14); box-shadow: inset 0 0 0 1px rgba(52, 209, 123, .3); }
-.aviso-aguardando, .aviso-fechando, .aviso-followup, .aviso-reuniao, .aviso-parcial { border-radius: 16px; backdrop-filter: var(--lg-blur-leve); }
+.numero, .linha-etapa, .respostas div, .dados-integracao div, .analise-ia { border: 0; border-radius: 10px; background: rgba(0, 0, 0, .22); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .08), inset 0 1px 0 rgba(255, 255, 255, .06); }
+.copiar { border: 0; border-radius: 10px; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .1), inset 0 2px 5px rgba(0, 0, 0, .4); }
+.erro { border-radius: 10px; background: rgba(229, 99, 75, .16); box-shadow: inset 0 0 0 1px rgba(255, 90, 71, .3); }
+.sucesso { border-radius: 10px; background: rgba(52, 209, 123, .14); box-shadow: inset 0 0 0 1px rgba(52, 209, 123, .3); }
+.aviso-aguardando, .aviso-fechando, .aviso-followup, .aviso-reuniao, .aviso-parcial { border-radius: 10px; backdrop-filter: var(--lg-blur-leve); }
 .tabela th { border-bottom-color: rgba(255, 255, 255, .1); color: var(--suave); }
 .tabela td { border-bottom-color: rgba(255, 255, 255, .06); }
 .tabela tbody tr { transition: background .2s; }
@@ -434,8 +435,8 @@ select option { background: #11131b; color: var(--texto); }
     var(--fundo);
 }
 .login-caixa {
-  max-width: 400px; padding: 40px 34px 34px; gap: 18px; border: 0; border-radius: 42px;
-  background: var(--lg-fill), rgba(10, 12, 22, .36);
+  max-width: 400px; padding: 40px 34px 34px; gap: 18px; border: 0; border-radius: 20px;
+  background: var(--lg-fill), var(--lg-base);
   box-shadow: var(--lg-material-alto), 0 0 100px -24px rgba(236, 190, 90, .3);
   animation: lg-modal .8s var(--lg-mola) both;
 }
@@ -444,15 +445,15 @@ select option { background: #11131b; color: var(--texto); }
 .carregando { border-color: rgba(255, 255, 255, .15); border-top-color: var(--ouro); filter: drop-shadow(0 0 8px rgba(224, 190, 108, .5)); }
 
 /* O logo 3D fica mais presente atrás do vidro (é ele que o vidro refrata) */
-.fundo-3d.pronto { opacity: .95; }
-.fundo-3d-kanban.pronto { opacity: .62; }
+.fundo-3d.pronto { opacity: 1; }
+.fundo-3d-kanban.pronto { opacity: .9; }
 
 /* ============================================================
    WhatsApp — três colunas de vidro sobre o fundo vivo (tema escuro)
    ============================================================ */
 .wa-tela[data-tema='escuro'], :root {
-  --wa-fundo: rgba(6, 8, 14, .38);
-  --wa-painel: rgba(12, 14, 24, .46);
+  --wa-fundo: rgba(6, 8, 14, .05);
+  --wa-painel: rgba(12, 14, 24, .06);
   --wa-barra: rgba(255, 255, 255, .075);
   --wa-campo: rgba(255, 255, 255, .09);
   --wa-dele: rgba(255, 255, 255, .105);
@@ -460,7 +461,7 @@ select option { background: #11131b; color: var(--texto); }
   --wa-hover: rgba(255, 255, 255, .07);
   --wa-aberta: rgba(255, 255, 255, .12);
   --wa-linha: rgba(255, 255, 255, .09);
-  --wa-menu: rgba(24, 28, 40, .62);
+  --wa-menu: rgba(24, 28, 40, .3);
   --wa-menu-hover: rgba(255, 255, 255, .1);
   --wa-separador: rgba(255, 255, 255, .09);
   --wa-citacao-fundo: rgba(0, 0, 0, .28);
@@ -469,32 +470,32 @@ select option { background: #11131b; color: var(--texto); }
 }
 .whatsapp-tela { background: transparent; gap: 10px; padding: 12px 14px 14px; }
 .whatsapp-tela > .lista-conversas, .whatsapp-tela > .chat, .whatsapp-tela > .ficha-lateral {
-  border: 0; border-radius: 30px; overflow: hidden;
+  border: 0; border-radius: 16px; overflow: hidden;
   background: var(--lg-fill-fraco), var(--wa-painel);
   box-shadow: var(--lg-borda), 0 24px 50px -24px rgba(0, 0, 0, .7);
   -webkit-backdrop-filter: var(--lg-blur); backdrop-filter: var(--lg-blur);
 }
 .wa-tela[data-tema='escuro'] .chat-topo, .wa-tela[data-tema='escuro'] .painel-lateral-topo, .wa-tela[data-tema='escuro'] .compositor {
-  background: var(--lg-fill), rgba(10, 12, 22, .35); border: 0; box-shadow: inset 0 -1px 0 rgba(255, 255, 255, .07);
+  background: var(--lg-fill), var(--lg-base); border: 0; box-shadow: inset 0 -1px 0 rgba(255, 255, 255, .07);
   -webkit-backdrop-filter: var(--lg-blur-leve); backdrop-filter: var(--lg-blur-leve);
 }
 .wa-tela[data-tema='escuro'] .compositor { box-shadow: inset 0 1px 0 rgba(255, 255, 255, .09); }
-.item-conversa { border-radius: 20px; margin: 2px 8px; transition: background .25s, transform .35s var(--lg-mola); }
+.item-conversa { border-radius: 12px; margin: 2px 8px; transition: background .25s, transform .35s var(--lg-mola); }
 .item-conversa:hover { background: var(--wa-hover); transform: translateX(2px); }
 .item-conversa.aberta { background: var(--lg-fill-forte), rgba(224, 190, 108, .1); box-shadow: var(--lg-borda); }
-.wa-tela[data-tema='escuro'] .campo-busca, .wa-tela[data-tema='escuro'] .seletor-numero-lista { border-radius: 999px; background: rgba(0, 0, 0, .28); box-shadow: inset 0 2px 5px rgba(0, 0, 0, .45), inset 0 0 0 1px rgba(255, 255, 255, .09); }
-.filtros-conversas .chip { border-radius: 999px; }
+.wa-tela[data-tema='escuro'] .campo-busca, .wa-tela[data-tema='escuro'] .seletor-numero-lista { border-radius: 12px; background: rgba(0, 0, 0, .28); box-shadow: inset 0 2px 5px rgba(0, 0, 0, .45), inset 0 0 0 1px rgba(255, 255, 255, .09); }
+.filtros-conversas .chip { border-radius: 12px; }
 .wa-tela[data-tema='escuro'] .bolha {
-  border-radius: 20px; background: var(--wa-dele); backdrop-filter: none;
+  border-radius: 12px; background: var(--wa-dele); backdrop-filter: none;
   box-shadow: inset 1px 1px 0 -.5px rgba(255, 255, 255, .4), inset -1px -1px 0 -.5px rgba(255, 255, 255, .1), inset 0 0 0 1px rgba(255, 255, 255, .05), 0 6px 14px -8px rgba(0, 0, 0, .55);
 }
 .wa-tela[data-tema='escuro'] .linha-mensagem.minha .bolha { background: linear-gradient(135deg, rgba(70, 200, 160, .5), rgba(30, 130, 105, .42)); }
 .wa-tela[data-tema='escuro'] .bolha.com-cauda { border-top-left-radius: 6px; }
 .wa-tela[data-tema='escuro'] .linha-mensagem.minha .bolha.com-cauda { border-top-left-radius: 20px; border-top-right-radius: 6px; }
 .bolha.com-cauda::before { display: none; }
-.separador-dia span, .data-flutuante span { border-radius: 999px; background: rgba(0, 0, 0, .35); backdrop-filter: var(--lg-blur-leve); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .1); }
+.separador-dia span, .data-flutuante span { border-radius: 12px; background: rgba(0, 0, 0, .35); backdrop-filter: var(--lg-blur-leve); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .1); }
 .menu-mensagem, .menu-anexo, .menu-reacoes.solto, .painel-expressoes, .menu-conversa {
-  border: 0; border-radius: 22px; background: var(--lg-fill), var(--wa-menu);
+  border: 0; border-radius: 14px; background: var(--lg-fill), var(--wa-menu);
   box-shadow: var(--lg-material-alto); -webkit-backdrop-filter: var(--lg-blur-forte); backdrop-filter: var(--lg-blur-forte);
 }
 .botao-icone { border-radius: 50%; transition: background .25s, transform .35s var(--lg-mola), color .2s; }
@@ -502,28 +503,28 @@ select option { background: #11131b; color: var(--texto); }
 .botao-icone:active { transform: scale(.92); }
 .botao-enviar { box-shadow: inset 1px 1px 0 -.5px rgba(255, 255, 255, .6), 0 8px 18px -6px rgba(43, 180, 138, .6); transition: transform .35s var(--lg-mola); }
 .botao-enviar:hover { transform: scale(1.1); }
-.chamada-recebida { border-radius: 30px; background: var(--lg-fill), rgba(10, 12, 22, .5); box-shadow: var(--lg-material-alto); -webkit-backdrop-filter: var(--lg-blur-forte); backdrop-filter: var(--lg-blur-forte); }
+.chamada-recebida { border-radius: 16px; background: var(--lg-fill), var(--lg-base); box-shadow: var(--lg-material-alto); -webkit-backdrop-filter: var(--lg-blur-forte); backdrop-filter: var(--lg-blur-forte); }
 .modal-wa label { color: var(--suave); }
 
 /* ============================================================
    Detalhes: rolagem, seleção de texto, foco
    ============================================================ */
 * { scrollbar-color: rgba(255, 255, 255, .2) transparent; }
-*::-webkit-scrollbar-thumb { background: linear-gradient(180deg, rgba(255, 255, 255, .26), rgba(255, 255, 255, .12)); border-radius: 9px; border: 2px solid transparent; background-clip: padding-box; }
+*::-webkit-scrollbar-thumb { background: linear-gradient(180deg, rgba(255, 255, 255, .26), rgba(255, 255, 255, .12)); border-radius: 7px; border: 2px solid transparent; background-clip: padding-box; }
 ::selection { background: rgba(224, 190, 108, .35); color: #fff; }
 
 /* ============================================================
    Telas pequenas
    ============================================================ */
 @media (max-width: 720px) {
-  .topo { margin: 8px 8px 0; border-radius: 22px; padding: 8px 10px; }
+  .topo { margin: 8px 8px 0; border-radius: 14px; padding: 8px 10px; }
   .kanban { padding: 14px 10px 16px; gap: 12px; }
   .barra-ferramentas { padding: 10px 12px 2px; }
   .painel-filtros, .painel-campos { margin: 8px 12px 0; }
-  .painel { border-radius: 28px 28px 0 0; margin: 0; height: 100%; }
-  .modal { border-radius: 28px; }
+  .painel { border-radius: 16px 16px 0 0; margin: 0; height: 100%; }
+  .modal { border-radius: 16px; }
   .whatsapp-tela { padding: 8px; gap: 8px; }
-  .whatsapp-tela > .lista-conversas, .whatsapp-tela > .chat, .whatsapp-tela > .ficha-lateral { border-radius: 24px; }
+  .whatsapp-tela > .lista-conversas, .whatsapp-tela > .chat, .whatsapp-tela > .ficha-lateral { border-radius: 14px; }
 }
 
 /* ============================================================
@@ -531,18 +532,18 @@ select option { background: #11131b; color: var(--texto); }
    ============================================================ */
 /* Sem suporte a vidro desfocado: superfícies mais opacas para manter a leitura */
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-  :root { --lg-tinta: rgba(20, 22, 34, .88); --lg-tinta-forte: rgba(16, 18, 28, .94); --wa-painel: rgba(18, 20, 30, .94); --wa-menu: rgba(26, 29, 42, .97); }
-  .modal, .painel, .login-caixa, .menu, .menu-flutuante, .barra-selecao, .painel-filtros, .painel-campos { background-color: rgba(18, 20, 32, .95); }
+  :root { --lg-tinta: rgba(20, 22, 34, .88); --lg-tinta-forte: rgba(16, 18, 28, .94); --wa-painel: var(--lg-base); --wa-menu: var(--lg-base); }
+  .modal, .painel, .login-caixa, .menu, .menu-flutuante, .barra-selecao, .painel-filtros, .painel-campos { background-color: var(--lg-base); }
 }
 /* "Reduzir transparência" do sistema: vidro vira superfície sólida, sem desfoque */
 @media (prefers-reduced-transparency: reduce) {
-  :root { --lg-tinta: rgba(22, 24, 36, .96); --wa-painel: rgba(18, 20, 30, .97); --wa-menu: rgba(26, 29, 42, .98); }
+  :root { --lg-tinta: rgba(22, 24, 36, .96); --wa-painel: var(--lg-base); --wa-menu: var(--lg-base); }
   *, *::before, *::after { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
   .modal, .painel, .login-caixa, .menu, .menu-flutuante, .barra-selecao, .painel-filtros, .painel-campos, .topo, .cartao, .coluna, .cartao-secao, .indicador { background-color: rgba(22, 24, 36, .97); }
 }
 /* "Aumentar contraste": bordas mais fortes e menos transparência */
 @media (prefers-contrast: more) {
-  :root { --lg-tinta: rgba(10, 12, 20, .8); --lg-borda: inset 0 0 0 1.5px rgba(255, 255, 255, .55); --lg-brilho: none; }
+  :root { --lg-tinta: var(--lg-base); --lg-borda: inset 0 0 0 1.5px rgba(255, 255, 255, .55); --lg-brilho: none; }
   .cartao-titulo, .cartao-linha { color: #fff; }
 }
 /* "Reduzir movimento": sem deriva, inclinação 3D ou molas */
@@ -558,3 +559,30 @@ select option { background: #11131b; color: var(--texto); }
   .cartao::after, .cartao-secao::after, .indicador::after, .coluna::after, .login-caixa::after { display: none; }
   .cartao:hover, .indicador:hover { transform: none; }
 }
+
+/* ============================================================
+   v1.1 — vidro transparente, cantos de "quadrado suave", legibilidade
+   ============================================================ */
+/* Janelas e menus por cima de outros conteúdos: um véu bem leve + desfoque, só para o texto não brigar com o que está atrás */
+.modal, .painel, .menu, .menu-flutuante, .barra-selecao, .menu-mensagem, .menu-anexo, .painel-expressoes, .chamada-recebida {
+  --lg-base: rgba(8, 10, 18, .26);
+  -webkit-backdrop-filter: blur(10px) saturate(180%) brightness(1.05);
+  backdrop-filter: blur(10px) saturate(180%) brightness(1.05);
+}
+html.lg-refrata .modal, html.lg-refrata .menu, html.lg-refrata .menu-flutuante, html.lg-refrata .barra-selecao {
+  -webkit-backdrop-filter: blur(6px) saturate(180%) brightness(1.05) url(#lg-refracao);
+  backdrop-filter: blur(6px) saturate(180%) brightness(1.05) url(#lg-refracao);
+}
+.login-caixa { --lg-base: rgba(8, 10, 18, .08); }
+/* Sombra leve no texto: o vidro é transparente, então ela garante a leitura sobre o logo 3D e as luzes */
+.topo, .coluna-topo h3, .cartao, .indicador, .cartao-secao, .login-caixa, .barra-ferramentas, .whatsapp-tela { text-shadow: 0 1px 3px rgba(0, 0, 0, .6); }
+.btn-ouro, .btn-aviso, .btn-verde { text-shadow: 0 1px 0 rgba(255, 255, 255, .3); }
+input, select, textarea { text-shadow: none; }
+/* Cantos que o tema anterior ainda deixava em pílula/arredondado demais */
+.barra-ferramentas .btn, .btn-barra, .chip-pequeno { border-radius: 12px; }
+.seletor-ordem { border-radius: 12px; }
+.seletor-ordem button { border-radius: 9px; }
+.selo, .contagem, .tag { border-radius: 8px; }
+.busca, .campo-busca { border-radius: 12px; }
+.aba-contador { border-radius: 8px; }
+.cartao-notif { border-radius: 10px; }

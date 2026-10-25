@@ -20,8 +20,8 @@ const mapa = (horizontal, borda) => {
   return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
 };
 
-const MAPA_X = mapa(true, 0.16);
-const MAPA_Y = mapa(false, 0.16);
+const MAPA_X = mapa(true, 0.2);
+const MAPA_Y = mapa(false, 0.2);
 
 // Quais superfícies reagem ao ponteiro e quais também se inclinam
 const SUPERFICIES = '.cartao, .cartao-secao, .indicador, .coluna, .login-caixa, .btn, .chip, .aba';
@@ -110,9 +110,9 @@ export default function LiquidGlassFx() {
           <feColorMatrix in="mx" type="matrix" values="1 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0 1" result="mr" />
           <feColorMatrix in="my" type="matrix" values="0 0 0 0 0  1 0 0 0 0  0 0 0 0 0  0 0 0 0 1" result="mg" />
           <feBlend in="mr" in2="mg" mode="screen" result="mapa" />
-          <feDisplacementMap in="SourceGraphic" in2="mapa" scale="0.085" xChannelSelector="R" yChannelSelector="G" result="d1" />
-          <feDisplacementMap in="SourceGraphic" in2="mapa" scale="0.072" xChannelSelector="R" yChannelSelector="G" result="d2" />
-          <feDisplacementMap in="SourceGraphic" in2="mapa" scale="0.06" xChannelSelector="R" yChannelSelector="G" result="d3" />
+          <feDisplacementMap in="SourceGraphic" in2="mapa" scale="0.13" xChannelSelector="R" yChannelSelector="G" result="d1" />
+          <feDisplacementMap in="SourceGraphic" in2="mapa" scale="0.11" xChannelSelector="R" yChannelSelector="G" result="d2" />
+          <feDisplacementMap in="SourceGraphic" in2="mapa" scale="0.09" xChannelSelector="R" yChannelSelector="G" result="d3" />
           <feColorMatrix in="d1" type="matrix" values="1 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 1 0" result="cr" />
           <feColorMatrix in="d2" type="matrix" values="0 0 0 0 0  0 1 0 0 0  0 0 0 0 0  0 0 0 1 0" result="cg" />
           <feColorMatrix in="d3" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 1 0 0  0 0 0 1 0" result="cb" />
@@ -126,7 +126,7 @@ export default function LiquidGlassFx() {
           <feColorMatrix in="mx" type="matrix" values="1 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0 1" result="mr" />
           <feColorMatrix in="my" type="matrix" values="0 0 0 0 0  1 0 0 0 0  0 0 0 0 0  0 0 0 0 1" result="mg" />
           <feBlend in="mr" in2="mg" mode="screen" result="mapa" />
-          <feDisplacementMap in="SourceGraphic" in2="mapa" scale="0.14" xChannelSelector="R" yChannelSelector="G" />
+          <feDisplacementMap in="SourceGraphic" in2="mapa" scale="0.22" xChannelSelector="R" yChannelSelector="G" />
         </filter>
       </defs>
     </svg>
