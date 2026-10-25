@@ -1,0 +1,560 @@
+/* ============================================================
+   Impera CRM — camada visual v1.0 · LIQUID GLASS
+   Inspirada no material "Liquid Glass" da Apple (iOS 26 / macOS Tahoe, refinado no iOS 27):
+   vidro que reflete e refrata o que está atrás, bordas com luz especular, profundidade em camadas,
+   controles flutuantes e movimento fluido.
+
+   Só aparência. Nenhuma regra aqui muda estrutura, dados ou comportamento.
+   Carregado por último (depois de styles.css, whatsapp.css e design.css).
+
+   Efeitos que dependem de script (LiquidGlassFx.jsx) usam variáveis CSS opcionais com valor padrão:
+     --mx / --my   posição do ponteiro na janela (px)  → luz ambiente
+     --px / --py   posição do ponteiro dentro do elemento (%) → brilho especular
+     --rx / --ry   inclinação 3D (graus)                → profundidade
+   Sem script, tudo continua bonito, só estático.
+   ============================================================ */
+
+:root {
+  color-scheme: dark;
+
+  /* Base: preto azulado profundo, para o vidro ter o que refratar */
+  --fundo: #04050a;
+  --texto: #f2f3f7;
+  --suave: #9ea3b3;
+
+  /* ---- Material ---- */
+  --lg-fill: linear-gradient(135deg, rgba(255, 255, 255, .15) 0%, rgba(255, 255, 255, .055) 42%, rgba(255, 255, 255, .095) 100%);
+  --lg-fill-forte: linear-gradient(135deg, rgba(255, 255, 255, .22) 0%, rgba(255, 255, 255, .09) 45%, rgba(255, 255, 255, .15) 100%);
+  --lg-fill-fraco: linear-gradient(135deg, rgba(255, 255, 255, .085) 0%, rgba(255, 255, 255, .03) 50%, rgba(255, 255, 255, .055) 100%);
+  --lg-tinta: rgba(10, 12, 20, .34);              /* escurece um pouco o vidro para o texto ter contraste */
+  --lg-tinta-forte: rgba(8, 10, 17, .58);
+  --lg-blur: blur(22px) saturate(185%) brightness(1.07);
+  --lg-blur-forte: blur(34px) saturate(200%) brightness(1.1);
+  --lg-blur-leve: blur(12px) saturate(160%);
+
+  /* Borda de luz: topo-esquerda acende, base-direita apaga — como vidro lapidado */
+  --lg-borda:
+    inset 1.5px 1.5px 0 -.5px rgba(255, 255, 255, .55),
+    inset -1px -1px 0 -.5px rgba(255, 255, 255, .2),
+    inset 0 0 0 1px rgba(255, 255, 255, .075);
+  /* Brilho interno + dispersão cromática nas laterais (luz que "abre" em cores) */
+  --lg-brilho:
+    inset 0 14px 26px -18px rgba(255, 255, 255, .38),
+    inset 0 -16px 26px -22px rgba(255, 255, 255, .14),
+    inset 3px 0 8px -5px rgba(255, 96, 150, .2),
+    inset -3px 0 8px -5px rgba(72, 172, 255, .24);
+  --lg-sombra: 0 1px 1px rgba(0, 0, 0, .45), 0 10px 22px -8px rgba(0, 0, 0, .55), 0 26px 48px -22px rgba(0, 0, 0, .6);
+  --lg-sombra-alta: 0 2px 2px rgba(0, 0, 0, .5), 0 18px 36px -10px rgba(0, 0, 0, .6), 0 46px 90px -30px rgba(0, 0, 0, .75);
+  --lg-material: var(--lg-borda), var(--lg-brilho), var(--lg-sombra);
+  --lg-material-alto: var(--lg-borda), var(--lg-brilho), var(--lg-sombra-alta);
+
+  --lg-fonte: 'Montserrat', -apple-system, BlinkMacSystemFont, 'SF Pro Display', system-ui, sans-serif;
+  --lg-mola: cubic-bezier(.32, 1.4, .5, 1);      /* "mola" suave: o vidro cede e volta */
+  --lg-suave: cubic-bezier(.22, .8, .24, 1);
+
+  /* Reaproveita as variáveis do tema anterior para que tudo acompanhe o novo material */
+  --vidro: var(--lg-fill);
+  --vidro-forte: var(--lg-fill-forte);
+  --vidro-painel: rgba(14, 16, 24, .55);
+  --vidro-borda: rgba(255, 255, 255, .13);
+  --vidro-borda-forte: rgba(255, 255, 255, .26);
+  --vidro-brilho: var(--lg-borda);
+  --vidro-sombra: var(--lg-sombra);
+  --vidro-sombra-alta: var(--lg-sombra-alta);
+  --desfoque: var(--lg-blur);
+  --raio: 18px;
+}
+
+/* ---------- Fundo vivo: luz colorida que o vidro refrata ---------- */
+html { background: var(--fundo); }
+body {
+  font-family: var(--lg-fonte);
+  background:
+    radial-gradient(1200px 700px at 6% -12%, rgba(224, 190, 108, .10), transparent 62%),
+    radial-gradient(1000px 700px at 108% 112%, rgba(70, 120, 255, .09), transparent 62%),
+    var(--fundo);
+  background-attachment: fixed;
+}
+body::before, body::after {
+  content: ''; position: fixed; z-index: -2; pointer-events: none; border-radius: 50%; will-change: transform;
+}
+body::before {
+  width: 62vmax; height: 62vmax; left: -18vmax; top: -24vmax;
+  background: radial-gradient(closest-side, rgba(236, 190, 90, .30), rgba(236, 190, 90, .08) 55%, transparent 72%);
+  filter: blur(18px); animation: lg-deriva-a 46s ease-in-out infinite alternate;
+}
+body::after {
+  width: 70vmax; height: 70vmax; right: -26vmax; bottom: -34vmax;
+  background:
+    radial-gradient(closest-side at 40% 40%, rgba(64, 112, 255, .26), rgba(64, 112, 255, .07) 55%, transparent 72%),
+    radial-gradient(closest-side at 72% 70%, rgba(168, 84, 255, .18), transparent 70%);
+  filter: blur(18px); animation: lg-deriva-b 58s ease-in-out infinite alternate;
+}
+@keyframes lg-deriva-a { to { transform: translate3d(14vmax, 10vmax, 0) scale(1.12); } }
+@keyframes lg-deriva-b { to { transform: translate3d(-12vmax, -9vmax, 0) scale(1.08) rotate(20deg); } }
+
+/* Luz ambiente que segue o ponteiro (suave, só em telas com mouse) */
+@media (hover: hover) and (pointer: fine) {
+  .app::before {
+    content: ''; position: fixed; inset: 0; z-index: -1; pointer-events: none;
+    background: radial-gradient(420px circle at var(--mx, 50%) var(--my, 30%), rgba(255, 244, 214, .07), transparent 70%);
+  }
+}
+
+/* ============================================================
+   MATERIAL — todas as superfícies de vidro
+   ============================================================ */
+.coluna,
+.cartao-secao,
+.indicador,
+.login-caixa,
+.modal,
+.painel,
+.menu,
+.menu-flutuante,
+.barra-selecao,
+.painel-filtros,
+.painel-campos,
+.topo,
+.seletor-ordem,
+.abas,
+.chip,
+.btn {
+  -webkit-backdrop-filter: var(--lg-blur);
+  backdrop-filter: var(--lg-blur);
+}
+
+/* Refração real (distorção da luz nas bordas) — Chromium/Edge aplicam filtros SVG ao fundo.
+   O script marca <html class="lg-refrata"> só onde isso funciona; no Safari/Firefox ficam desfoque + brilho. */
+html.lg-refrata .login-caixa,
+html.lg-refrata .modal,
+html.lg-refrata .topo,
+html.lg-refrata .barra-selecao,
+html.lg-refrata .menu,
+html.lg-refrata .menu-flutuante,
+html.lg-refrata .abas,
+html.lg-refrata .seletor-ordem {
+  -webkit-backdrop-filter: blur(14px) saturate(190%) brightness(1.08) url(#lg-refracao);
+  backdrop-filter: blur(14px) saturate(190%) brightness(1.08) url(#lg-refracao);
+}
+html.lg-refrata .btn-pequeno,
+html.lg-refrata .chip,
+html.lg-refrata .aba.ativa {
+  -webkit-backdrop-filter: blur(8px) saturate(190%) brightness(1.1) url(#lg-refracao-leve);
+  backdrop-filter: blur(8px) saturate(190%) brightness(1.1) url(#lg-refracao-leve);
+}
+
+/* Brilho especular que acompanha o ponteiro dentro de cada superfície grande */
+.cartao, .cartao-secao, .indicador, .coluna, .login-caixa { position: relative; }
+.cartao::after, .cartao-secao::after, .indicador::after, .coluna::after, .login-caixa::after {
+  content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; z-index: 0; opacity: 0;
+  background:
+    radial-gradient(260px circle at var(--px, 30%) var(--py, 0%), rgba(255, 255, 255, .24), rgba(255, 255, 255, .06) 45%, transparent 70%),
+    linear-gradient(115deg, transparent 38%, rgba(255, 255, 255, .10) 50%, transparent 62%);
+  mix-blend-mode: soft-light; transition: opacity .35s var(--lg-suave);
+}
+.cartao:hover::after, .cartao-secao:hover::after, .indicador:hover::after, .login-caixa:hover::after, .coluna:hover::after { opacity: 1; }
+.cartao > *, .cartao-secao > *, .indicador > *, .login-caixa > * { position: relative; z-index: 1; }
+.cartao > .cartao-notif, .cartao > .cartao-caixa { position: absolute; z-index: 3; }
+
+/* ============================================================
+   Marca e tipografia
+   ============================================================ */
+h2, h3, h4 { letter-spacing: -.012em; }
+.cartao-secao h2, .modal-topo h2, .painel-topo h2 { color: var(--texto); font-weight: 650; }
+.painel-corpo h4 { color: var(--ouro); }
+.marca-logo, .login-logo { filter: drop-shadow(0 0 16px rgba(236, 190, 90, .45)) drop-shadow(0 8px 14px rgba(0, 0, 0, .55)); }
+
+/* ============================================================
+   Barra do topo — flutua sobre o conteúdo como a barra de abas do iOS 26
+   ============================================================ */
+.topo {
+  margin: 10px 14px 0; padding: 9px 12px 9px 16px; border-radius: 26px; gap: 12px;
+  background: var(--lg-fill), var(--lg-tinta); border: 0;
+  box-shadow: var(--lg-material-alto); position: relative; z-index: 20;
+}
+.abas {
+  padding: 4px; border-radius: 999px; border: 0;
+  background: rgba(0, 0, 0, .28); box-shadow: inset 0 2px 6px rgba(0, 0, 0, .5), inset 0 0 0 1px rgba(255, 255, 255, .07), 0 1px 0 rgba(255, 255, 255, .06);
+}
+.aba { border-radius: 999px; padding: 8px 18px; color: #c4c8d6; transition: color .25s, background .3s var(--lg-suave), box-shadow .3s, transform .3s var(--lg-mola); }
+.aba:hover { color: #fff; }
+.aba:active { transform: scale(.96); }
+.aba.ativa {
+  color: #fff3d2; background: var(--lg-fill-forte), rgba(224, 190, 108, .16);
+  box-shadow: var(--lg-borda), inset 0 10px 18px -12px rgba(255, 255, 255, .5), 0 4px 14px -2px rgba(0, 0, 0, .55), 0 0 18px -4px rgba(224, 190, 108, .45);
+}
+.aba-contador { box-shadow: 0 0 10px rgba(52, 209, 123, .55), inset 0 1px 0 rgba(255, 255, 255, .5); }
+.aba-contador.aviso { box-shadow: 0 0 10px rgba(242, 165, 58, .55), inset 0 1px 0 rgba(255, 255, 255, .5); }
+.avatar { background: var(--lg-fill-forte), rgba(224, 190, 108, .12); border: 0; box-shadow: var(--lg-borda), var(--lg-sombra); transition: transform .3s var(--lg-mola); }
+.avatar:hover { transform: scale(1.07); }
+.avatar:active { transform: scale(.95); }
+
+.menu, .menu-flutuante {
+  background: var(--lg-fill), rgba(14, 16, 26, .5); border: 0; border-radius: 22px;
+  box-shadow: var(--lg-material-alto); overflow: hidden;
+}
+.menu button, .opcao-menu { border-radius: 14px; transition: background .2s, color .2s, transform .2s var(--lg-mola); }
+.menu button:hover { background: rgba(255, 255, 255, .1); color: var(--ouro); }
+.opcao-menu:hover:not(:disabled) { background: rgba(255, 255, 255, .11); }
+.opcao-menu.marcada { background: linear-gradient(135deg, rgba(224, 190, 108, .22), rgba(224, 190, 108, .07)); box-shadow: inset 0 0 0 1px rgba(224, 190, 108, .3); }
+.menu-flutuante { animation: lg-surge .28s var(--lg-mola); transform-origin: top center; }
+@keyframes lg-surge { from { opacity: 0; transform: translateY(-8px) scale(.94); filter: blur(4px); } to { opacity: 1; transform: none; filter: none; } }
+
+/* ============================================================
+   Botões — pílulas de vidro que cedem ao toque
+   ============================================================ */
+.btn {
+  position: relative; border: 0; border-radius: 999px; padding: 9px 18px; color: var(--texto); font-weight: 550; letter-spacing: .005em;
+  background:
+    radial-gradient(90px circle at var(--px, 50%) var(--py, 0%), rgba(255, 255, 255, 0), rgba(255, 255, 255, 0) 70%),
+    var(--lg-fill), var(--lg-tinta);
+  box-shadow: var(--lg-borda), inset 0 10px 16px -12px rgba(255, 255, 255, .4), 0 1px 1px rgba(0, 0, 0, .4), 0 8px 18px -8px rgba(0, 0, 0, .6);
+  transition: transform .35s var(--lg-mola), box-shadow .3s var(--lg-suave), background .3s, color .2s, filter .2s;
+}
+.btn:hover:not(:disabled) {
+  transform: translateY(-2px) scale(1.025); border-color: transparent;
+  background:
+    radial-gradient(110px circle at var(--px, 50%) var(--py, 0%), rgba(255, 255, 255, .3), rgba(255, 255, 255, 0) 70%),
+    var(--lg-fill-forte), var(--lg-tinta);
+  box-shadow: var(--lg-borda), inset 0 12px 18px -12px rgba(255, 255, 255, .55), 0 2px 2px rgba(0, 0, 0, .4), 0 16px 28px -10px rgba(0, 0, 0, .65);
+}
+.btn:active:not(:disabled) { transform: scale(.955); transition-duration: .12s; box-shadow: var(--lg-borda), inset 0 4px 10px rgba(0, 0, 0, .45), 0 2px 6px rgba(0, 0, 0, .4); }
+.btn:focus-visible, .chip:focus-visible, .aba:focus-visible, .seletor-ordem button:focus-visible {
+  outline: none; box-shadow: var(--lg-borda), 0 0 0 3px rgba(255, 224, 150, .55), 0 0 22px rgba(224, 190, 108, .35);
+}
+.btn-pequeno { padding: 6px 13px; }
+
+/* Botões coloridos = vidro tingido (a cor "vaza" pelo vidro) */
+.btn-ouro {
+  color: #1b1405; text-shadow: 0 1px 0 rgba(255, 255, 255, .35);
+  background: radial-gradient(110px circle at var(--px, 50%) var(--py, 0%), rgba(255, 255, 255, .35), transparent 70%), linear-gradient(180deg, rgba(255, 226, 150, .96) 0%, rgba(228, 188, 96, .92) 52%, rgba(190, 148, 62, .9) 100%);
+  box-shadow: inset 1.5px 1.5px 0 -.5px rgba(255, 255, 255, .85), inset -1px -1px 0 -.5px rgba(255, 245, 210, .4), inset 0 12px 16px -10px rgba(255, 255, 255, .7), inset 0 -8px 14px -8px rgba(120, 80, 10, .45), 0 10px 26px -8px rgba(224, 190, 108, .55), 0 1px 1px rgba(0, 0, 0, .5);
+}
+.btn-ouro:hover:not(:disabled) {
+  background: radial-gradient(130px circle at var(--px, 50%) var(--py, 0%), rgba(255, 255, 255, .5), transparent 70%), linear-gradient(180deg, rgba(255, 234, 170, 1) 0%, rgba(236, 196, 104, .96) 52%, rgba(200, 156, 68, .94) 100%);
+  box-shadow: inset 1.5px 1.5px 0 -.5px rgba(255, 255, 255, .95), inset -1px -1px 0 -.5px rgba(255, 245, 210, .5), inset 0 12px 16px -10px rgba(255, 255, 255, .8), inset 0 -8px 14px -8px rgba(120, 80, 10, .45), 0 16px 34px -8px rgba(224, 190, 108, .7), 0 1px 1px rgba(0, 0, 0, .5);
+}
+.btn-verde, .btn-whats {
+  color: #04150b;
+  background: linear-gradient(180deg, rgba(110, 236, 170, .95) 0%, rgba(52, 200, 118, .92) 55%, rgba(30, 150, 84, .9) 100%);
+  box-shadow: inset 1.5px 1.5px 0 -.5px rgba(255, 255, 255, .75), inset 0 12px 16px -10px rgba(255, 255, 255, .6), inset 0 -8px 14px -8px rgba(0, 70, 30, .5), 0 10px 24px -8px rgba(52, 209, 123, .5);
+}
+.btn-whats { color: #fff; }
+.btn-aviso {
+  color: #1c1103;
+  background: linear-gradient(180deg, rgba(255, 212, 130, .96) 0%, rgba(244, 170, 60, .92) 55%, rgba(200, 128, 24, .9) 100%);
+  box-shadow: inset 1.5px 1.5px 0 -.5px rgba(255, 255, 255, .75), inset 0 12px 16px -10px rgba(255, 255, 255, .6), inset 0 -8px 14px -8px rgba(100, 55, 0, .5), 0 10px 24px -8px rgba(242, 165, 58, .5);
+}
+.btn-perigo-cheio {
+  color: #fff;
+  background: linear-gradient(180deg, rgba(255, 140, 122, .95) 0%, rgba(232, 84, 64, .92) 55%, rgba(188, 56, 40, .9) 100%);
+  box-shadow: inset 1.5px 1.5px 0 -.5px rgba(255, 255, 255, .7), inset 0 12px 16px -10px rgba(255, 255, 255, .5), inset 0 -8px 14px -8px rgba(90, 10, 0, .5), 0 10px 24px -8px rgba(229, 80, 61, .55);
+}
+.btn-verde-leve, .btn-aviso-leve, .btn-perigo, .btn-perigo-leve { background: var(--lg-fill), var(--lg-tinta); }
+.btn-verde-leve { color: #7ff0b0; box-shadow: var(--lg-borda), inset 0 0 0 1px rgba(52, 209, 123, .35), 0 8px 18px -8px rgba(52, 209, 123, .35); }
+.btn-aviso-leve { color: #ffc77a; box-shadow: var(--lg-borda), inset 0 0 0 1px rgba(242, 165, 58, .35), 0 8px 18px -8px rgba(242, 165, 58, .3); }
+.btn-perigo, .btn-perigo-leve { color: #ff9b8f; box-shadow: var(--lg-borda), inset 0 0 0 1px rgba(255, 90, 71, .35), 0 8px 18px -8px rgba(255, 90, 71, .3); }
+.btn:disabled { opacity: .45; filter: saturate(.6); }
+
+/* ---------- Chips ---------- */
+.chip {
+  border: 0; color: #d3d6e2; background: var(--lg-fill), var(--lg-tinta);
+  box-shadow: var(--lg-borda), inset 0 8px 12px -10px rgba(255, 255, 255, .4), 0 6px 14px -6px rgba(0, 0, 0, .55);
+  transition: transform .35s var(--lg-mola), background .3s, color .2s, box-shadow .3s;
+}
+.chip:hover { transform: translateY(-2px) scale(1.03); color: #fff; background: var(--lg-fill-forte), var(--lg-tinta); }
+.chip:active { transform: scale(.95); }
+.chip.ativo, .chip.ativo:hover {
+  color: #ffeab8; background: linear-gradient(135deg, rgba(255, 226, 150, .34), rgba(224, 190, 108, .12)), var(--lg-tinta);
+  box-shadow: var(--lg-borda), inset 0 0 0 1px rgba(224, 190, 108, .5), 0 0 20px -4px rgba(224, 190, 108, .45);
+}
+.chip-verde.ativo { color: #a6f5c8; background: linear-gradient(135deg, rgba(52, 209, 123, .34), rgba(52, 209, 123, .1)), var(--lg-tinta); box-shadow: var(--lg-borda), inset 0 0 0 1px rgba(52, 209, 123, .5), 0 0 20px -4px rgba(52, 209, 123, .45); }
+.chip-azul.ativo { color: #b3d6ff; background: linear-gradient(135deg, rgba(61, 155, 255, .34), rgba(61, 155, 255, .1)), var(--lg-tinta); box-shadow: var(--lg-borda), inset 0 0 0 1px rgba(61, 155, 255, .5), 0 0 20px -4px rgba(61, 155, 255, .45); }
+.chip-ambar.ativo, .chip-aviso.ativo { color: #ffd39a; background: linear-gradient(135deg, rgba(242, 165, 58, .34), rgba(242, 165, 58, .1)), var(--lg-tinta); box-shadow: var(--lg-borda), inset 0 0 0 1px rgba(242, 165, 58, .5), 0 0 20px -4px rgba(242, 165, 58, .45); }
+.chip-vermelho.ativo, .chip-alerta.ativo, .chip-notif.ativo { color: #ffb4a8; background: linear-gradient(135deg, rgba(255, 90, 71, .34), rgba(255, 90, 71, .1)), var(--lg-tinta); box-shadow: var(--lg-borda), inset 0 0 0 1px rgba(255, 90, 71, .5), 0 0 20px -4px rgba(255, 90, 71, .45); }
+.chip-menu.aberto { color: #fff; }
+
+/* Seletor de ordem (segmentado) */
+.seletor-ordem { border: 0; padding: 4px; background: rgba(0, 0, 0, .28); box-shadow: inset 0 2px 6px rgba(0, 0, 0, .5), inset 0 0 0 1px rgba(255, 255, 255, .07); }
+.seletor-ordem button { transition: background .3s var(--lg-suave), color .2s, box-shadow .3s, transform .3s var(--lg-mola); }
+.seletor-ordem button:active { transform: scale(.95); }
+.seletor-ordem button.ativo {
+  border-color: transparent; color: #ffeab8; background: var(--lg-fill-forte), rgba(224, 190, 108, .16);
+  box-shadow: var(--lg-borda), inset 0 8px 12px -8px rgba(255, 255, 255, .5), 0 4px 12px -2px rgba(0, 0, 0, .5), 0 0 16px -4px rgba(224, 190, 108, .4);
+}
+
+/* ============================================================
+   Campos — cavidades de vidro
+   ============================================================ */
+input, select, textarea {
+  border: 0; border-radius: 16px; padding: 11px 14px; color: var(--texto);
+  background: rgba(0, 0, 0, .3);
+  box-shadow: inset 0 2px 6px rgba(0, 0, 0, .5), inset 0 0 0 1px rgba(255, 255, 255, .1), 0 1px 0 rgba(255, 255, 255, .07);
+  transition: box-shadow .3s var(--lg-suave), background .3s, transform .3s var(--lg-mola);
+}
+input::placeholder, textarea::placeholder { color: rgba(190, 195, 215, .5); }
+input:focus, select:focus, textarea:focus {
+  outline: none; background: rgba(0, 0, 0, .4);
+  box-shadow: inset 0 2px 6px rgba(0, 0, 0, .5), inset 0 0 0 1px rgba(255, 224, 150, .65), 0 0 0 4px rgba(224, 190, 108, .16), 0 0 26px -4px rgba(224, 190, 108, .35);
+}
+input[type='checkbox'], input[type='radio'], input[type='range'], input[type='color'] { box-shadow: none; background: transparent; padding: 0; accent-color: var(--ouro); }
+.busca { border-radius: 999px; padding-left: 18px; }
+select { background-color: rgba(0, 0, 0, .3); }
+select option { background: #11131b; color: var(--texto); }
+.campo-busca { border-radius: 999px; }
+
+/* ============================================================
+   Kanban — colunas e cartões em camadas
+   ============================================================ */
+.kanban { gap: 18px; padding: 22px 24px 24px; perspective: 1400px; }
+.coluna {
+  border: 0; border-radius: 28px;
+  background: var(--lg-fill-fraco), rgba(8, 10, 18, .28);
+  box-shadow: var(--lg-borda), inset 0 20px 40px -30px rgba(255, 255, 255, .22), 0 24px 50px -24px rgba(0, 0, 0, .7);
+  transition: box-shadow .35s var(--lg-suave), background .35s, transform .35s var(--lg-mola);
+}
+.coluna-alvo {
+  background: linear-gradient(160deg, rgba(255, 226, 150, .2), rgba(224, 190, 108, .05)), rgba(8, 10, 18, .3);
+  box-shadow: var(--lg-borda), inset 0 0 0 1.5px rgba(224, 190, 108, .65), 0 0 40px -6px rgba(224, 190, 108, .4), 0 24px 50px -24px rgba(0, 0, 0, .7);
+  transform: scale(1.008);
+}
+.coluna-topo { border-bottom: 0; padding: 16px 18px 10px; }
+.coluna-topo h3 { color: #e9ebf3; letter-spacing: .09em; font-size: 11.5px; }
+.coluna-topo .ponto { box-shadow: 0 0 0 2px rgba(0, 0, 0, .35), 0 0 12px currentColor, inset 0 1px 1px rgba(255, 255, 255, .6); }
+.contagem { border: 0; color: #dfe2ee; background: rgba(0, 0, 0, .3); box-shadow: inset 0 1px 3px rgba(0, 0, 0, .5), inset 0 0 0 1px rgba(255, 255, 255, .08); }
+.coluna-cartoes { padding: 8px 12px 14px; gap: 12px; }
+.vazio { border-radius: 18px; border: 1.5px dashed rgba(255, 255, 255, .14); color: var(--suave); }
+
+.cartao {
+  border: 0; border-radius: 22px; padding: 14px 16px; gap: 6px;
+  background: var(--lg-fill), rgba(12, 14, 24, .38);
+  box-shadow: var(--lg-material);
+  transform-style: preserve-3d; will-change: transform;
+  transition: transform .45s var(--lg-mola), box-shadow .35s var(--lg-suave), background .3s;
+}
+.cartao:hover {
+  transform: perspective(900px) translateY(-4px) rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg)) scale(1.02);
+  transition-duration: .18s, .35s, .3s;
+  box-shadow: var(--lg-borda), var(--lg-brilho), 0 2px 2px rgba(0, 0, 0, .45), 0 24px 40px -12px rgba(0, 0, 0, .7), 0 0 0 1px rgba(224, 190, 108, .25), 0 0 30px -8px rgba(224, 190, 108, .25);
+}
+.cartao:active { transform: perspective(900px) scale(.985); transition-duration: .1s; }
+.cartao.em-selecao:hover { transform: none; }
+.cartao::before { left: 0; top: 18px; bottom: 18px; width: 3.5px; border-radius: 0 4px 4px 0; z-index: 2; }
+/* tingimento por estado — o vidro absorve a cor */
+.cartao.atrasado { background: linear-gradient(135deg, rgba(255, 90, 71, .22), rgba(255, 90, 71, .04) 60%), var(--lg-fill), rgba(12, 14, 24, .38); }
+.cartao.aguardando { background: linear-gradient(135deg, rgba(242, 165, 58, .22), rgba(242, 165, 58, .04) 60%), var(--lg-fill), rgba(12, 14, 24, .38); }
+.cartao.fechando { background: linear-gradient(135deg, rgba(52, 209, 123, .24), rgba(52, 209, 123, .05) 60%), var(--lg-fill), rgba(12, 14, 24, .38); box-shadow: var(--lg-material), inset 0 0 0 1px rgba(52, 209, 123, .3); }
+.cartao.com-notif { box-shadow: var(--lg-material), inset 0 0 0 1px rgba(255, 110, 90, .5); }
+.cartao.selecionado { box-shadow: var(--lg-borda), var(--lg-brilho), inset 0 0 0 1.5px rgba(224, 190, 108, .8), 0 0 30px -4px rgba(224, 190, 108, .35), var(--lg-sombra); }
+.cartao-titulo { font-weight: 620; color: #fff; }
+.cartao-linha, .cartao-respostas { color: #c9ccda; }
+.selo, .tag, .contagem { backdrop-filter: none; }
+.selo { background: rgba(0, 0, 0, .3); border: 0; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .1), inset 0 1px 0 rgba(255, 255, 255, .12); }
+.tag { border: 0; border-radius: 9px; background: rgba(0, 0, 0, .28); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .09); }
+.tag-mensagens { background: linear-gradient(180deg, rgba(60, 200, 125, .95), rgba(31, 150, 86, .92)); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .45), 0 4px 10px -3px rgba(52, 209, 123, .5); }
+.cartao-notif { box-shadow: 0 0 0 3px rgba(12, 14, 24, .85), 0 6px 18px -2px rgba(229, 80, 61, .6), inset 0 1px 0 rgba(255, 255, 255, .5); }
+.cartao-caixa { box-shadow: 0 0 0 3px rgba(12, 14, 24, .85); }
+.marca-kanban { border-radius: 8px; background: rgba(0, 0, 0, .3); border: 0; box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, .35); }
+.marca-kanban.marcada, .marca-kanban.parcial { background: linear-gradient(180deg, #ffe7a6, #e0be6c); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .8), 0 0 12px rgba(224, 190, 108, .6); }
+.foto-usuario, .mini-avatar { box-shadow: var(--lg-borda), 0 3px 8px rgba(0, 0, 0, .4); }
+
+/* ---------- Barra de seleção em massa (flutuante) ---------- */
+.barra-selecao {
+  border: 0; border-radius: 28px; padding: 10px 12px 10px 20px;
+  background: var(--lg-fill), rgba(10, 12, 20, .5);
+  box-shadow: var(--lg-material-alto), inset 0 0 0 1px rgba(224, 190, 108, .3);
+  animation: lg-barra .42s var(--lg-mola);
+}
+@keyframes lg-barra { from { opacity: 0; transform: translate(-50%, 24px) scale(.94); } to { opacity: 1; transform: translateX(-50%); } }
+
+/* ============================================================
+   Barras de ferramentas, filtros e painéis
+   ============================================================ */
+.barra-ferramentas { border-bottom: 0; padding: 14px 24px 4px; gap: 10px; }
+.painel-filtros, .painel-campos {
+  margin: 8px 24px 0; border: 0; border-radius: 24px;
+  background: var(--lg-fill), rgba(10, 12, 20, .42); box-shadow: var(--lg-material);
+}
+.faixa-filtros { background: linear-gradient(90deg, rgba(224, 190, 108, .12), transparent); border: 0; }
+.faixa-erro { background: rgba(229, 99, 75, .14); backdrop-filter: var(--lg-blur-leve); }
+
+/* ============================================================
+   Janelas (modal), painel lateral e cartões de seção
+   ============================================================ */
+.fundo-painel, .fundo-modal {
+  background: radial-gradient(900px 600px at 50% 40%, rgba(40, 50, 90, .35), rgba(0, 0, 0, .6));
+  -webkit-backdrop-filter: blur(10px) saturate(130%); backdrop-filter: blur(10px) saturate(130%);
+  animation: lg-fade .35s var(--lg-suave);
+}
+@keyframes lg-fade { from { opacity: 0; } }
+.modal {
+  border: 0; border-radius: 34px; background: var(--lg-fill), rgba(10, 12, 22, .5);
+  box-shadow: var(--lg-material-alto), 0 0 80px -20px rgba(120, 140, 255, .25);
+  animation: lg-modal .5s var(--lg-mola);
+}
+@keyframes lg-modal { from { opacity: 0; transform: translateY(18px) scale(.9); filter: blur(6px); } to { opacity: 1; transform: none; filter: none; } }
+.painel {
+  border: 0; border-radius: 34px 0 0 34px; margin: 10px 0 10px 0; height: calc(100% - 20px);
+  background: var(--lg-fill), rgba(10, 12, 22, .52);
+  box-shadow: var(--lg-material-alto), -30px 0 80px -30px rgba(0, 0, 0, .8);
+  animation: lg-painel .5s var(--lg-mola);
+}
+@keyframes lg-painel { from { transform: translateX(46px); opacity: 0; } to { transform: none; opacity: 1; } }
+.painel-topo, .modal-topo { border-bottom: 0; }
+.fechar { border-radius: 50%; background: var(--lg-fill), var(--lg-tinta); box-shadow: var(--lg-borda); transition: transform .3s var(--lg-mola), background .2s; }
+.fechar:hover { background: var(--lg-fill-forte), var(--lg-tinta); transform: rotate(90deg) scale(1.08); }
+
+.cartao-secao, .indicador {
+  border: 0; border-radius: 28px; background: var(--lg-fill), rgba(10, 12, 22, .4);
+  box-shadow: var(--lg-material); transition: transform .45s var(--lg-mola), box-shadow .35s;
+}
+.indicador { border-radius: 24px; }
+.indicador:hover { transform: translateY(-3px) perspective(900px) rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg)); }
+.indicador.destaque { box-shadow: var(--lg-material), inset 0 0 0 1px rgba(224, 190, 108, .5), 0 0 40px -8px rgba(224, 190, 108, .3); }
+.indicador-valor { background: linear-gradient(180deg, #fff 30%, #c5c9d8); -webkit-background-clip: text; background-clip: text; color: transparent; font-weight: 650; letter-spacing: -.02em; }
+.indicador.destaque .indicador-valor { background: linear-gradient(180deg, #fff2c8 20%, #e0be6c); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.numero, .linha-etapa, .respostas div, .dados-integracao div, .analise-ia { border: 0; border-radius: 16px; background: rgba(0, 0, 0, .22); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .08), inset 0 1px 0 rgba(255, 255, 255, .06); }
+.copiar { border: 0; border-radius: 16px; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .1), inset 0 2px 5px rgba(0, 0, 0, .4); }
+.erro { border-radius: 16px; background: rgba(229, 99, 75, .16); box-shadow: inset 0 0 0 1px rgba(255, 90, 71, .3); }
+.sucesso { border-radius: 16px; background: rgba(52, 209, 123, .14); box-shadow: inset 0 0 0 1px rgba(52, 209, 123, .3); }
+.aviso-aguardando, .aviso-fechando, .aviso-followup, .aviso-reuniao, .aviso-parcial { border-radius: 16px; backdrop-filter: var(--lg-blur-leve); }
+.tabela th { border-bottom-color: rgba(255, 255, 255, .1); color: var(--suave); }
+.tabela td { border-bottom-color: rgba(255, 255, 255, .06); }
+.tabela tbody tr { transition: background .2s; }
+.tabela tbody tr:hover { background: rgba(255, 255, 255, .05); }
+
+/* ============================================================
+   Login — a lente maior da casa
+   ============================================================ */
+.login-fundo {
+  background:
+    radial-gradient(760px 460px at 50% 14%, rgba(236, 190, 90, .17), transparent 66%),
+    radial-gradient(1000px 640px at 50% 118%, rgba(64, 112, 255, .12), transparent 62%),
+    var(--fundo);
+}
+.login-caixa {
+  max-width: 400px; padding: 40px 34px 34px; gap: 18px; border: 0; border-radius: 42px;
+  background: var(--lg-fill), rgba(10, 12, 22, .36);
+  box-shadow: var(--lg-material-alto), 0 0 100px -24px rgba(236, 190, 90, .3);
+  animation: lg-modal .8s var(--lg-mola) both;
+}
+.login-caixa .btn-ouro { padding: 13px 18px; margin-top: 6px; font-size: 14.5px; }
+.login-sub { color: #b4b9cc; }
+.carregando { border-color: rgba(255, 255, 255, .15); border-top-color: var(--ouro); filter: drop-shadow(0 0 8px rgba(224, 190, 108, .5)); }
+
+/* O logo 3D fica mais presente atrás do vidro (é ele que o vidro refrata) */
+.fundo-3d.pronto { opacity: .95; }
+.fundo-3d-kanban.pronto { opacity: .62; }
+
+/* ============================================================
+   WhatsApp — três colunas de vidro sobre o fundo vivo (tema escuro)
+   ============================================================ */
+.wa-tela[data-tema='escuro'], :root {
+  --wa-fundo: rgba(6, 8, 14, .38);
+  --wa-painel: rgba(12, 14, 24, .46);
+  --wa-barra: rgba(255, 255, 255, .075);
+  --wa-campo: rgba(255, 255, 255, .09);
+  --wa-dele: rgba(255, 255, 255, .105);
+  --wa-minha: rgba(36, 150, 122, .46);
+  --wa-hover: rgba(255, 255, 255, .07);
+  --wa-aberta: rgba(255, 255, 255, .12);
+  --wa-linha: rgba(255, 255, 255, .09);
+  --wa-menu: rgba(24, 28, 40, .62);
+  --wa-menu-hover: rgba(255, 255, 255, .1);
+  --wa-separador: rgba(255, 255, 255, .09);
+  --wa-citacao-fundo: rgba(0, 0, 0, .28);
+  --wa-texto: #f1f4f6;
+  --wa-suave: #a4b0ba;
+}
+.whatsapp-tela { background: transparent; gap: 10px; padding: 12px 14px 14px; }
+.whatsapp-tela > .lista-conversas, .whatsapp-tela > .chat, .whatsapp-tela > .ficha-lateral {
+  border: 0; border-radius: 30px; overflow: hidden;
+  background: var(--lg-fill-fraco), var(--wa-painel);
+  box-shadow: var(--lg-borda), 0 24px 50px -24px rgba(0, 0, 0, .7);
+  -webkit-backdrop-filter: var(--lg-blur); backdrop-filter: var(--lg-blur);
+}
+.wa-tela[data-tema='escuro'] .chat-topo, .wa-tela[data-tema='escuro'] .painel-lateral-topo, .wa-tela[data-tema='escuro'] .compositor {
+  background: var(--lg-fill), rgba(10, 12, 22, .35); border: 0; box-shadow: inset 0 -1px 0 rgba(255, 255, 255, .07);
+  -webkit-backdrop-filter: var(--lg-blur-leve); backdrop-filter: var(--lg-blur-leve);
+}
+.wa-tela[data-tema='escuro'] .compositor { box-shadow: inset 0 1px 0 rgba(255, 255, 255, .09); }
+.item-conversa { border-radius: 20px; margin: 2px 8px; transition: background .25s, transform .35s var(--lg-mola); }
+.item-conversa:hover { background: var(--wa-hover); transform: translateX(2px); }
+.item-conversa.aberta { background: var(--lg-fill-forte), rgba(224, 190, 108, .1); box-shadow: var(--lg-borda); }
+.wa-tela[data-tema='escuro'] .campo-busca, .wa-tela[data-tema='escuro'] .seletor-numero-lista { border-radius: 999px; background: rgba(0, 0, 0, .28); box-shadow: inset 0 2px 5px rgba(0, 0, 0, .45), inset 0 0 0 1px rgba(255, 255, 255, .09); }
+.filtros-conversas .chip { border-radius: 999px; }
+.wa-tela[data-tema='escuro'] .bolha {
+  border-radius: 20px; background: var(--wa-dele); backdrop-filter: none;
+  box-shadow: inset 1px 1px 0 -.5px rgba(255, 255, 255, .4), inset -1px -1px 0 -.5px rgba(255, 255, 255, .1), inset 0 0 0 1px rgba(255, 255, 255, .05), 0 6px 14px -8px rgba(0, 0, 0, .55);
+}
+.wa-tela[data-tema='escuro'] .linha-mensagem.minha .bolha { background: linear-gradient(135deg, rgba(70, 200, 160, .5), rgba(30, 130, 105, .42)); }
+.wa-tela[data-tema='escuro'] .bolha.com-cauda { border-top-left-radius: 6px; }
+.wa-tela[data-tema='escuro'] .linha-mensagem.minha .bolha.com-cauda { border-top-left-radius: 20px; border-top-right-radius: 6px; }
+.bolha.com-cauda::before { display: none; }
+.separador-dia span, .data-flutuante span { border-radius: 999px; background: rgba(0, 0, 0, .35); backdrop-filter: var(--lg-blur-leve); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .1); }
+.menu-mensagem, .menu-anexo, .menu-reacoes.solto, .painel-expressoes, .menu-conversa {
+  border: 0; border-radius: 22px; background: var(--lg-fill), var(--wa-menu);
+  box-shadow: var(--lg-material-alto); -webkit-backdrop-filter: var(--lg-blur-forte); backdrop-filter: var(--lg-blur-forte);
+}
+.botao-icone { border-radius: 50%; transition: background .25s, transform .35s var(--lg-mola), color .2s; }
+.botao-icone:hover { transform: scale(1.12); }
+.botao-icone:active { transform: scale(.92); }
+.botao-enviar { box-shadow: inset 1px 1px 0 -.5px rgba(255, 255, 255, .6), 0 8px 18px -6px rgba(43, 180, 138, .6); transition: transform .35s var(--lg-mola); }
+.botao-enviar:hover { transform: scale(1.1); }
+.chamada-recebida { border-radius: 30px; background: var(--lg-fill), rgba(10, 12, 22, .5); box-shadow: var(--lg-material-alto); -webkit-backdrop-filter: var(--lg-blur-forte); backdrop-filter: var(--lg-blur-forte); }
+.modal-wa label { color: var(--suave); }
+
+/* ============================================================
+   Detalhes: rolagem, seleção de texto, foco
+   ============================================================ */
+* { scrollbar-color: rgba(255, 255, 255, .2) transparent; }
+*::-webkit-scrollbar-thumb { background: linear-gradient(180deg, rgba(255, 255, 255, .26), rgba(255, 255, 255, .12)); border-radius: 9px; border: 2px solid transparent; background-clip: padding-box; }
+::selection { background: rgba(224, 190, 108, .35); color: #fff; }
+
+/* ============================================================
+   Telas pequenas
+   ============================================================ */
+@media (max-width: 720px) {
+  .topo { margin: 8px 8px 0; border-radius: 22px; padding: 8px 10px; }
+  .kanban { padding: 14px 10px 16px; gap: 12px; }
+  .barra-ferramentas { padding: 10px 12px 2px; }
+  .painel-filtros, .painel-campos { margin: 8px 12px 0; }
+  .painel { border-radius: 28px 28px 0 0; margin: 0; height: 100%; }
+  .modal { border-radius: 28px; }
+  .whatsapp-tela { padding: 8px; gap: 8px; }
+  .whatsapp-tela > .lista-conversas, .whatsapp-tela > .chat, .whatsapp-tela > .ficha-lateral { border-radius: 24px; }
+}
+
+/* ============================================================
+   Acessibilidade e desempenho
+   ============================================================ */
+/* Sem suporte a vidro desfocado: superfícies mais opacas para manter a leitura */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  :root { --lg-tinta: rgba(20, 22, 34, .88); --lg-tinta-forte: rgba(16, 18, 28, .94); --wa-painel: rgba(18, 20, 30, .94); --wa-menu: rgba(26, 29, 42, .97); }
+  .modal, .painel, .login-caixa, .menu, .menu-flutuante, .barra-selecao, .painel-filtros, .painel-campos { background-color: rgba(18, 20, 32, .95); }
+}
+/* "Reduzir transparência" do sistema: vidro vira superfície sólida, sem desfoque */
+@media (prefers-reduced-transparency: reduce) {
+  :root { --lg-tinta: rgba(22, 24, 36, .96); --wa-painel: rgba(18, 20, 30, .97); --wa-menu: rgba(26, 29, 42, .98); }
+  *, *::before, *::after { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
+  .modal, .painel, .login-caixa, .menu, .menu-flutuante, .barra-selecao, .painel-filtros, .painel-campos, .topo, .cartao, .coluna, .cartao-secao, .indicador { background-color: rgba(22, 24, 36, .97); }
+}
+/* "Aumentar contraste": bordas mais fortes e menos transparência */
+@media (prefers-contrast: more) {
+  :root { --lg-tinta: rgba(10, 12, 20, .8); --lg-borda: inset 0 0 0 1.5px rgba(255, 255, 255, .55); --lg-brilho: none; }
+  .cartao-titulo, .cartao-linha { color: #fff; }
+}
+/* "Reduzir movimento": sem deriva, inclinação 3D ou molas */
+@media (prefers-reduced-motion: reduce) {
+  body::before, body::after { animation: none; }
+  .modal, .painel, .login-caixa, .menu-flutuante, .barra-selecao, .fundo-modal, .fundo-painel { animation: none; }
+  .cartao, .cartao:hover, .indicador:hover, .btn:hover:not(:disabled), .chip:hover, .coluna-alvo { transform: none; }
+  .cartao::after, .cartao-secao::after, .indicador::after, .coluna::after, .login-caixa::after { display: none; }
+  * { transition-duration: .01ms !important; }
+}
+/* Telas sem mouse: sem brilho que segue o ponteiro nem inclinação */
+@media (hover: none) {
+  .cartao::after, .cartao-secao::after, .indicador::after, .coluna::after, .login-caixa::after { display: none; }
+  .cartao:hover, .indicador:hover { transform: none; }
+}
