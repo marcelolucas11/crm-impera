@@ -7,10 +7,7 @@
    Só aparência. Nenhuma regra aqui muda estrutura, dados ou comportamento.
    Carregado por último (depois de styles.css, whatsapp.css e design.css).
 
-   Efeitos que dependem de script (LiquidGlassFx.jsx) usam variáveis CSS opcionais com valor padrão:
-     --mx / --my   posição do ponteiro na janela (px)  → luz ambiente
-     --px / --py   posição do ponteiro dentro do elemento (%) → brilho especular
-     --rx / --ry   inclinação 3D (graus)                → profundidade
+   Único efeito que depende de script (LiquidGlassFx.jsx): inclinação 3D leve nos cartões (--rx / --ry).
    Sem script, tudo continua bonito, só estático.
    ============================================================ */
 
@@ -94,13 +91,6 @@ body::after {
 @keyframes lg-deriva-a { to { transform: translate3d(14vmax, 10vmax, 0) scale(1.12); } }
 @keyframes lg-deriva-b { to { transform: translate3d(-12vmax, -9vmax, 0) scale(1.08) rotate(20deg); } }
 
-/* Luz ambiente que segue o ponteiro (suave, só em telas com mouse) */
-@media (hover: hover) and (pointer: fine) {
-  .app::before {
-    content: ''; position: fixed; inset: 0; z-index: -1; pointer-events: none;
-    background: radial-gradient(420px circle at var(--mx, 50%) var(--my, 30%), rgba(255, 244, 214, .07), transparent 70%);
-  }
-}
 
 /* ============================================================
    MATERIAL — todas as superfícies de vidro
@@ -145,16 +135,8 @@ html.lg-refrata .aba.ativa {
   backdrop-filter: blur(1px) saturate(170%) brightness(1.06) url(#lg-refracao-leve);
 }
 
-/* Brilho especular que acompanha o ponteiro dentro de cada superfície grande */
+/* Superfícies grandes ficam posicionadas para os elementos internos ficarem acima do vidro */
 .cartao, .cartao-secao, .indicador, .coluna, .login-caixa { position: relative; }
-.cartao::after, .cartao-secao::after, .indicador::after, .coluna::after, .login-caixa::after {
-  content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; z-index: 0; opacity: 0;
-  background:
-    radial-gradient(260px circle at var(--px, 30%) var(--py, 0%), rgba(255, 255, 255, .24), rgba(255, 255, 255, .06) 45%, transparent 70%),
-    linear-gradient(115deg, transparent 38%, rgba(255, 255, 255, .10) 50%, transparent 62%);
-  mix-blend-mode: soft-light; transition: opacity .35s var(--lg-suave);
-}
-.cartao:hover::after, .cartao-secao:hover::after, .indicador:hover::after, .login-caixa:hover::after, .coluna:hover::after { opacity: 1; }
 .cartao > *, .cartao-secao > *, .indicador > *, .login-caixa > * { position: relative; z-index: 1; }
 .cartao > .cartao-notif, .cartao > .cartao-caixa { position: absolute; z-index: 3; }
 
@@ -208,7 +190,6 @@ h2, h3, h4 { letter-spacing: -.012em; }
 .btn {
   position: relative; border: 0; border-radius: 12px; padding: 9px 18px; color: var(--texto); font-weight: 550; letter-spacing: .005em;
   background:
-    radial-gradient(90px circle at var(--px, 50%) var(--py, 0%), rgba(255, 255, 255, 0), rgba(255, 255, 255, 0) 70%),
     var(--lg-fill), var(--lg-tinta);
   box-shadow: var(--lg-borda), inset 0 10px 16px -12px rgba(255, 255, 255, .4), 0 1px 1px rgba(0, 0, 0, .4), 0 8px 18px -8px rgba(0, 0, 0, .6);
   transition: transform .35s var(--lg-mola), box-shadow .3s var(--lg-suave), background .3s, color .2s, filter .2s;
@@ -216,7 +197,6 @@ h2, h3, h4 { letter-spacing: -.012em; }
 .btn:hover:not(:disabled) {
   transform: translateY(-2px) scale(1.025); border-color: transparent;
   background:
-    radial-gradient(110px circle at var(--px, 50%) var(--py, 0%), rgba(255, 255, 255, .3), rgba(255, 255, 255, 0) 70%),
     var(--lg-fill-forte), var(--lg-tinta);
   box-shadow: var(--lg-borda), inset 0 12px 18px -12px rgba(255, 255, 255, .55), 0 2px 2px rgba(0, 0, 0, .4), 0 16px 28px -10px rgba(0, 0, 0, .65);
 }
@@ -229,11 +209,11 @@ h2, h3, h4 { letter-spacing: -.012em; }
 /* Botões coloridos = vidro tingido (a cor "vaza" pelo vidro) */
 .btn-ouro {
   color: #1b1405; text-shadow: 0 1px 0 rgba(255, 255, 255, .35);
-  background: radial-gradient(110px circle at var(--px, 50%) var(--py, 0%), rgba(255, 255, 255, .35), transparent 70%), linear-gradient(180deg, rgba(255, 226, 150, .96) 0%, rgba(228, 188, 96, .92) 52%, rgba(190, 148, 62, .9) 100%);
+  background: linear-gradient(180deg, rgba(255, 226, 150, .96) 0%, rgba(228, 188, 96, .92) 52%, rgba(190, 148, 62, .9) 100%);
   box-shadow: inset 1.5px 1.5px 0 -.5px rgba(255, 255, 255, .85), inset -1px -1px 0 -.5px rgba(255, 245, 210, .4), inset 0 12px 16px -10px rgba(255, 255, 255, .7), inset 0 -8px 14px -8px rgba(120, 80, 10, .45), 0 10px 26px -8px rgba(224, 190, 108, .55), 0 1px 1px rgba(0, 0, 0, .5);
 }
 .btn-ouro:hover:not(:disabled) {
-  background: radial-gradient(130px circle at var(--px, 50%) var(--py, 0%), rgba(255, 255, 255, .5), transparent 70%), linear-gradient(180deg, rgba(255, 234, 170, 1) 0%, rgba(236, 196, 104, .96) 52%, rgba(200, 156, 68, .94) 100%);
+  background: linear-gradient(180deg, rgba(255, 234, 170, 1) 0%, rgba(236, 196, 104, .96) 52%, rgba(200, 156, 68, .94) 100%);
   box-shadow: inset 1.5px 1.5px 0 -.5px rgba(255, 255, 255, .95), inset -1px -1px 0 -.5px rgba(255, 245, 210, .5), inset 0 12px 16px -10px rgba(255, 255, 255, .8), inset 0 -8px 14px -8px rgba(120, 80, 10, .45), 0 16px 34px -8px rgba(224, 190, 108, .7), 0 1px 1px rgba(0, 0, 0, .5);
 }
 .btn-verde, .btn-whats {
@@ -551,12 +531,10 @@ select option { background: #11131b; color: var(--texto); }
   body::before, body::after { animation: none; }
   .modal, .painel, .login-caixa, .menu-flutuante, .barra-selecao, .fundo-modal, .fundo-painel { animation: none; }
   .cartao, .cartao:hover, .indicador:hover, .btn:hover:not(:disabled), .chip:hover, .coluna-alvo { transform: none; }
-  .cartao::after, .cartao-secao::after, .indicador::after, .coluna::after, .login-caixa::after { display: none; }
   * { transition-duration: .01ms !important; }
 }
 /* Telas sem mouse: sem brilho que segue o ponteiro nem inclinação */
 @media (hover: none) {
-  .cartao::after, .cartao-secao::after, .indicador::after, .coluna::after, .login-caixa::after { display: none; }
   .cartao:hover, .indicador:hover { transform: none; }
 }
 
@@ -586,3 +564,17 @@ input, select, textarea { text-shadow: none; }
 .busca, .campo-busca { border-radius: 12px; }
 .aba-contador { border-radius: 8px; }
 .cartao-notif { border-radius: 10px; }
+
+/* ============================================================
+   v1.2 — letras dos cartões mais grossas (leitura sobre o vidro transparente)
+   ============================================================ */
+.cartao { text-shadow: 0 1px 2px rgba(0, 0, 0, .8); }
+.cartao-titulo { font-weight: 700; color: #fff; font-size: 14.5px; }
+.cartao-linha, .cartao-respostas, .cartao-timers, .cartao-rodape { font-weight: 600; color: #f0f2f8; }
+.cartao .suave, .cartao .pequeno { font-weight: 600; color: #d4d8e6; }
+.cartao .selo, .cartao .tag { font-weight: 700; color: #f4f5fa; }
+.cartao .selo-verde { color: #8cf5bb; }
+.cartao .selo-ambar { color: #ffd08a; }
+.cartao .selo-azul { color: #a3d0ff; }
+.cartao .selo-vermelho { color: #ffab9f; }
+.cartao .tag-yayforms { color: #f3d68a; }

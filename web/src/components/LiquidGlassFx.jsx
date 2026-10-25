@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 
 // Efeitos do visual "Liquid Glass" que o CSS sozinho não consegue fazer:
 //  1) filtros SVG de refração (a luz do fundo "dobra" nas bordas do vidro, com dispersão em cores);
-//  2) luz que acompanha o ponteiro e leve inclinação 3D nos cartões.
+//  2) leve inclinação 3D nos cartões e indicadores quando o mouse passa por cima.
 // Só estético: não lê nem altera dados, não recebe cliques e não toca em nenhuma regra do CRM.
 // Sem este componente (ou sem suporte do navegador) o CRM continua igual, só sem a distorção e o brilho animado.
 
@@ -23,8 +23,8 @@ const mapa = (horizontal, borda) => {
 const MAPA_X = mapa(true, 0.2);
 const MAPA_Y = mapa(false, 0.2);
 
-// Quais superfícies reagem ao ponteiro e quais também se inclinam
-const SUPERFICIES = '.cartao, .cartao-secao, .indicador, .coluna, .login-caixa, .btn, .chip, .aba';
+// Só cartões e indicadores se inclinam
+const SUPERFICIES = '.cartao, .indicador';
 const INCLINAM = '.cartao, .indicador';
 
 function detectarRefracao() {
@@ -63,8 +63,6 @@ export default function LiquidGlassFx() {
       quadro = 0;
       const e = evento;
       if (!e) return;
-      raiz.style.setProperty('--mx', `${e.clientX}px`);
-      raiz.style.setProperty('--my', `${e.clientY}px`);
       if (e.buttons) return; // arrastando um cartão: não mexe na inclinação
       const alvo = e.target instanceof Element ? e.target.closest(SUPERFICIES) : null;
       if (alvo !== ultimo) { limpar(ultimo); ultimo = alvo; }
@@ -73,8 +71,6 @@ export default function LiquidGlassFx() {
       if (!r.width || !r.height) return;
       const px = ((e.clientX - r.left) / r.width) * 100;
       const py = ((e.clientY - r.top) / r.height) * 100;
-      alvo.style.setProperty('--px', `${px.toFixed(1)}%`);
-      alvo.style.setProperty('--py', `${py.toFixed(1)}%`);
       if (alvo.matches(INCLINAM)) {
         alvo.style.setProperty('--rx', `${(((py - 50) / 50) * -4.5).toFixed(2)}deg`);
         alvo.style.setProperty('--ry', `${(((px - 50) / 50) * 5.5).toFixed(2)}deg`);
