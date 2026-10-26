@@ -64,12 +64,27 @@ export default function KanbanPagina({ user, stages, users, carregarEtapas, aoMu
     try { localStorage.setItem(CHAVE_FILTROS, JSON.stringify(f)); } catch { /* sem armazenamento */ }
   };
 
+  const cacheLeads = useRef(new Map());
   const carregarLeads = useCallback(async () => {
     const params = new URLSearchParams();
     if (buscaRef.current.trim()) params.set('q', buscaRef.current.trim());
     try {
       const d = await api(`/leads?${params}`);
-      setLeads(d.leads);
+      // Reaproveita o objeto de cada lead que não mudou: os cartões iguais não são redesenhados
+      setLeads((antes) => {
+        const mapa = cacheLeads.current;
+        const novo = new Map();
+        const lista = d.leads.map((l) => {
+          const json = JSON.stringify(l);
+          const velho = mapa.get(l.id);
+          const obj = velho && velho.json === json ? velho.obj : l;
+          novo.set(l.id, { json, obj });
+          return obj;
+        });
+        cacheLeads.current = novo;
+        const igual = antes.length === lista.length && antes.every((x, i) => x === lista[i]);
+        return igual ? antes : lista;
+      });
       setHoras(d.followup_horas);
     } catch (e) {
       setErro(e.message);

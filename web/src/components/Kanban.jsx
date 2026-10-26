@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { memo, useState, useEffect, useRef, useMemo } from 'react';
 import { formatarTelefone, tempoDesde, dataCurta } from '../utils.js';
 import { CalendarDays, MessageCircle, CircleDashed, BellRing, X, Check, Minus, UserX } from 'lucide-react';
 import Avatar from './Avatar.jsx';
@@ -45,9 +45,18 @@ export default function Kanban({
   users = [], onMudarResponsavel, selecionados = null, onAlternarSelecao, onMarcarVarios,
 }) {
   const [sobre, setSobre] = useState(null);
-  const [, setTique] = useState(0);
-  useEffect(() => { const t = setInterval(() => setTique((n) => n + 1), 60000); return () => clearInterval(t); }, []);
-  const oculto = new Set(ocultos);
+  const [tique, setTique] = useState(0);
+  useEffect(() => { const t = setInterval(() => { if (!document.hidden) setTique((n) => n + 1); }, 60000); return () => clearInterval(t); }, []);
+  const oculto = useMemo(() => new Set(ocultos), [ocultos]);
+  // Funções estáveis: os cartões só se redesenham quando os dados deles mudam
+  const ultimas = useRef({});
+  ultimas.current = { onAbrir, onLimparNotificacao, onMudarResponsavel, onAlternarSelecao };
+  const fn = useMemo(() => ({
+    onAbrir: (...a) => ultimas.current.onAbrir?.(...a),
+    onLimparNotificacao: (...a) => ultimas.current.onLimparNotificacao?.(...a),
+    onMudarResponsavel: (...a) => ultimas.current.onMudarResponsavel?.(...a),
+    onAlternarSelecao: (...a) => ultimas.current.onAlternarSelecao?.(...a),
+  }), []);
 
   return (
     <main className={`kanban ${selecionados ? 'com-barra-selecao' : ''}`}>
@@ -75,9 +84,9 @@ export default function Kanban({
             </header>
             <div className="coluna-cartoes">
               {doEstagio.map((lead) => (
-                <Cartao key={lead.id} lead={lead} onAbrir={onAbrir} onLimparNotificacao={onLimparNotificacao} oculto={oculto}
-                  users={users} onMudarResponsavel={onMudarResponsavel}
-                  modoSelecao={Boolean(selecionados)} selecionado={Boolean(selecionados?.has(lead.id))} onAlternarSelecao={onAlternarSelecao} />
+                <Cartao key={lead.id} lead={lead} onAbrir={fn.onAbrir} onLimparNotificacao={fn.onLimparNotificacao} oculto={oculto}
+                  users={users} onMudarResponsavel={fn.onMudarResponsavel} agora={tique}
+                  modoSelecao={Boolean(selecionados)} selecionado={Boolean(selecionados?.has(lead.id))} onAlternarSelecao={fn.onAlternarSelecao} />
               ))}
               {!doEstagio.length && <div className="vazio">Arraste leads para cá</div>}
             </div>
@@ -146,7 +155,7 @@ function Responsavel({ lead, users, onMudar }) {
   );
 }
 
-function Cartao({ lead, onAbrir, onLimparNotificacao, oculto, users, onMudarResponsavel, modoSelecao, selecionado, onAlternarSelecao }) {
+const Cartao = memo(function Cartao({ lead, onAbrir, onLimparNotificacao, oculto, users, onMudarResponsavel, modoSelecao, selecionado, onAlternarSelecao }) {
   const ver = (k) => !oculto.has(k);
   const titulo = lead.name || formatarTelefone(lead.phone) || lead.email || `Lead #${lead.id}`;
   const respostas = (lead.respostas || []).filter((r) => r.pergunta && ver(`q:${r.pergunta}`) && String(r.resposta ?? '').trim());
@@ -244,4 +253,4 @@ function Cartao({ lead, onAbrir, onLimparNotificacao, oculto, users, onMudarResp
       </div>
     </article>
   );
-}
+});

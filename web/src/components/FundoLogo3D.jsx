@@ -33,7 +33,7 @@ function FundoLogo3D({ modo = 'kanban' }) {
 
       let renderer;
       try {
-        renderer = new THREE.WebGLRenderer({ canvas: cv, antialias: true, alpha: true, powerPreference: 'low-power' });
+        renderer = new THREE.WebGLRenderer({ canvas: cv, antialias: false, alpha: true, powerPreference: 'low-power' });
       } catch {
         return;
       }
@@ -103,12 +103,20 @@ function FundoLogo3D({ modo = 'kanban' }) {
 
       // Mouse: alvo suavizado (o logo segue devagar, giro pequeno)
       let mx = 0, my = 0, alvoX = 0, alvoY = 0;
-      const aoMover = (e) => { alvoX = e.clientX / window.innerWidth - 0.5; alvoY = e.clientY / window.innerHeight - 0.5; };
+      const aoMover = (e) => { acordar(); alvoX = e.clientX / window.innerWidth - 0.5; alvoY = e.clientY / window.innerHeight - 0.5; };
 
       let quadro = 0, rodando = false, ultimo = 0;
+      // Economia: sem mexer no CRM por 30 s (ou com a janela em segundo plano) a cena pausa; volta ao mexer o mouse/teclado
+      let ativo = true, ocioso = 0;
+      const acordar = () => {
+        clearTimeout(ocioso);
+        ocioso = setTimeout(() => { ativo = false; }, 30000);
+        if (!ativo) { ativo = true; pedir(); }
+      };
+      const aoPerderFoco = () => { clearTimeout(ocioso); ativo = false; };
       const desenhar = (t) => {
         rodando = false;
-        if (!reduzir && t - ultimo < 30) { pedir(); return; } // ~30 quadros/s: suave e leve para o computador
+        if (!reduzir && t - ultimo < 48) { pedir(); return; } // ~20 quadros/s: suave e leve para o computador
         ultimo = t;
         const tempo = t * 0.001;
         mx += (alvoX - mx) * 0.035; my += (alvoY - my) * 0.035;
@@ -125,7 +133,7 @@ function FundoLogo3D({ modo = 'kanban' }) {
         if (!reduzir) pedir();
       };
       const pedir = () => {
-        if (rodando || document.hidden) return;
+        if (rodando || document.hidden || !ativo) return;
         rodando = true; quadro = requestAnimationFrame(desenhar);
       };
       const aoRedimensionar = () => { tamanhoTela(); if (reduzir) desenhar(performance.now()); };
@@ -133,7 +141,15 @@ function FundoLogo3D({ modo = 'kanban' }) {
 
       window.addEventListener('resize', aoRedimensionar);
       document.addEventListener('visibilitychange', aoVisibilidade);
-      if (!reduzir) window.addEventListener('pointermove', aoMover, { passive: true });
+      if (!reduzir) {
+        window.addEventListener('pointermove', aoMover, { passive: true });
+        window.addEventListener('pointerdown', acordar, { passive: true });
+        window.addEventListener('keydown', acordar);
+        window.addEventListener('wheel', acordar, { passive: true });
+        window.addEventListener('focus', acordar);
+        window.addEventListener('blur', aoPerderFoco);
+        acordar();
+      }
       if (reduzir) desenhar(performance.now()); else pedir();
       cv.classList.add('pronto');
 
@@ -142,6 +158,12 @@ function FundoLogo3D({ modo = 'kanban' }) {
         window.removeEventListener('resize', aoRedimensionar);
         document.removeEventListener('visibilitychange', aoVisibilidade);
         window.removeEventListener('pointermove', aoMover);
+        window.removeEventListener('pointerdown', acordar);
+        window.removeEventListener('keydown', acordar);
+        window.removeEventListener('wheel', acordar);
+        window.removeEventListener('focus', acordar);
+        window.removeEventListener('blur', aoPerderFoco);
+        clearTimeout(ocioso);
         descartaveis.forEach((d) => d.dispose?.());
         renderer.dispose();
         renderer.forceContextLoss();

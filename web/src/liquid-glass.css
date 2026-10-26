@@ -74,22 +74,18 @@ html {
 /* O fundo fica no <html> e o <body> transparente: assim o logo 3D da Impera (canvas atrás de tudo) aparece de novo */
 body { font-family: var(--lg-fonte); background: transparent; }
 body::before, body::after {
-  content: ''; position: fixed; z-index: -2; pointer-events: none; border-radius: 50%; will-change: transform;
+  content: ''; position: fixed; z-index: -2; pointer-events: none; border-radius: 50%;
 }
 body::before {
   width: 62vmax; height: 62vmax; left: -18vmax; top: -24vmax;
   background: radial-gradient(closest-side, rgba(236, 190, 90, .18), rgba(236, 190, 90, .05) 55%, transparent 72%);
-  filter: blur(18px); animation: lg-deriva-a 46s ease-in-out infinite alternate;
 }
 body::after {
   width: 70vmax; height: 70vmax; right: -26vmax; bottom: -34vmax;
   background:
     radial-gradient(closest-side at 40% 40%, rgba(64, 112, 255, .16), rgba(64, 112, 255, .05) 55%, transparent 72%),
     radial-gradient(closest-side at 72% 70%, rgba(168, 84, 255, .18), transparent 70%);
-  filter: blur(18px); animation: lg-deriva-b 58s ease-in-out infinite alternate;
 }
-@keyframes lg-deriva-a { to { transform: translate3d(14vmax, 10vmax, 0) scale(1.12); } }
-@keyframes lg-deriva-b { to { transform: translate3d(-12vmax, -9vmax, 0) scale(1.08) rotate(20deg); } }
 
 
 /* ============================================================
@@ -108,9 +104,7 @@ body::after {
 .painel-campos,
 .topo,
 .seletor-ordem,
-.abas,
-.chip,
-.btn {
+.abas {
   -webkit-backdrop-filter: var(--lg-blur);
   backdrop-filter: var(--lg-blur);
 }
@@ -119,21 +113,15 @@ body::after {
    O script marca <html class="lg-refrata"> só onde isso funciona; no Safari/Firefox ficam desfoque + brilho. */
 html.lg-refrata .login-caixa,
 html.lg-refrata .modal,
-html.lg-refrata .topo,
 html.lg-refrata .barra-selecao,
 html.lg-refrata .menu,
-html.lg-refrata .menu-flutuante,
-html.lg-refrata .abas,
-html.lg-refrata .seletor-ordem {
+html.lg-refrata .menu-flutuante {
   -webkit-backdrop-filter: blur(1.5px) saturate(170%) brightness(1.05) url(#lg-refracao);
   backdrop-filter: blur(1.5px) saturate(170%) brightness(1.05) url(#lg-refracao);
 }
-html.lg-refrata .btn-pequeno,
-html.lg-refrata .chip,
-html.lg-refrata .aba.ativa {
-  -webkit-backdrop-filter: blur(1px) saturate(170%) brightness(1.06) url(#lg-refracao-leve);
-  backdrop-filter: blur(1px) saturate(170%) brightness(1.06) url(#lg-refracao-leve);
-}
+
+/* Desempenho: botões e chips são pequenos e numerosos; ficam translúcidos sem recalcular desfoque a cada quadro do fundo */
+.btn, .chip { -webkit-backdrop-filter: none; backdrop-filter: none; }
 
 /* Superfícies grandes ficam posicionadas para os elementos internos ficarem acima do vidro */
 .cartao, .cartao-secao, .indicador, .coluna, .login-caixa { position: relative; }
@@ -311,10 +299,11 @@ select option { background: #11131b; color: var(--texto); }
   border: 0; border-radius: 14px; padding: 14px 16px; gap: 6px;
   background: var(--lg-fill), var(--lg-base);
   box-shadow: var(--lg-material);
-  transform-style: preserve-3d; will-change: transform;
+  transform-style: preserve-3d;
   transition: transform .45s var(--lg-mola), box-shadow .35s var(--lg-suave), background .3s;
 }
 .cartao:hover {
+  will-change: transform;
   transform: perspective(900px) translateY(-4px) rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg)) scale(1.02);
   transition-duration: .18s, .35s, .3s;
   box-shadow: var(--lg-borda), var(--lg-brilho), 0 2px 2px rgba(0, 0, 0, .45), 0 24px 40px -12px rgba(0, 0, 0, .7), 0 0 0 1px rgba(224, 190, 108, .25), 0 0 30px -8px rgba(224, 190, 108, .25);
