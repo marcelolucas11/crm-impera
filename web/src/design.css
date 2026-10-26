@@ -137,10 +137,16 @@ body {
 .led-vermelho { --c: var(--led-vermelho); }
 .led-ambar { --c: var(--led-ambar); }
 .led-azul { --c: var(--led-azul); }
-.led-verde { --c: var(--led-verde); animation: led-respira 2.4s ease-in-out infinite; }
+.led-verde { --c: var(--led-verde); position: relative; box-shadow: 0 0 0 1px rgba(0, 0, 0, .35); }
+/* O brilho "respira" mudando só a opacidade (barato, feito na placa de vídeo) em vez de animar a sombra (repintava a coluna toda a cada quadro) */
+.led-verde::after {
+  content: ''; position: absolute; inset: 0; border-radius: 50%;
+  box-shadow: 0 0 6px var(--c), 0 0 12px color-mix(in srgb, var(--c) 55%, transparent);
+  animation: led-respira 2.4s ease-in-out infinite;
+}
 .led-apagado { --c: #4a4a52; box-shadow: 0 0 0 1px rgba(0, 0, 0, .35); background: radial-gradient(circle at 35% 30%, rgba(255, 255, 255, .35) 0 14%, #3d3d44 55%); }
-@keyframes led-respira { 50% { box-shadow: 0 0 0 1px rgba(0, 0, 0, .35), 0 0 3px var(--c); } }
-@media (prefers-reduced-motion: reduce) { .led-verde { animation: none; } }
+@keyframes led-respira { 50% { opacity: .3; } }
+@media (prefers-reduced-motion: reduce) { .led-verde::after { animation: none; } }
 
 /* ---------- Campos ---------- */
 input, select, textarea {

@@ -39,7 +39,37 @@ function detectarRefracao() {
   }
 }
 
+// Pausa as animações de CSS quando ninguém está usando o CRM (janela sem foco, aba escondida ou 30 s sem mexer)
+function useAnimacoesEconomicas() {
+  useEffect(() => {
+    const raiz = document.documentElement;
+    let t = 0;
+    const pausar = () => { clearTimeout(t); raiz.classList.add('lg-pausado'); };
+    const acordar = () => {
+      raiz.classList.remove('lg-pausado');
+      clearTimeout(t);
+      t = setTimeout(pausar, 30000);
+    };
+    const aoVisibilidade = () => (document.hidden ? pausar() : acordar());
+    const eventos = ['pointermove', 'pointerdown', 'keydown', 'wheel'];
+    eventos.forEach((e) => window.addEventListener(e, acordar, { passive: true }));
+    window.addEventListener('focus', acordar);
+    window.addEventListener('blur', pausar);
+    document.addEventListener('visibilitychange', aoVisibilidade);
+    if (document.hasFocus() && !document.hidden) acordar(); else pausar();
+    return () => {
+      clearTimeout(t);
+      eventos.forEach((e) => window.removeEventListener(e, acordar));
+      window.removeEventListener('focus', acordar);
+      window.removeEventListener('blur', pausar);
+      document.removeEventListener('visibilitychange', aoVisibilidade);
+      raiz.classList.remove('lg-pausado');
+    };
+  }, []);
+}
+
 export default function LiquidGlassFx() {
+  useAnimacoesEconomicas();
   useEffect(() => {
     const raiz = document.documentElement;
     const refrata = detectarRefracao();
