@@ -8,6 +8,10 @@ import { criarLead, encontrarExistente, avancarEtapa, vincularConversasExistente
 import { chamar, listarTudo } from './cliente.js';
 
 const DIAS_PARA_TRAS = 7;
+// Primeira sincronização (ou "buscar reuniões antigas"): olha mais para trás para que quem agendou
+// antes de o CRM estar ligado ao Calendly não apareça como "não agendou".
+const DIAS_PRIMEIRA_CARGA = 90;
+const DIAS_MAXIMO = 365;
 const RE_TELEFONE = /telefone|whats|celular|fone|phone|contato/i;
 
 // Etapa marcada como "reuniões do Calendly" no editor de etapas
@@ -88,7 +92,8 @@ function aplicarEvento(ev, convidado) {
 
 let rodando = false;
 
-export async function sincronizarCalendly() {
+// dias: quantos dias para trás buscar (omitido = 7, ou 90 na primeira sincronização)
+export async function sincronizarCalendly({ dias } = {}) {
   if (rodando) return { ignorado: true };
   rodando = true;
   const inicio = Date.now();
@@ -99,8 +104,17 @@ export async function sincronizarCalendly() {
       estado = salvarEstado('calendly', { usuario_uri: eu.uri, usuario_nome: eu.name, usuario_email: eu.email });
     }
 
-    const desde = new Date(Date.now() - DIAS_PARA_TRAS * 24 * 3600 * 1000).toISOString();
-    const eventos = await listarTudo('/scheduled_events', { user: estado.usuario_uri, min_start_time: desde, sort: 'start_time:asc' });
+    const pedido = Number(dias);
+    const diasBusca = Number.isFinite(pedido) && pedido > 0
+      ? Math.min(Math.floor(pedido), DIAS_MAXIMO)
+      : estado.ultima_sincronizacao ? DIAS_PARA_TRAS : DIAS_PRIMEIRA_CARGA;
+    const desde = new Date(Date.now() - diasBusca * 24 * 3600 * 1000).toISOString();
+    // Uma carga longa pode ter muitas páginas; a sincronização normal continua com o limite de 10
+    const eventos = await listarTudo(
+      '/scheduled_events',
+      { user: estado.usuario_uri, min_start_time: desde, sort: 'start_time:asc' },
+      diasBusca > DIAS_PARA_TRAS ? 50 : 10
+    );
 
     let novos = 0;
     let atualizados = 0;
@@ -114,7 +128,7 @@ export async function sincronizarCalendly() {
       if (r.novoLead) leadsCriados++;
     }
 
-    const resumo = { novos, atualizados, leads_criados: leadsCriados, analisados: eventos.length };
+    const resumo = { novos, atualizados, leads_criados: leadsCriados, analisados: eventos.length, dias: diasBusca };
     salvarEstado('calendly', { ultima_sincronizacao: agora(), ultimo_erro: null, ultimo_resumo: resumo, duracao_ms: Date.now() - inicio });
     if (novos || atualizados) console.log(`[calendly] ${novos} reunião(ões) nova(s), ${atualizados} atualizada(s), ${leadsCriados} lead(s) criado(s)`);
     return resumo;

@@ -52,6 +52,24 @@ export function calcularEstatisticas({ dias = 30, fusoMin = 0 } = {}) {
   const reunioes = get("SELECT count(*) n, sum(status = 'canceled') canceladas FROM calendly_events WHERE created_at >= ?", [desde]);
   const mensagens = get('SELECT sum(from_me = 0) recebidas, sum(from_me = 1) enviadas FROM wa_messages WHERE timestamp >= ?', [desde]);
 
+  // --- Funil do formulário: iniciaram → completaram → agendaram (Calendly) ---
+  // Só leads que vieram do Yay! Forms e entraram no período. "Agendou" = tem ao menos uma reunião ativa (passada ou futura).
+  const funilForms = get(
+    `SELECT count(*) AS iniciaram,
+            sum(completo) AS completaram,
+            sum(agendou) AS agendaram,
+            sum(completo AND agendou) AS completaram_e_agendaram,
+            sum(completo AND NOT agendou) AS completaram_sem_agendar,
+            sum(NOT completo AND agendou) AS parciais_que_agendaram
+       FROM (
+         SELECT COALESCE(json_extract(l.extra, '$.parcial'), 0) = 0 AS completo,
+                EXISTS (SELECT 1 FROM calendly_events c WHERE c.lead_id = l.id AND c.status = 'active') AS agendou
+           FROM leads l WHERE l.source = 'yayforms' AND l.created_at >= ?
+       )`,
+    [desde]
+  );
+  const nf = (v) => v || 0;
+
   // --- Por dia (no fuso de quem está vendo) ---
   const inicioSerie = new Date(agoraMs - (dias - 1) * DIA_MS);
   const porDiaBanco = new Map(
@@ -126,6 +144,16 @@ export function calcularEstatisticas({ dias = 30, fusoMin = 0 } = {}) {
       reunioes_canceladas: reunioes.canceladas || 0,
       mensagens_recebidas: mensagens.recebidas || 0,
       mensagens_enviadas: mensagens.enviadas || 0,
+    },
+    funil_forms: {
+      iniciaram: nf(funilForms.iniciaram),
+      completaram: nf(funilForms.completaram),
+      agendaram: nf(funilForms.agendaram),
+      completaram_e_agendaram: nf(funilForms.completaram_e_agendaram),
+      completaram_sem_agendar: nf(funilForms.completaram_sem_agendar),
+      parciais_que_agendaram: nf(funilForms.parciais_que_agendaram),
+      taxa_conclusao: pct(nf(funilForms.completaram), nf(funilForms.iniciaram)),
+      taxa_agendamento: pct(nf(funilForms.completaram_e_agendaram), nf(funilForms.completaram)),
     },
     por_dia: porDia,
     por_origem: porOrigem,

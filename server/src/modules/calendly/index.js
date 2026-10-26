@@ -31,7 +31,8 @@ export default {
     app.post('/api/calendly/sincronizar', exigirLogin, exigirAdmin, async (req, res) => {
       if (!config.calendly.token) return res.status(400).json({ erro: 'Token do Calendly não configurado. Rode ./scripts/configurar-calendly.sh' });
       try {
-        res.json({ ok: true, resumo: await sincronizarCalendly() });
+        // { dias } opcional: "buscar reuniões antigas" (até 365 dias para trás)
+        res.json({ ok: true, resumo: await sincronizarCalendly({ dias: req.body?.dias }) });
       } catch (err) {
         res.status(502).json({ erro: err.message });
       }

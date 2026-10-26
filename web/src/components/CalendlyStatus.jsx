@@ -16,10 +16,10 @@ export default function CalendlyStatus({ aoMensagem, aoErro }) {
     return () => clearInterval(id);
   }, [carregar]);
 
-  const sincronizar = async () => {
+  const sincronizar = async (dias) => {
     setSincronizando(true);
     try {
-      const { resumo } = await api('/calendly/sincronizar', { method: 'POST' });
+      const { resumo } = await api('/calendly/sincronizar', { method: 'POST', body: dias ? { dias } : undefined });
       aoMensagem(`Calendly sincronizado: ${resumo.novos} reunião(ões) nova(s), ${resumo.atualizados} atualizada(s), ${resumo.leads_criados} lead(s) criado(s).`);
     } catch (e) {
       aoErro(e.message);
@@ -50,7 +50,12 @@ export default function CalendlyStatus({ aoMensagem, aoErro }) {
             <div><dt>Reuniões futuras</dt><dd>{st.reunioes_futuras}</dd></div>
           </dl>
           {st.ultimo_erro && <div className="erro">Último erro: {st.ultimo_erro}</div>}
-          <div><button className="btn btn-ouro btn-pequeno" onClick={sincronizar} disabled={sincronizando}>{sincronizando ? 'Sincronizando…' : 'Sincronizar agora'}</button></div>
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+            <button className="btn btn-ouro btn-pequeno" onClick={() => sincronizar()} disabled={sincronizando}>{sincronizando ? 'Sincronizando…' : 'Sincronizar agora'}</button>
+            <button className="btn btn-pequeno" onClick={() => sincronizar(180)} disabled={sincronizando} title="Busca as reuniões dos últimos 180 dias para saber quem já tinha agendado antes">
+              Buscar reuniões antigas (180 dias)
+            </button>
+          </div>
         </>
       )}
     </section>

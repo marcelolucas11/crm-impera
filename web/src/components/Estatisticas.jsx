@@ -167,7 +167,7 @@ export default function Estatisticas({ setErro }) {
   );
 
   if (!e) return <div className="pagina"><div className="carregando" /></div>;
-  const { entrada, agora, resultados } = e;
+  const { entrada, agora, resultados, funil_forms: funil } = e;
 
   return (
     <div className="pagina pagina-larga estatisticas">
@@ -189,6 +189,18 @@ export default function Estatisticas({ setErro }) {
           <Indicador rotulo="Respondidos em até 1 hora" valor={pct(entrada.taxa_resposta_1h)} detalhe={`${num(entrada.respondidos_em_1h)} leads`} />
         </div>
       </section>
+
+      {funil && (
+        <section>
+          <h2 className="titulo-secao">Formulário → reunião (Calendly)</h2>
+          <div className="indicadores">
+            <Indicador rotulo="Iniciaram o formulário" valor={num(funil.iniciaram)} detalhe="leads do Yay! Forms no período" />
+            <Indicador rotulo="Completaram o formulário" valor={num(funil.completaram)} detalhe={funil.taxa_conclusao !== null ? `${pct(funil.taxa_conclusao)} de quem iniciou` : ''} />
+            <Indicador destaque rotulo="Completaram e agendaram" valor={num(funil.completaram_e_agendaram)} detalhe={funil.taxa_agendamento !== null ? `${pct(funil.taxa_agendamento)} de quem completou` : ''} />
+            <Indicador rotulo="Completaram e não agendaram" valor={num(funil.completaram_sem_agendar)} detalhe="filtro no kanban: “Completou o form e não agendou”" />
+          </div>
+        </section>
+      )}
 
       <section>
         <h2 className="titulo-secao">Follow-up agora</h2>

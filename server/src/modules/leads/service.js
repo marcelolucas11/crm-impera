@@ -27,7 +27,9 @@ export const BASE_LEADS = `
       AND (julianday('now') - julianday(COALESCE(l.last_contact_at, l.created_at))) * 24 > ?) AS followup_overdue,
     (SELECT count(*) FROM wa_messages m WHERE m.lead_id = l.id AND m.from_me = 0 AND m.read_at IS NULL) AS unread_count,
     (SELECT min(c.start_time) FROM calendly_events c
-      WHERE c.lead_id = l.id AND c.status = 'active' AND c.start_time > strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) AS next_meeting_at
+      WHERE c.lead_id = l.id AND c.status = 'active' AND c.start_time > strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) AS next_meeting_at,
+    (SELECT count(*) FROM calendly_events c WHERE c.lead_id = l.id AND c.status = 'active') AS meetings_active,
+    (SELECT count(*) FROM calendly_events c WHERE c.lead_id = l.id AND c.status = 'canceled') AS meetings_canceled
   FROM leads l
   JOIN stages s ON s.id = l.stage_id
   LEFT JOIN users u ON u.id = l.owner_id

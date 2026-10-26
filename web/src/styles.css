@@ -743,4 +743,6 @@ textarea { resize: vertical; }
 
 /* Resposta parcial do Yay! Forms (começou o formulário e não terminou) */
 .tag-parcial { color: #e0b440; border-color: rgba(224, 180, 64, .45); border-style: dashed; }
+/* Completou o formulário e ainda não agendou reunião no Calendly */
+.tag-sem-agenda { color: #e08a8a; border-color: rgba(224, 138, 138, .45); border-style: dashed; }
 .aviso-parcial { margin: 4px 0 10px; padding: 8px 10px; border: 1px dashed rgba(224, 180, 64, .5); border-radius: 8px; color: #e0b440; font-size: 13px; }

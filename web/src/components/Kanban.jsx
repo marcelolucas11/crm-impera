@@ -235,6 +235,10 @@ const Cartao = memo(function Cartao({ lead, onAbrir, onLimparNotificacao, oculto
         {ver('origem') && <span className={`tag tag-${lead.source}`}>{lead.form_name || ORIGENS[lead.source] || 'Manual'}</span>}
         {lead.form_partial && <span className="tag tag-parcial" title="Começou o formulário e não terminou (resposta parcial do Yay! Forms)"><CircleDashed size={11} strokeWidth={2} /> Form. incompleto</span>}
         {lead.next_meeting_at && <span className="tag tag-reuniao"><CalendarDays size={11} strokeWidth={2} /> {dataCurta(lead.next_meeting_at)}</span>}
+        {!lead.next_meeting_at && lead.meetings_active > 0 && <span className="tag tag-reuniao" title="Este lead agendou reunião pelo Calendly"><CalendarDays size={11} strokeWidth={2} /> Agendou</span>}
+        {lead.source === 'yayforms' && !lead.form_partial && !(lead.meetings_active > 0) && (
+          <span className="tag tag-sem-agenda" title="Completou o formulário e ainda não agendou reunião no Calendly">Não agendou</span>
+        )}
         {lead.unread_count > 0 && <span className="tag tag-mensagens"><MessageCircle size={11} strokeWidth={2} /> {lead.unread_count} {lead.unread_count === 1 ? 'nova' : 'novas'}</span>}
       </div>
       <div className="cartao-rodape">

@@ -15,6 +15,8 @@ export const FILTROS_VAZIOS = {
   mensagensNovas: false,
   semResposta: false,
   comReuniao: false,
+  agendou: false,
+  semAgendamento: false,
   nuncaContatado: false,
   formIncompleto: false,
   formCompleto: false,
@@ -37,7 +39,7 @@ const PERIODOS = [
 
 export function contarFiltros(f) {
   let n = 0;
-  for (const k of ['comNome', 'comTelefone', 'comEmail', 'semNome', 'atrasados', 'aguardando', 'fechando', 'mensagensNovas', 'semResposta', 'comReuniao', 'nuncaContatado', 'formIncompleto', 'formCompleto']) if (f[k]) n++;
+  for (const k of ['comNome', 'comTelefone', 'comEmail', 'semNome', 'atrasados', 'aguardando', 'fechando', 'mensagensNovas', 'semResposta', 'comReuniao', 'agendou', 'semAgendamento', 'nuncaContatado', 'formIncompleto', 'formCompleto']) if (f[k]) n++;
   if (f.origens.length) n++;
   if (f.formulario) n++;
   if (f.responsavel !== 'todos') n++;
@@ -66,6 +68,8 @@ export function aplicarFiltros(leads, f, user) {
     if (f.mensagensNovas && !(l.unread_count > 0)) return false;
     if (f.semResposta && !l.sem_resposta) return false;
     if (f.comReuniao && !l.next_meeting_at) return false;
+    if (f.agendou && !(l.meetings_active > 0)) return false;
+    if (f.semAgendamento && !(l.source === 'yayforms' && !l.form_partial && !(l.meetings_active > 0))) return false;
     if (f.nuncaContatado && l.first_contact_at) return false;
     if (f.formIncompleto && !l.form_partial) return false;
     if (f.formCompleto && (l.source !== 'yayforms' || l.form_partial)) return false;
@@ -111,6 +115,8 @@ export default function PainelFiltros({ filtros, setFiltros, leads, users, total
         <Marcar marcado={filtros.mensagensNovas} aoMudar={muda('mensagensNovas')}><MessageCircle size={14} /> Mensagem nova</Marcar>
         <Marcar marcado={filtros.semResposta} aoMudar={muda('semResposta')}><BellRing size={14} /> Mensagem sem resposta</Marcar>
         <Marcar marcado={filtros.comReuniao} aoMudar={muda('comReuniao')}><CalendarDays size={14} /> Reunião marcada</Marcar>
+        <Marcar marcado={filtros.agendou} aoMudar={(v) => setFiltros({ ...filtros, agendou: v, semAgendamento: v ? false : filtros.semAgendamento })}><CalendarDays size={14} /> Agendou reunião (Calendly)</Marcar>
+        <Marcar marcado={filtros.semAgendamento} aoMudar={(v) => setFiltros({ ...filtros, semAgendamento: v, agendou: v ? false : filtros.agendou })}><CircleDashed size={14} /> Completou o form e não agendou</Marcar>
         <Marcar marcado={filtros.formIncompleto} aoMudar={(v) => setFiltros({ ...filtros, formIncompleto: v, formCompleto: v ? false : filtros.formCompleto })}><CircleDashed size={14} /> Formulário incompleto</Marcar>
         <Marcar marcado={filtros.formCompleto} aoMudar={(v) => setFiltros({ ...filtros, formCompleto: v, formIncompleto: v ? false : filtros.formIncompleto })}>Formulário completo</Marcar>
       </div>
