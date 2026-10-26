@@ -1,11 +1,11 @@
 // Módulo Calendly: sincroniza as reuniões a cada CALENDLY_INTERVALO_MIN minutos (padrão 5).
 // Não precisa de endereço público nem de plano pago: o CRM consulta a API com o token pessoal.
-import { all, get } from '../../db.js';
+import { all } from '../../db.js';
 import { config } from '../../config.js';
-import { lerEstado } from '../../estado.js';
 import { exigirLogin, exigirAdmin } from '../auth/middleware.js';
 import { idValido } from '../../util.js';
 import { sincronizarCalendly } from './sincronizar.js';
+import { tokenCalendly, conectarComToken, removerToken, montarStatus } from './token.js';
 
 let timer = null;
 
@@ -13,23 +13,27 @@ export default {
   name: 'calendly',
   register(app) {
     app.get('/api/calendly/status', exigirLogin, exigirAdmin, (req, res) => {
-      const estado = lerEstado('calendly');
-      const futuras = get(
-        "SELECT count(*) AS n FROM calendly_events WHERE status = 'active' AND start_time > strftime('%Y-%m-%dT%H:%M:%fZ', 'now')"
-      ).n;
-      res.json({
-        configurado: Boolean(config.calendly.token),
-        intervalo_min: config.calendly.intervaloMin,
-        conta: estado.usuario_nome ? { nome: estado.usuario_nome, email: estado.usuario_email } : null,
-        ultima_sincronizacao: estado.ultima_sincronizacao || null,
-        ultimo_resumo: estado.ultimo_resumo || null,
-        ultimo_erro: estado.ultimo_erro || null,
-        reunioes_futuras: futuras,
-      });
+      res.json(montarStatus());
+    });
+
+    // Cola o token pelo CRM: confere com o Calendly, guarda só no servidor e já começa a sincronizar
+    app.post('/api/calendly/token', exigirLogin, exigirAdmin, async (req, res) => {
+      try {
+        const conta = await conectarComToken(req.body?.token);
+        sincronizarCalendly().catch(() => {});
+        res.json({ ok: true, conta });
+      } catch (err) {
+        res.status(err.status === 400 || err.status === 502 ? err.status : 500).json({ erro: err.message });
+      }
+    });
+
+    app.delete('/api/calendly/token', exigirLogin, exigirAdmin, (req, res) => {
+      removerToken();
+      res.json({ ok: true });
     });
 
     app.post('/api/calendly/sincronizar', exigirLogin, exigirAdmin, async (req, res) => {
-      if (!config.calendly.token) return res.status(400).json({ erro: 'Token do Calendly não configurado. Rode ./scripts/configurar-calendly.sh' });
+      if (!tokenCalendly()) return res.status(400).json({ erro: 'Conecte o Calendly primeiro: cole o token em Equipe e integrações.' });
       try {
         // { dias } opcional: "buscar reuniões antigas" (até 365 dias para trás)
         res.json({ ok: true, resumo: await sincronizarCalendly({ dias: req.body?.dias }) });
@@ -51,15 +55,14 @@ export default {
   },
 
   start() {
-    if (!config.calendly.token) {
-      console.log('[calendly] sem token — integração desligada (rode ./scripts/configurar-calendly.sh)');
-      return;
-    }
-    const rodar = () => sincronizarCalendly().catch(() => {});
+    // O token pode ser colado na tela depois que o CRM já está ligado: o relógio roda sempre e só trabalha com token
+    const rodar = () => (tokenCalendly() ? sincronizarCalendly().catch(() => {}) : undefined);
     setTimeout(rodar, 5000).unref();
     timer = setInterval(rodar, config.calendly.intervaloMin * 60 * 1000);
     timer.unref();
-    console.log(`[calendly] sincronizando a cada ${config.calendly.intervaloMin} min`);
+    console.log(tokenCalendly()
+      ? `[calendly] sincronizando a cada ${config.calendly.intervaloMin} min`
+      : '[calendly] sem token — cole o token em Equipe e integrações para ligar');
   },
 
   stop() {

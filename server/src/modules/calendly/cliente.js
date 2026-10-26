@@ -1,5 +1,6 @@
 // Conversa com a API do Calendly (v2) usando o token pessoal do .env
 import { config } from '../../config.js';
+import { lerEstado } from '../../estado.js';
 
 export class ErroCalendly extends Error {
   constructor(status, mensagem) {
@@ -24,7 +25,7 @@ function montarUrl(caminhoOuUrl, parametros) {
 
 export async function chamar(caminho, parametros, tentativa = 1) {
   const resposta = await fetch(montarUrl(caminho, parametros), {
-    headers: { Authorization: `Bearer ${config.calendly.token}`, Accept: 'application/json' },
+    headers: { Authorization: `Bearer ${lerEstado('calendly').token_painel || config.calendly.token}`, Accept: 'application/json' },
     signal: AbortSignal.timeout(20000),
   });
   if (resposta.status === 429 && tentativa <= 3) {
