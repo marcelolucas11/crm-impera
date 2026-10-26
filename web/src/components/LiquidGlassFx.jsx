@@ -39,7 +39,7 @@ function detectarRefracao() {
   }
 }
 
-// Pausa as animações de CSS quando ninguém está usando o CRM (janela sem foco, aba escondida ou 30 s sem mexer)
+// Pausa as animações de CSS quando ninguém está usando o CRM (janela sem foco, aba escondida ou 10 s sem mexer)
 function useAnimacoesEconomicas() {
   useEffect(() => {
     const raiz = document.documentElement;
@@ -48,7 +48,7 @@ function useAnimacoesEconomicas() {
     const acordar = () => {
       raiz.classList.remove('lg-pausado');
       clearTimeout(t);
-      t = setTimeout(pausar, 30000);
+      t = setTimeout(pausar, 10000);
     };
     const aoVisibilidade = () => (document.hidden ? pausar() : acordar());
     const eventos = ['pointermove', 'pointerdown', 'keydown', 'wheel'];

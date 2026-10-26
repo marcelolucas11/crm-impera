@@ -106,11 +106,11 @@ function FundoLogo3D({ modo = 'kanban' }) {
       const aoMover = (e) => { acordar(); alvoX = e.clientX / window.innerWidth - 0.5; alvoY = e.clientY / window.innerHeight - 0.5; };
 
       let quadro = 0, rodando = false, ultimo = 0;
-      // Economia: sem mexer no CRM por 30 s (ou com a janela em segundo plano) a cena pausa; volta ao mexer o mouse/teclado
+      // Economia: sem mexer no CRM por 10 s (ou com a janela em segundo plano) a cena pausa; volta ao mexer o mouse/teclado
       let ativo = true, ocioso = 0;
       const acordar = () => {
         clearTimeout(ocioso);
-        ocioso = setTimeout(() => { ativo = false; }, 30000);
+        ocioso = setTimeout(() => { ativo = false; }, 10000);
         if (!ativo) { ativo = true; pedir(); }
       };
       const aoPerderFoco = () => { clearTimeout(ocioso); ativo = false; };

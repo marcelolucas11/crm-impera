@@ -568,7 +568,7 @@ input, select, textarea { text-shadow: none; }
 .cartao .selo-vermelho { color: #ffab9f; }
 .cartao .tag-yayforms { color: #f3d68a; }
 
-/* Desempenho: com a janela em segundo plano ou sem uso por 30 s, as animações de CSS pausam (voltam ao mexer). */
-html.lg-pausado *:not(.chamada-recebida, .chamada-recebida *),
+/* Desempenho: com a janela em segundo plano ou sem uso por 10 s, as animações de CSS pausam (voltam ao mexer). */
+html.lg-pausado *:not(.chamada-recebida, .chamada-recebida *, .ponto-gravando, .onda-gravacao, .onda-gravacao *),
 html.lg-pausado *::before,
 html.lg-pausado *::after { animation-play-state: paused !important; }
