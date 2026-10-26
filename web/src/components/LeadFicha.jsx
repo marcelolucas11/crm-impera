@@ -38,8 +38,62 @@ const valoresIniciais = (l) => ({
   phone: formatarTelefone(l.phone),
   email: l.email || '',
   company: l.company || '',
-  notes: l.notes || '',
 });
+
+// Anotações permanentes do lead: salvam sozinhas (ao parar de digitar, ao sair do campo e ao fechar a ficha)
+function ObservacoesFixas({ leadId, inicial }) {
+  const [texto, setTexto] = useState(inicial || '');
+  const [estado, setEstado] = useState('');
+  const salvo = useRef(inicial || '');
+  const atual = useRef(inicial || '');
+  const timer = useRef(null);
+
+  const gravar = useCallback(async ({ silencioso = false } = {}) => {
+    clearTimeout(timer.current);
+    const valor = atual.current;
+    if (valor === salvo.current) return;
+    if (!silencioso) setEstado('salvando');
+    try {
+      await api(`/leads/${leadId}`, { method: 'PATCH', body: { notes: valor } });
+      salvo.current = valor;
+      if (!silencioso) setEstado(atual.current === valor ? 'salvo' : '');
+    } catch {
+      if (!silencioso) setEstado('erro');
+    }
+  }, [leadId]);
+
+  // Fechou a ficha com algo ainda sem gravar: grava na saída
+  useEffect(() => () => { gravar({ silencioso: true }); }, [gravar]);
+
+  const mudar = (e) => {
+    atual.current = e.target.value;
+    setTexto(e.target.value);
+    setEstado('');
+    clearTimeout(timer.current);
+    timer.current = setTimeout(() => gravar(), 1200);
+  };
+
+  return (
+    <section className="obs-fixas">
+      <div className="obs-fixas-topo">
+        <h4>Observações fixas</h4>
+        <span className={`obs-fixas-estado ${estado === 'erro' ? 'erro-salvar' : ''}`} aria-live="polite">
+          {estado === 'salvando' ? 'Salvando…' : estado === 'salvo' ? 'Salvo' : estado === 'erro' ? 'Não salvou — tente de novo' : ''}
+        </span>
+      </div>
+      <textarea
+        rows={4}
+        value={texto}
+        onChange={mudar}
+        onBlur={() => gravar()}
+        maxLength={5000}
+        placeholder="Anotações rápidas e permanentes sobre este lead (salvam sozinhas)…"
+      />
+    </section>
+  );
+}
+
+const dataHoraLonga = (d) => new Date(d).toLocaleString('pt-BR', { weekday: 'short', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
 
 // Ficha completa do lead. Usada no painel lateral do kanban e ao lado da conversa na tela de WhatsApp.
 export default function LeadFicha({
@@ -105,7 +159,12 @@ export default function LeadFicha({
     await carregar();
     if (leadAtual.current) onAtualizado?.(leadAtual.current);
   };
-  const proximaReuniao = reunioes.find((r) => r.status === 'active' && new Date(r.start_time) > new Date());
+  const agoraMs = Date.now();
+  const ativas = reunioes.filter((r) => r.status === 'active');
+  const futuras = ativas.filter((r) => new Date(r.start_time).getTime() > agoraMs).sort((a, b) => new Date(a.start_time) - new Date(b.start_time));
+  const reuniao = futuras[0] || ativas[0] || null; // a próxima; senão a mais recente que já passou
+  const reuniaoFutura = Boolean(futuras[0]);
+  const reuniaoCancelada = !reuniao ? reunioes.find((r) => r.status === 'canceled') : null;
   const registrarContato = () => aplicar(`/leads/${leadId}/contato`, { method: 'POST', body: { canal: 'outro' } });
   const adicionarNota = async (e) => {
     e.preventDefault();
@@ -193,10 +252,18 @@ export default function LeadFicha({
             <div className="aviso-followup"><TriangleAlert size={15} /> Sem contato {tempoDesde(lead.last_activity_at)} — limite é {horas} h.</div>
           )}
 
-          {proximaReuniao && (
+          {reuniao && (
             <div className="aviso-reuniao">
-              <CalendarDays size={15} /> {proximaReuniao.event_name} — <b>{dataCurta(proximaReuniao.start_time)}</b>
-              {proximaReuniao.join_url && <> · <a href={proximaReuniao.join_url} target="_blank" rel="noreferrer">link da reunião</a></>}
+              <CalendarDays size={15} /> <b>{reuniaoFutura ? 'Reunião agendada' : 'Reunião que já passou'}</b> — {reuniao.event_name}
+              <div><b>{dataHoraLonga(reuniao.start_time)}</b>{reuniaoFutura ? ` · ${dataCurta(reuniao.start_time)}` : ''}
+                {reuniao.join_url && <> · <a href={reuniao.join_url} target="_blank" rel="noreferrer">link da reunião</a></>}
+              </div>
+              {reuniao.booked_at && <small className="suave">Agendou em {dataHoraLonga(reuniao.booked_at)}</small>}
+            </div>
+          )}
+          {reuniaoCancelada && (
+            <div className="aviso-reuniao">
+              <CalendarDays size={15} /> <b>Reunião cancelada</b> — {reuniaoCancelada.event_name} ({dataHoraLonga(reuniaoCancelada.start_time)})
             </div>
           )}
 
@@ -206,6 +273,8 @@ export default function LeadFicha({
               <Conversa chave={`l:${leadId}`} nome={lead.name || formatarTelefone(lead.phone)} onEnviado={aposEnviarMensagem} numeroPreferido={numeroPreferido} />
             </>
           )}
+
+          <ObservacoesFixas key={leadId} leadId={leadId} inicial={lead.notes} />
 
           <div className="acoes">
             <button className="btn" onClick={registrarContato} disabled={salvando} title="Para contatos fora do WhatsApp do CRM (ligação, e-mail, reunião…)">
@@ -272,7 +341,6 @@ export default function LeadFicha({
             <label>E-mail<input value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /></label>
             <label>Empresa<input value={form.company} onChange={(e) => setForm({ ...form, company: e.target.value })} /></label>
           </div>
-          <label>Observações fixas<textarea rows={3} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} /></label>
           {mudou && <button className="btn btn-ouro" onClick={salvarDados} disabled={salvando}>Salvar alterações</button>}
 
           <h4>Histórico</h4>

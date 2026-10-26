@@ -4,7 +4,7 @@ import { get, tx, run, agora } from '../../db.js';
 import { registrarEvento } from '../../events.js';
 import { lerEstado, salvarEstado } from '../../estado.js';
 import { normalizarTelefone, normalizarEmail, texto } from '../../util.js';
-import { criarLead, encontrarExistente, avancarEtapa, vincularConversasExistentes } from '../leads/service.js';
+import { criarLead, encontrarExistente, encontrarPorRespostaYay, avancarEtapa, vincularConversasExistentes } from '../leads/service.js';
 import { chamar, listarTudo } from './cliente.js';
 
 const DIAS_PARA_TRAS = 7;
@@ -13,13 +13,15 @@ const DIAS_PARA_TRAS = 7;
 const DIAS_PRIMEIRA_CARGA = 90;
 const DIAS_MAXIMO = 365;
 const RE_TELEFONE = /telefone|whats|celular|fone|phone|contato/i;
+// O botão da tela final do Yay! Forms manda o ID da resposta no link do Calendly como utm_term
+const RE_ID_RESPOSTA = /^[A-Za-z0-9_-]{8,64}$/;
 
 // Etapa marcada como "reuniões do Calendly" no editor de etapas
 function etapaReuniao() {
   return get("SELECT id FROM stages WHERE role = 'reuniao' AND kind = 'open' LIMIT 1")?.id || null;
 }
 
-function dadosDoConvidado(convidados) {
+export function dadosDoConvidado(convidados) {
   const c = convidados.find((x) => x.status === 'active') || convidados[0];
   if (!c) return null;
   const respostas = (c.questions_and_answers || []).map((q) => ({ pergunta: q.question, resposta: q.answer }));
@@ -30,14 +32,29 @@ function dadosDoConvidado(convidados) {
     phone: normalizarTelefone(c.text_reminder_number || respTelefone?.resposta),
     respostas,
     utm: Object.fromEntries(Object.entries(c.tracking || {}).filter(([k, v]) => /^utm_/.test(k) && v)),
+    respostaId: RE_ID_RESPOSTA.test(String(c.tracking?.utm_term || '').trim()) ? String(c.tracking.utm_term).trim() : null,
+    agendadoEm: c.created_at || null,
   };
 }
 
-function aplicarEvento(ev, convidado) {
+export function aplicarEvento(ev, convidado) {
   return tx(() => {
     const anterior = get('SELECT * FROM calendly_events WHERE uri = ?', [ev.uri]);
     let leadId = anterior?.lead_id && get('SELECT id FROM leads WHERE id = ?', [anterior.lead_id]) ? anterior.lead_id : null;
     let novoLead = false;
+
+    // 1º o ID da resposta do Yay! Forms (exato), 2º telefone ou e-mail. Se o ID aponta para outro lead diferente do
+    // já ligado (ex.: um lead criado só pelo Calendly), a reunião passa para o lead do formulário.
+    const pelaResposta = convidado?.respostaId ? encontrarPorRespostaYay(convidado.respostaId) : null;
+    let religado = false;
+    if (pelaResposta && pelaResposta !== leadId) {
+      leadId = pelaResposta;
+      religado = true;
+      const telefone = get('SELECT phone FROM leads WHERE id = ?', [leadId])?.phone;
+      run('UPDATE leads SET phone = COALESCE(phone, ?), email = COALESCE(email, ?) WHERE id = ?', [convidado.phone, convidado.email, leadId]);
+      const telefoneFinal = telefone || convidado.phone;
+      if (telefoneFinal) vincularConversasExistentes(leadId, telefoneFinal);
+    }
 
     if (!leadId && convidado) {
       leadId = encontrarExistente({ phone: convidado.phone, email: convidado.email });
@@ -61,7 +78,7 @@ function aplicarEvento(ev, convidado) {
 
     const dadosEvento = { evento: ev.name, inicio: ev.start_time, link: ev.location?.join_url || null };
     if (leadId) {
-      if (!anterior && ev.status === 'active') {
+      if ((!anterior || religado) && ev.status === 'active') {
         registrarEvento({ leadId, type: 'meeting_scheduled', data: dadosEvento });
         const etapa = etapaReuniao();
         if (etapa) avancarEtapa(leadId, etapa);
@@ -74,19 +91,23 @@ function aplicarEvento(ev, convidado) {
 
     run(
       `INSERT INTO calendly_events (uri, lead_id, event_name, start_time, end_time, status, join_url,
-                                    invitee_name, invitee_email, invitee_phone, remote_updated_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                    invitee_name, invitee_email, invitee_phone, remote_updated_at, updated_at,
+                                    booked_at, yay_response_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT(uri) DO UPDATE SET
          lead_id = excluded.lead_id, event_name = excluded.event_name, start_time = excluded.start_time,
          end_time = excluded.end_time, status = excluded.status, join_url = excluded.join_url,
          invitee_name = excluded.invitee_name, invitee_email = excluded.invitee_email,
-         invitee_phone = excluded.invitee_phone, remote_updated_at = excluded.remote_updated_at, updated_at = excluded.updated_at`,
+         invitee_phone = excluded.invitee_phone, remote_updated_at = excluded.remote_updated_at, updated_at = excluded.updated_at,
+         booked_at = COALESCE(excluded.booked_at, calendly_events.booked_at),
+         yay_response_id = COALESCE(excluded.yay_response_id, calendly_events.yay_response_id)`,
       [
         ev.uri, leadId, ev.name, ev.start_time, ev.end_time, ev.status, ev.location?.join_url || null,
         convidado?.name || null, convidado?.email || null, convidado?.phone || null, ev.updated_at || null, agora(),
+        convidado?.agendadoEm || ev.created_at || null, convidado?.respostaId || null,
       ]
     );
-    return { novo: !anterior, novoLead };
+    return { novo: !anterior, novoLead, religado };
   });
 }
 
@@ -105,6 +126,7 @@ export async function sincronizarCalendly({ dias } = {}) {
     }
 
     const pedido = Number(dias);
+    const forcar = Number.isFinite(pedido) && pedido > 0; // "buscar reuniões antigas": reavalia tudo, inclusive o que já estava salvo
     const diasBusca = Number.isFinite(pedido) && pedido > 0
       ? Math.min(Math.floor(pedido), DIAS_MAXIMO)
       : estado.ultima_sincronizacao ? DIAS_PARA_TRAS : DIAS_PRIMEIRA_CARGA;
@@ -119,18 +141,19 @@ export async function sincronizarCalendly({ dias } = {}) {
     let novos = 0;
     let atualizados = 0;
     let leadsCriados = 0;
+    let religados = 0;
     for (const ev of eventos) {
       const salvo = get('SELECT remote_updated_at, status FROM calendly_events WHERE uri = ?', [ev.uri]);
-      if (salvo && salvo.remote_updated_at === ev.updated_at && salvo.status === ev.status) continue;
+      if (!forcar && salvo && salvo.remote_updated_at === ev.updated_at && salvo.status === ev.status) continue;
       const convidados = await listarTudo(`${ev.uri}/invitees`, {}, 2);
       const r = aplicarEvento(ev, dadosDoConvidado(convidados));
-      if (r.novo) novos++; else atualizados++;
+      if (r.novo) novos++; else if (r.religado) religados++; else atualizados++;
       if (r.novoLead) leadsCriados++;
     }
 
-    const resumo = { novos, atualizados, leads_criados: leadsCriados, analisados: eventos.length, dias: diasBusca };
+    const resumo = { novos, atualizados, religados, leads_criados: leadsCriados, analisados: eventos.length, dias: diasBusca };
     salvarEstado('calendly', { ultima_sincronizacao: agora(), ultimo_erro: null, ultimo_resumo: resumo, duracao_ms: Date.now() - inicio });
-    if (novos || atualizados) console.log(`[calendly] ${novos} reunião(ões) nova(s), ${atualizados} atualizada(s), ${leadsCriados} lead(s) criado(s)`);
+    if (novos || atualizados || religados) console.log(`[calendly] ${novos} reunião(ões) nova(s), ${atualizados} atualizada(s), ${religados} ligada(s) pelo ID do formulário, ${leadsCriados} lead(s) criado(s)`);
     return resumo;
   } catch (err) {
     salvarEstado('calendly', { ultimo_erro: err.message, ultima_tentativa: agora() });

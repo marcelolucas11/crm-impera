@@ -140,8 +140,10 @@ export default {
           }
         }
 
-        if (alterados.length) {
-          registrarEvento({ leadId: id, userId: req.user.id, type: 'updated', data: { campos: alterados.map((k) => ROTULOS[k] || k) } });
+        // "Observações fixas" salvam sozinhas enquanto a pessoa digita: não entram no histórico a cada gravação
+        const registrar = alterados.filter((k) => k !== 'notes');
+        if (registrar.length) {
+          registrarEvento({ leadId: id, userId: req.user.id, type: 'updated', data: { campos: registrar.map((k) => ROTULOS[k] || k) } });
         }
         if (sets.length) {
           add('updated_at', agora());

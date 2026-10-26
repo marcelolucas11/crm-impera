@@ -412,6 +412,26 @@ input[type='checkbox'], input[type='radio'], input[type='range'], input[type='co
 }
 @media (prefers-reduced-motion: reduce) { .cartao-notif-sino { animation: none; } }
 
+/* ---------- Selo de reunião agendada (Calendly), no canto superior esquerdo do cartão ---------- */
+.cartao-agenda {
+  position: absolute; top: -9px; left: 10px; z-index: 2; display: inline-flex; align-items: center; gap: 5px;
+  padding: 2px 8px 2px 3px; border-radius: 999px; font-size: 10.5px; font-weight: 700; color: #fff;
+  background: linear-gradient(180deg, #f2b45a 0%, #e0922f 60%, #b8721c 100%); border: 1px solid rgba(255, 220, 170, .55);
+  box-shadow: 0 0 0 3px rgba(18, 18, 21, .9), 0 4px 14px rgba(224, 146, 47, .45);
+}
+.cartao-agenda.passada { background: linear-gradient(180deg, #8a93a8 0%, #646d82 60%, #4b5366 100%); border-color: rgba(200, 208, 225, .45); box-shadow: 0 0 0 3px rgba(18, 18, 21, .9), 0 4px 12px rgba(0, 0, 0, .35); }
+.cartao-agenda-icone { display: inline-grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; background: rgba(0, 0, 0, .22); }
+.cartao-agenda-texto { font-variant-numeric: tabular-nums; letter-spacing: .01em; white-space: nowrap; }
+.cartao.em-selecao .cartao-agenda { left: 38px; }
+
+/* ---------- Observações fixas (abaixo da conversa de WhatsApp) ---------- */
+.obs-fixas { display: flex; flex-direction: column; gap: 6px; margin: 12px 0 4px; }
+.obs-fixas-topo { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.obs-fixas-topo h4 { margin: 0; }
+.obs-fixas-estado { font-size: 11.5px; color: var(--suave); }
+.obs-fixas-estado.erro-salvar { color: #ff8a78; }
+.obs-fixas textarea { width: 100%; min-height: 84px; resize: vertical; }
+
 /* ============================================================
    v0.9 — responsável com foto, filtros em lista, seleção em massa, público, escolha do WhatsApp
    ============================================================ */

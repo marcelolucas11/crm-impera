@@ -42,7 +42,7 @@ export default {
       const id = idValido(req.params.id);
       res.json({
         reunioes: all(
-          `SELECT uri, event_name, start_time, end_time, status, join_url FROM calendly_events
+          `SELECT uri, event_name, start_time, end_time, status, join_url, booked_at FROM calendly_events
             WHERE lead_id = ? ORDER BY start_time DESC LIMIT 20`,
           [id]
         ),

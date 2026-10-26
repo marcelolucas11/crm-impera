@@ -28,6 +28,7 @@ export const BASE_LEADS = `
     (SELECT count(*) FROM wa_messages m WHERE m.lead_id = l.id AND m.from_me = 0 AND m.read_at IS NULL) AS unread_count,
     (SELECT min(c.start_time) FROM calendly_events c
       WHERE c.lead_id = l.id AND c.status = 'active' AND c.start_time > strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) AS next_meeting_at,
+    (SELECT max(c.start_time) FROM calendly_events c WHERE c.lead_id = l.id AND c.status = 'active') AS last_meeting_at,
     (SELECT count(*) FROM calendly_events c WHERE c.lead_id = l.id AND c.status = 'active') AS meetings_active,
     (SELECT count(*) FROM calendly_events c WHERE c.lead_id = l.id AND c.status = 'canceled') AS meetings_canceled
   FROM leads l
@@ -122,6 +123,20 @@ export function encontrarExistente({ phone, email }) {
   if (!condicoes.length) return null;
   const r = get(`SELECT id FROM leads WHERE ${condicoes.join(' OR ')} ORDER BY created_at DESC LIMIT 1`, valores);
   return r?.id || null;
+}
+
+// Procura o lead pelo ID da resposta do Yay! Forms (vem no link do Calendly, em utm_term).
+// Primeiro pelos webhooks guardados (vale também para quem respondeu mais de uma vez), depois pelo que está no lead.
+export function encontrarPorRespostaYay(respostaId) {
+  if (!respostaId) return null;
+  const pelosWebhooks = get(
+    `SELECT e.lead_id FROM webhook_events e JOIN leads l ON l.id = e.lead_id
+      WHERE e.source = 'yayforms' AND e.lead_id IS NOT NULL AND json_extract(e.payload, '$.response.id') = ?
+      ORDER BY e.id DESC LIMIT 1`,
+    [respostaId]
+  );
+  if (pelosWebhooks?.lead_id) return pelosWebhooks.lead_id;
+  return get("SELECT id FROM leads WHERE json_extract(extra, '$.resposta_id') = ? ORDER BY created_at DESC LIMIT 1", [respostaId])?.id || null;
 }
 
 // Move o lead para a etapa indicada só se ele ainda estiver numa etapa anterior (nunca volta)

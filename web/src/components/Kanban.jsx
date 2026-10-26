@@ -1,5 +1,5 @@
 import { memo, useState, useEffect, useRef, useMemo } from 'react';
-import { formatarTelefone, tempoDesde, dataCurta } from '../utils.js';
+import { formatarTelefone, tempoDesde, dataCurta, dataHora } from '../utils.js';
 import { CalendarDays, MessageCircle, CircleDashed, BellRing, X, Check, Minus, UserX } from 'lucide-react';
 import Avatar from './Avatar.jsx';
 import { FotoUsuario } from './FotoUsuario.jsx';
@@ -176,6 +176,15 @@ const Cartao = memo(function Cartao({ lead, onAbrir, onLimparNotificacao, oculto
           {selecionado && <Check size={12} strokeWidth={3} />}
         </span>
       )}
+      {lead.meetings_active > 0 && (
+        <div
+          className={`cartao-agenda ${lead.next_meeting_at ? '' : 'passada'}`}
+          title={lead.next_meeting_at ? `Reunião marcada para ${dataHora(lead.next_meeting_at)}` : `Agendou reunião (última: ${dataHora(lead.last_meeting_at)})`}
+        >
+          <span className="cartao-agenda-icone"><CalendarDays size={12} strokeWidth={2.2} /></span>
+          <span className="cartao-agenda-texto">{dataCurta(lead.next_meeting_at || lead.last_meeting_at)}</span>
+        </div>
+      )}
       {lead.sem_resposta && (
         <div className="cartao-notif" title={`O lead mandou mensagem ${tempoDesde(lead.last_in_at)} e ainda não foi respondido`}>
           <span className="cartao-notif-sino"><BellRing size={12} strokeWidth={2.2} /></span>
@@ -234,8 +243,6 @@ const Cartao = memo(function Cartao({ lead, onAbrir, onLimparNotificacao, oculto
       <div className="cartao-tags">
         {ver('origem') && <span className={`tag tag-${lead.source}`}>{lead.form_name || ORIGENS[lead.source] || 'Manual'}</span>}
         {lead.form_partial && <span className="tag tag-parcial" title="Começou o formulário e não terminou (resposta parcial do Yay! Forms)"><CircleDashed size={11} strokeWidth={2} /> Form. incompleto</span>}
-        {lead.next_meeting_at && <span className="tag tag-reuniao"><CalendarDays size={11} strokeWidth={2} /> {dataCurta(lead.next_meeting_at)}</span>}
-        {!lead.next_meeting_at && lead.meetings_active > 0 && <span className="tag tag-reuniao" title="Este lead agendou reunião pelo Calendly"><CalendarDays size={11} strokeWidth={2} /> Agendou</span>}
         {lead.source === 'yayforms' && !lead.form_partial && !(lead.meetings_active > 0) && (
           <span className="tag tag-sem-agenda" title="Completou o formulário e ainda não agendou reunião no Calendly">Não agendou</span>
         )}
