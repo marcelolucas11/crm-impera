@@ -354,6 +354,7 @@ function Simulador({ cfg, admin }) {
   const [info, setInfo] = useState('');
   const [situacao, setSituacao] = useState('');
   const [respostas, setRespostas] = useState('');
+  const [bruto, setBruto] = useState('');
 
   const enviar = async (e) => {
     e?.preventDefault();
@@ -365,7 +366,12 @@ function Simulador({ cfg, admin }) {
     setInfo('');
     try {
       const r = await api('/ia/simular', { method: 'POST', body: { mensagens: lista, fora_do_horario: fora, playbook: cfg.playbook, nome: 'Lead', formulario: situacao ? { situacao, respostas } : null } });
-      if (r.erro_formato) { setInfo('A IA respondeu fora do formato. Tente de novo.'); return; }
+      if (r.erro_formato) {
+        setInfo(r.motivo || 'A IA respondeu fora do formato. Tente de novo.');
+        setBruto(r.bruto || '');
+        return;
+      }
+      setBruto('');
       setMensagens([...lista, ...(r.mensagens || []).map((t) => ({ de: 'equipe', texto: t }))]);
       setInfo([
         r.acao === 'passar_humano' ? `→ passaria para ${cfg.nome_atendente}${r.motivo ? `: ${r.motivo}` : ''}` : null,
@@ -379,7 +385,7 @@ function Simulador({ cfg, admin }) {
     <section className="cartao-secao ia-simulador">
       <div className="dp-secao-topo">
         <h2>Simulador</h2>
-        <button type="button" className="btn btn-pequeno" onClick={() => { setMensagens([]); setInfo(''); }} title="Recomeçar"><RotateCcw size={13} /></button>
+        <button type="button" className="btn btn-pequeno" onClick={() => { setMensagens([]); setInfo(''); setBruto(''); }} title="Recomeçar"><RotateCcw size={13} /></button>
       </div>
       <p className="suave pequeno">Escreva como se fosse o lead. Nada é enviado no WhatsApp.</p>
       <label className="dp-check"><input type="checkbox" checked={fora} onChange={(e) => setFora(e.target.checked)} /><span>Simular fora do horário</span></label>
@@ -402,6 +408,12 @@ function Simulador({ cfg, admin }) {
         {ocupado && <div className="ia-sim-msg ia digitando">digitando…</div>}
       </div>
       {info && <p className="pequeno ia-sim-info">{info}</p>}
+      {bruto && (
+        <details className="ia-sim-bruto">
+          <summary className="pequeno">Ver o que a IA escreveu</summary>
+          <pre className="ia-dir-previa">{bruto}</pre>
+        </details>
+      )}
       <form className="ia-linha" onSubmit={enviar}>
         <input value={texto} disabled={!admin || !cfg.chave_configurada} placeholder={cfg.chave_configurada ? 'Mensagem do lead…' : 'Configure a chave da API primeiro'} onChange={(e) => setTexto(e.target.value)} />
         <button type="submit" className="btn btn-ouro" disabled={ocupado || !admin || !cfg.chave_configurada} aria-label="Enviar"><Send size={14} /></button>

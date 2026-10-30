@@ -16,6 +16,8 @@ const motor = await import('../src/modules/ia/motor.js');
 
 const SEMPRE = Object.fromEntries([0, 1, 2, 3, 4, 5, 6].map((x) => [x, { inicio: '00:00', fim: '23:59' }]));
 let ultimoCorpo = null;
+let respostasFalsas = null; // lista de { texto, parada } para devolver em ordem (null = resposta padrão)
+let chamadas = 0;
 motor.definirDependencias({
   esperar: async () => {}, aleatorio: () => 0, digitando: async () => {}, numeroDisponivel: async () => 1,
   virarLead: async () => ({ leadId: null }),
@@ -26,8 +28,12 @@ motor.definirDependencias({
 });
 definirChamadaFalsa(async (corpo) => {
   ultimoCorpo = corpo;
+  chamadas++;
+  const prox = respostasFalsas?.shift();
+  if (prox) return { texto: prox.texto, parada: prox.parada || 'end_turn', uso: { input_tokens: 10, output_tokens: 5 } };
   return { texto: JSON.stringify({ mensagens: ['Oi!'], acao: 'responder', resumo: 'ok' }), uso: { input_tokens: 10, output_tokens: 5 } };
 });
+const { lerJsonDaResposta, perguntarNoFormato } = await import('../src/modules/ia/cliente.js');
 
 function limparDiretrizes() {
   exec('DELETE FROM ia_diretrizes_versoes; DELETE FROM ia_diretrizes;');
@@ -138,4 +144,35 @@ test('na conversa real, o motor manda as diretrizes ativas e o formulário do le
   assert.ok(ultimoCorpo.messages[0].content.includes('PARCIAL'));
   assert.ok(ultimoCorpo.messages[0].content.includes('Tem contrato em aberto?: Sim'));
   assert.equal(get('SELECT status FROM ia_conversas WHERE id = ?', [c.id]).status, 'ativa');
+});
+
+test('leitura da resposta: tolera bloco ```json, quebra de linha crua, "mensagem" no singular e "handoff"', () => {
+  assert.deepEqual(lerJsonDaResposta('Claro!\n```json\n{"mensagens": ["Oi\ntudo bem?"], "acao": "responder"}\n```').mensagens, ['Oi\ntudo bem?']);
+  const r = lerJsonDaResposta('{"mensagem": "Já chamo o Marcelo", "handoff": true}');
+  assert.deepEqual(r.mensagens, ['Já chamo o Marcelo']);
+  assert.equal(r.acao, 'passar_humano');
+  assert.equal(lerJsonDaResposta('{"mensagens": ["cortada no mei'), null);
+  assert.equal(lerJsonDaResposta('só texto, sem JSON'), null);
+  assert.equal(lerJsonDaResposta('{"resumo": "sem mensagens"}'), null);
+});
+
+test('resposta cortada: pede de novo uma vez, avisando o modelo; se vier certa, segue', async () => {
+  chamadas = 0;
+  respostasFalsas = [
+    { texto: '{"mensagens": ["Oi! Aqui é o Marcelo e eu vou explicar tudo com muitos detalhes', parada: 'max_tokens' },
+    { texto: '{"mensagens": ["Oi! Aqui é o Marcelo."], "acao": "responder", "resumo": "ok"}' },
+  ];
+  const r = await perguntarNoFormato({ sistema: 's', mensagens: [{ role: 'user', content: 'oi' }] });
+  assert.equal(chamadas, 2);
+  assert.equal(r.tentativas, 2);
+  assert.deepEqual(r.resposta.mensagens, ['Oi! Aqui é o Marcelo.']);
+  assert.match(ultimoCorpo.messages.at(-1).content, /cortada/);
+  assert.equal(ultimoCorpo.max_tokens, 900);
+
+  // Duas vezes fora do formato: devolve sem resposta (quem chamou decide o que fazer)
+  respostasFalsas = [{ texto: 'texto solto' }, { texto: 'de novo solto' }];
+  const r2 = await perguntarNoFormato({ sistema: 's', mensagens: [{ role: 'user', content: 'oi' }] });
+  assert.equal(r2.resposta, null);
+  assert.equal(r2.tentativas, 2);
+  respostasFalsas = null;
 });

@@ -43,6 +43,8 @@
 .ia-sim-msg.ia { align-self: flex-end; background: #005c4b; color: #e9edef; border-top-right-radius: 2px; }
 .ia-sim-msg.digitando { opacity: .7; font-style: italic; }
 .ia-sim-info { color: var(--ouro); }
+.ia-sim-bruto summary { cursor: pointer; color: var(--suave); }
+.ia-sim-bruto pre { margin-top: 6px; }
 
 /* Faixa na conversa de WhatsApp */
 .ia-faixa {

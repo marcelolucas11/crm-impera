@@ -87,14 +87,78 @@ export async function perguntarModelo({ sistema, mensagens, maxTokens = 500 }) {
   try { dados = await resposta.json(); } catch { /* sem corpo */ }
   if (!resposta.ok) throw traduzirErro(resposta.status, dados?.error?.message || '');
   const texto = (dados?.content || []).filter((b) => b.type === 'text').map((b) => b.text).join('').trim();
-  return { texto, uso: dados?.usage || null };
+  return { texto, uso: dados?.usage || null, parada: dados?.stop_reason || null };
 }
 
-// Lê o primeiro objeto JSON da resposta (o modelo às vezes coloca texto em volta)
+// Lê o objeto JSON da resposta. Tolera o que o modelo às vezes faz: texto em volta, bloco ```json,
+// quebra de linha "crua" dentro das mensagens e a chave "mensagem" (singular) no lugar de "mensagens".
 export function lerJsonDaResposta(texto) {
-  const t = String(texto || '');
+  const t = String(texto || '').replace(/```(?:json)?/gi, '');
   const ini = t.indexOf('{');
   const fim = t.lastIndexOf('}');
   if (ini < 0 || fim <= ini) return null;
-  try { return JSON.parse(t.slice(ini, fim + 1)); } catch { return null; }
+  const bruto = t.slice(ini, fim + 1);
+  let obj = null;
+  try { obj = JSON.parse(bruto); } catch {
+    try { obj = JSON.parse(escaparQuebrasNasStrings(bruto)); } catch { return null; }
+  }
+  if (!obj || typeof obj !== 'object' || Array.isArray(obj)) return null;
+  if (obj.mensagens === undefined && obj.mensagem !== undefined) obj.mensagens = obj.mensagem;
+  if (typeof obj.mensagens === 'string') obj.mensagens = [obj.mensagens];
+  if (!Array.isArray(obj.mensagens)) return null;
+  obj.mensagens = obj.mensagens.map((m) => String(m ?? '').trim()).filter(Boolean);
+  if (obj.acao !== 'passar_humano') obj.acao = obj.handoff === true ? 'passar_humano' : 'responder';
+  return obj;
+}
+
+// Troca quebras de linha e tabs que estão DENTRO de strings por \n e \t (JSON não aceita crus)
+function escaparQuebrasNasStrings(json) {
+  let saida = '';
+  let dentro = false;
+  let escape = false;
+  for (const c of json) {
+    if (dentro) {
+      if (escape) { escape = false; saida += c; continue; }
+      if (c === '\\') { escape = true; saida += c; continue; }
+      if (c === '"') dentro = false;
+      else if (c === '\n') { saida += '\\n'; continue; }
+      else if (c === '\r') continue;
+      else if (c === '\t') { saida += '\\t'; continue; }
+    } else if (c === '"') dentro = true;
+    saida += c;
+  }
+  return saida;
+}
+
+// Pergunta ao modelo e garante o formato combinado: se a resposta não vier legível (cortada ou fora do JSON),
+// pede de novo uma vez, avisando o modelo do problema. Devolve { resposta, texto, uso, parada, tentativas }.
+export const LIMITE_TOKENS_RESPOSTA = 900;
+
+export async function perguntarNoFormato({ sistema, mensagens, maxTokens = LIMITE_TOKENS_RESPOSTA }) {
+  const primeira = await perguntarModelo({ sistema, mensagens, maxTokens });
+  const resposta = lerJsonDaResposta(primeira.texto);
+  if (resposta) return { ...primeira, resposta, tentativas: 1 };
+
+  const motivo = primeira.parada === 'max_tokens'
+    ? 'Sua resposta anterior ficou longa demais e foi cortada.'
+    : 'Sua resposta anterior não veio no formato combinado.';
+  const segunda = await perguntarModelo({
+    sistema,
+    mensagens: [
+      ...mensagens,
+      { role: 'assistant', content: primeira.texto.slice(0, 4000) || '(vazio)' },
+      { role: 'user', content: `${motivo} Responda de novo SOMENTE com o objeto JSON combinado, sem texto antes ou depois, com mensagens curtas e resumo de no máximo 2 frases.` },
+    ],
+    maxTokens,
+  });
+  const uso = somarUso(primeira.uso, segunda.uso);
+  return { ...segunda, uso, resposta: lerJsonDaResposta(segunda.texto), tentativas: 2, primeiraParada: primeira.parada };
+}
+
+function somarUso(a, b) {
+  if (!a) return b;
+  if (!b) return a;
+  const r = { ...a };
+  for (const k of ['input_tokens', 'output_tokens', 'cache_read_input_tokens', 'cache_creation_input_tokens']) r[k] = (a[k] || 0) + (b[k] || 0);
+  return r;
 }

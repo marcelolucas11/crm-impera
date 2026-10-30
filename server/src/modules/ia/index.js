@@ -10,7 +10,7 @@ import { configPublica, salvarConfig, guardarChave, guardarWorkspace, removerCha
 import { dentroDoHorario, saudacaoDoMomento } from './horario.js';
 import { tentativaDeComando, pedeHumano, validarSaida } from './seguranca.js';
 import { textoDoSistema, montarPedido } from './prompt.js';
-import { perguntarModelo, lerJsonDaResposta, registrar, ErroIA } from './cliente.js';
+import { perguntarModelo, perguntarNoFormato, registrar, ErroIA } from './cliente.js';
 import { gerarPlaybook } from './playbook.js';
 import {
   listarDiretrizes, obterDiretriz, criarDiretriz, atualizarDiretriz, apagarDiretriz, ordenarDiretrizes,
@@ -200,20 +200,25 @@ export default {
       const foraDoHorario = req.body?.fora_do_horario === undefined ? !dentroDoHorario(cfg) : Boolean(req.body.fora_do_horario);
       if (ultimaDoLead && tentativaDeComando(ultimaDoLead)) return res.json({ mensagens: [`Por aqui eu consigo te ajudar só com dúvidas básicas sobre a ${cfg.empresa} ou chamar o ${cfg.nome_atendente}. Quer que eu chame ele?`], acao: 'responder', via: 'filtro de segurança (não chamou o modelo)' });
       if (ultimaDoLead && pedeHumano(ultimaDoLead)) return res.json({ mensagens: [`Claro! Já avisei o ${cfg.nome_atendente}, ele vai continuar seu atendimento por aqui. 😊`], acao: 'passar_humano', motivo: 'Lead pediu para falar com uma pessoa', via: 'regra fixa (não chamou o modelo)' });
-      const { texto, uso } = await perguntarModelo({
+      const { resposta, texto, uso, parada, tentativas } = await perguntarNoFormato({
         sistema: textoDoSistema(cfg, diretrizesAtivas()),
         mensagens: montarPedido({
           cfg, lead: { primeiroNome: req.body?.nome || null }, historico: lista, foraDoHorario, saudacao: saudacaoDoMomento(cfg),
           primeiroContato: !lista.some((m) => m.from_me), origem: formulario ? 'yayforms' : req.body?.origem === 'yayforms' ? 'yayforms' : 'whatsapp',
           jaAvisouForaHorario: false, formulario,
         }),
-        maxTokens: 450,
       });
-      registrar(null, 'simulacao', null, uso);
-      const resposta = lerJsonDaResposta(texto);
-      if (!resposta) return res.json({ erro_formato: true, bruto: texto.slice(0, 1500) });
+      registrar(null, 'simulacao', tentativas > 1 ? '2ª tentativa' : null, uso);
+      if (!resposta) {
+        return res.json({
+          erro_formato: true, cortada: parada === 'max_tokens', bruto: String(texto || '').slice(0, 1500),
+          motivo: parada === 'max_tokens'
+            ? 'A resposta ficou longa demais e veio cortada, mesmo na 2ª tentativa. Peça respostas mais curtas na diretriz.'
+            : 'A IA não respondeu no formato que o CRM lê, mesmo na 2ª tentativa. Veja abaixo o que ela escreveu.',
+        });
+      }
       const conferida = validarSaida(Array.isArray(resposta.mensagens) ? resposta.mensagens : [resposta.mensagens], cfg);
-      res.json({ ...resposta, filtro: conferida.ok ? 'aprovada' : `barrada: ${conferida.motivo}`, uso, via: 'modelo' });
+      res.json({ ...resposta, filtro: conferida.ok ? 'aprovada' : `barrada: ${conferida.motivo}`, uso, via: tentativas > 1 ? 'modelo (2ª tentativa: a 1ª veio fora do formato)' : 'modelo' });
     }));
 
     // ------------------------------------------------------------ conversas
