@@ -73,7 +73,46 @@
 .ia-toast svg { color: var(--led-ambar, #f2a53a); flex: 0 0 auto; margin-top: 2px; }
 .ia-toast-acoes { display: flex; gap: 6px; margin-top: 8px; }
 
+
+/* Diretrizes (prompts) */
+.ia-dir-botoes { display: flex; gap: 6px; flex-wrap: wrap; }
+.ia-dir-resumo { color: var(--ouro); margin: 0; }
+.ia-dir-lista { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.ia-dir-item {
+  display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 10px;
+  border: 1px solid var(--borda); background: rgba(0, 0, 0, .18);
+}
+.ia-dir-item.inativa { opacity: .6; }
+.ia-dir-abrir {
+  flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 2px; text-align: left;
+  background: none; border: 0; padding: 2px 0; color: var(--texto); cursor: pointer; font: inherit;
+}
+.ia-dir-abrir b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+.ia-dir-abrir:hover b { color: var(--ouro); }
+.ia-dir-abrir svg { vertical-align: -1px; }
+.ia-dir-ordem { display: inline-flex; gap: 4px; flex: 0 0 auto; }
+.ia-dir-editor { display: flex; flex-direction: column; gap: 12px; }
+.ia-dir-editor label { display: flex; flex-direction: column; gap: 6px; font-size: 12.5px; color: var(--suave); }
+.ia-dir-editor label input, .ia-dir-editor label textarea { color: var(--texto); font-size: 13.5px; }
+.ia-dir-texto {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 13px !important; line-height: 1.55;
+  min-height: 320px; resize: vertical; tab-size: 2;
+}
+.ia-dir-rodape { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.ia-dir-acoes { display: inline-flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.ia-dir-excesso { color: var(--alerta, #e5634b); font-weight: 600; }
+.ia-dir-historico { border-top: 1px dashed var(--borda); padding-top: 10px; }
+.ia-dir-historico ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.ia-dir-historico li { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
+.ia-dir-previa {
+  width: 100%; margin: 0; max-height: 260px; overflow: auto; padding: 10px; border-radius: 8px; white-space: pre-wrap; word-break: break-word;
+  background: rgba(0, 0, 0, .3); border: 1px solid var(--borda); font-size: 12px; line-height: 1.5; color: var(--texto);
+}
+.ia-sim-form { display: flex; flex-direction: column; gap: 6px; }
+.ia-sim-form textarea { font-size: 12.5px; }
+
 @media (max-width: 720px) {
+  .ia-dir-item { flex-wrap: wrap; }
   .ia-faixa-topo { flex-wrap: wrap; }
   .ia-faixa-acoes { width: 100%; justify-content: flex-end; }
   .ia-dia-horas input { width: 96px; }

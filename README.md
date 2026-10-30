@@ -4,7 +4,13 @@ CRM da agência: leads do Yay! Forms caindo direto num kanban, alerta de follow-
 Roda direto no Mac, a partir do SSD externo, sem Docker e sem instalar nada no sistema.
 A mesma pasta funciona depois na VPS da Contabo.
 
-**Versão atual: 0.10.2** — o número fica no arquivo `VERSAO` e é o que aparece em **Equipe e integrações → Atualização do CRM**.
+**Versão atual: 0.11.0** — o número fica no arquivo `VERSAO` e é o que aparece em **Equipe e integrações → Atualização do CRM**.
+
+**Versão 0.11.0:** **Diretrizes (prompts)** na aba **IA** — um lugar para guardar os textos que dão o norte para a IA (roteiro de SDR,
+como tratar cada tipo de lead, respostas para dúvidas frequentes): crie do zero, cole ou **suba um arquivo .md ou .txt**, leia e edite na
+própria tela, ligue/desligue, ordene, **baixe como .md** e volte versões anteriores (cada salvamento guarda a anterior). A IA agora também
+recebe as **respostas do formulário** do lead (parcial, completo sem reunião ou completo com reunião marcada no Calendly), para seguir as
+diretrizes de acordo com cada caso. O simulador ganhou um **formulário de exemplo**. Veja [IA de primeiro contato](#ia-de-primeiro-contato).
 
 **Versão 0.10.0:** aba nova **IA** — **primeiro contato automático** com leads novos (WhatsApp e Yay! Forms): cumprimenta, apresenta a Impera,
 tira dúvidas básicas e passa o lead para você (marca **aguardando minha resposta** no kanban, com um resumo). Para na hora em que alguém da
@@ -360,8 +366,21 @@ você aprovou sem mudar — quando quase todas passarem direto, é hora de ligar
 cliente), tira nomes, telefones, e-mails, links e valores, e resume seu estilo de atendimento. Revise e salve. O **Simulador** mostra o que a
 IA responderia, sem enviar nada.
 
+**Diretrizes (prompts):** textos que dão o norte para a IA — roteiro de SDR, tratamento por tipo de lead, dúvidas frequentes.
+**Nova** cria do zero (pode colar); **Subir arquivo** aceita `.md` e `.txt` (um arquivo abre para revisar antes de salvar; vários são salvos
+de uma vez, e o título vem do primeiro `# Título` do arquivo). Clique numa diretriz para ler e editar; **Histórico** mostra as versões
+anteriores (guarda as 30 últimas) com **Restaurar**; **Baixar .md** exporta. Só as **ativas** entram no prompt, na ordem da lista
+(setas ↑ ↓), até 80 mil caracteres somadas (40 mil por diretriz). A IA usa a versão nova já na próxima resposta. As regras de segurança e o
+formato de resposta do sistema sempre valem por cima das diretrizes: se uma diretriz pedir para passar preço, mandar link ou responder em
+outro formato, a IA segue as regras.
+
+**Formulário do lead:** para leads do Yay! Forms, a IA recebe a situação (**parcial**, **completo sem reunião** ou **completo com reunião**,
+com a data do Calendly) e as respostas (pergunta: resposta) — sem telefone nem e-mail. É isso que permite às diretrizes tratar cada caso
+(aceitou ou não os valores, urgência, contrato em aberto, experiência). No **Simulador**, escolha a situação e escreva respostas de exemplo,
+uma por linha; com a conversa vazia, ele mostra a primeira mensagem que a IA mandaria.
+
 **Segurança:** a IA não recebe ordens do lead. Pedidos de código, senha, acesso, "ignore suas instruções" e afins recebem uma resposta
-pronta sem chegar ao modelo (na segunda vez, o lead vai para você). Ela só vê a conversa daquele lead — não tem acesso ao banco nem a dados
+pronta sem chegar ao modelo (na segunda vez, o lead vai para você). Ela só vê a conversa e o formulário daquele lead — não tem acesso ao banco nem a dados
 de outros clientes. Toda resposta passa por um filtro antes de sair: código, telefones, e-mails, links não autorizados (só o link de
 agendamento configurado), assuntos de senha/sistema e promessas de resultado são barrados, e a conversa vai para você. Se o lead perguntar
 se está falando com um robô, ela nunca nega.

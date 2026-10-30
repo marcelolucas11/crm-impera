@@ -1,4 +1,4 @@
-// Tela "IA": configuração da IA de primeiro contato, playbook aprendido das conversas, simulador e conversas atendidas.
+// Tela "IA": configuração da IA de primeiro contato, playbook aprendido das conversas, diretrizes (prompts), simulador e conversas atendidas.
 import { useCallback, useEffect, useState } from 'react';
 import {
   Bot, Save, KeyRound, Building2, Wand2, Clock, ShieldCheck, MessageSquareText, Send, RotateCcw, ExternalLink, Trash2,
@@ -8,6 +8,7 @@ import { useEvento } from '../../tempoReal.js';
 import { tempoDesde, formatarTelefone } from '../../utils.js';
 import { ProvedorAvisos, useAviso, Interruptor } from '../disparos/comum.jsx';
 import '../disparos/disparos.css';
+import DiretrizesIa from './DiretrizesIa.jsx';
 import './ia.css';
 
 const DIAS = [[1, 'Segunda'], [2, 'Terça'], [3, 'Quarta'], [4, 'Quinta'], [5, 'Sexta'], [6, 'Sábado'], [0, 'Domingo']];
@@ -207,6 +208,8 @@ function Conteudo({ user, aoAbrirConversa }) {
               <textarea rows={12} value={cfg.playbook} disabled={!admin} placeholder="Ainda sem playbook: a IA usa um estilo curto, cordial e direto." onChange={(e) => mudar({ playbook: e.target.value })} />
             </section>
 
+            <DiretrizesIa admin={admin} />
+
             <section className="cartao-secao">
               <h2><Clock size={16} /> Horário com atendimento humano</h2>
               <div className="ia-horario">
@@ -349,17 +352,19 @@ function Simulador({ cfg, admin }) {
   const [fora, setFora] = useState(false);
   const [ocupado, setOcupado] = useState(false);
   const [info, setInfo] = useState('');
+  const [situacao, setSituacao] = useState('');
+  const [respostas, setRespostas] = useState('');
 
   const enviar = async (e) => {
     e?.preventDefault();
     const lista = texto.trim() ? [...mensagens, { de: 'lead', texto: texto.trim() }] : mensagens;
-    if (!lista.length && !texto.trim()) return;
+    if (!lista.length && !situacao) return;
     setMensagens(lista);
     setTexto('');
     setOcupado(true);
     setInfo('');
     try {
-      const r = await api('/ia/simular', { method: 'POST', body: { mensagens: lista, fora_do_horario: fora, playbook: cfg.playbook, nome: 'Lead' } });
+      const r = await api('/ia/simular', { method: 'POST', body: { mensagens: lista, fora_do_horario: fora, playbook: cfg.playbook, nome: 'Lead', formulario: situacao ? { situacao, respostas } : null } });
       if (r.erro_formato) { setInfo('A IA respondeu fora do formato. Tente de novo.'); return; }
       setMensagens([...lista, ...(r.mensagens || []).map((t) => ({ de: 'equipe', texto: t }))]);
       setInfo([
@@ -378,6 +383,19 @@ function Simulador({ cfg, admin }) {
       </div>
       <p className="suave pequeno">Escreva como se fosse o lead. Nada é enviado no WhatsApp.</p>
       <label className="dp-check"><input type="checkbox" checked={fora} onChange={(e) => setFora(e.target.checked)} /><span>Simular fora do horário</span></label>
+      <div className="ia-sim-form">
+        <select value={situacao} onChange={(e) => setSituacao(e.target.value)} aria-label="Formulário do lead">
+          <option value="">Lead chamou no WhatsApp (sem formulário)</option>
+          <option value="parcial">Formulário parcial</option>
+          <option value="completo_sem_reuniao">Formulário completo, sem reunião</option>
+          <option value="completo_com_reuniao">Formulário completo, com reunião</option>
+        </select>
+        {situacao && (
+          <textarea rows={4} value={respostas} onChange={(e) => setRespostas(e.target.value)}
+            placeholder={'Respostas, uma por linha (Pergunta: resposta)\nAceita o investimento mínimo?: Não\nQuando quer começar?: Imediato\nTem contrato em aberto?: Sim'} />
+        )}
+        <span className="suave pequeno">Deixe a conversa vazia e clique em enviar para ver a primeira mensagem da IA.</span>
+      </div>
       <div className="ia-sim-chat">
         {!mensagens.length && <span className="suave pequeno">Ex.: "Oi, vi o anúncio. Vocês trabalham com rifa?"</span>}
         {mensagens.map((m, i) => <div key={i} className={`ia-sim-msg ${m.de === 'lead' ? 'lead' : 'ia'}`}>{m.texto}</div>)}

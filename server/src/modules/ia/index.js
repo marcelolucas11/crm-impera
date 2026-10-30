@@ -13,6 +13,11 @@ import { textoDoSistema, montarPedido } from './prompt.js';
 import { perguntarModelo, lerJsonDaResposta, registrar, ErroIA } from './cliente.js';
 import { gerarPlaybook } from './playbook.js';
 import {
+  listarDiretrizes, obterDiretriz, criarDiretriz, atualizarDiretriz, apagarDiretriz, ordenarDiretrizes,
+  versoesDaDiretriz, restaurarVersao, diretrizesAtivas, resumoDiretrizes,
+} from './diretrizes.js';
+import { emitir } from '../../tempoReal.js';
+import {
   aoReceberMensagem, aoMensagemHumana, aoReceberLeadFormulario, acharConversa, aprovarSugestao, descartarSugestao,
   iniciarRelogio, pararRelogio, passarParaHumano,
 } from './motor.js';
@@ -68,6 +73,18 @@ function resumoGeral() {
     dentro_do_horario: dentroDoHorario(lerConfig()),
   };
 }
+
+// Formulário de exemplo do simulador: { situacao, reuniao, respostas: "Pergunta: resposta" por linha }
+function formularioDoSimulador(f) {
+  if (!f || !['parcial', 'completo_sem_reuniao', 'completo_com_reuniao'].includes(f.situacao)) return null;
+  const respostas = String(f.respostas || '').split('\n').slice(0, 40).map((linha) => {
+    const i = linha.indexOf(':');
+    return i > 0 ? { titulo: linha.slice(0, i).trim(), valor: linha.slice(i + 1).trim() } : null;
+  }).filter((r) => r?.titulo && r.valor);
+  return { situacao: f.situacao, reuniao: f.situacao === 'completo_com_reuniao' ? String(f.reuniao || 'amanhã às 10:00').slice(0, 80) : null, respostas };
+}
+
+const avisarDiretrizes = () => emitir('ia', { diretrizes: true });
 
 export default {
   name: 'ia',
@@ -129,19 +146,67 @@ export default {
       res.json(await gerarPlaybook());
     }));
 
+    // ------------------------------------------------------------ diretrizes (prompts que dão o norte para a IA)
+    r.get('/diretrizes', rota((req, res) => {
+      res.json({ diretrizes: listarDiretrizes(), resumo: resumoDiretrizes() });
+    }));
+
+    r.get('/diretrizes/:id', rota((req, res) => {
+      res.json({ diretriz: obterDiretriz(idValido(req.params.id)) });
+    }));
+
+    r.post('/diretrizes', exigirAdmin, rota((req, res) => {
+      const diretriz = criarDiretriz(req.body || {}, req.user.id);
+      avisarDiretrizes();
+      res.status(201).json({ diretriz, resumo: resumoDiretrizes() });
+    }));
+
+    r.put('/diretrizes/ordem', exigirAdmin, rota((req, res) => {
+      const diretrizes = ordenarDiretrizes(req.body?.ids);
+      avisarDiretrizes();
+      res.json({ diretrizes });
+    }));
+
+    r.put('/diretrizes/:id', exigirAdmin, rota((req, res) => {
+      const diretriz = atualizarDiretriz(idValido(req.params.id), req.body || {}, req.user.id);
+      avisarDiretrizes();
+      res.json({ diretriz, resumo: resumoDiretrizes() });
+    }));
+
+    r.delete('/diretrizes/:id', exigirAdmin, rota((req, res) => {
+      apagarDiretriz(idValido(req.params.id));
+      avisarDiretrizes();
+      res.json({ ok: true, resumo: resumoDiretrizes() });
+    }));
+
+    r.get('/diretrizes/:id/versoes', rota((req, res) => {
+      res.json({ versoes: versoesDaDiretriz(idValido(req.params.id)) });
+    }));
+
+    r.post('/diretrizes/:id/versoes/:versao/restaurar', exigirAdmin, rota((req, res) => {
+      const diretriz = restaurarVersao(idValido(req.params.id), idValido(req.params.versao), req.user.id);
+      avisarDiretrizes();
+      res.json({ diretriz, resumo: resumoDiretrizes() });
+    }));
+
     // Simulador: mostra o que a IA responderia, sem enviar nada para ninguém
     r.post('/simular', exigirAdmin, rota(async (req, res) => {
       const cfg = { ...lerConfig(), ...(typeof req.body?.playbook === 'string' ? { playbook: req.body.playbook.slice(0, 8000) } : {}) };
       const lista = (Array.isArray(req.body?.mensagens) ? req.body.mensagens : []).slice(-20).map((m) => ({
         from_me: m.de === 'equipe' ? 1 : 0, type: 'texto', body: String(m.texto || '').slice(0, 1000),
       }));
+      const formulario = formularioDoSimulador(req.body?.formulario);
       const ultimaDoLead = [...lista].reverse().find((m) => !m.from_me)?.body || '';
       const foraDoHorario = req.body?.fora_do_horario === undefined ? !dentroDoHorario(cfg) : Boolean(req.body.fora_do_horario);
       if (ultimaDoLead && tentativaDeComando(ultimaDoLead)) return res.json({ mensagens: [`Por aqui eu consigo te ajudar só com dúvidas básicas sobre a ${cfg.empresa} ou chamar o ${cfg.nome_atendente}. Quer que eu chame ele?`], acao: 'responder', via: 'filtro de segurança (não chamou o modelo)' });
       if (ultimaDoLead && pedeHumano(ultimaDoLead)) return res.json({ mensagens: [`Claro! Já avisei o ${cfg.nome_atendente}, ele vai continuar seu atendimento por aqui. 😊`], acao: 'passar_humano', motivo: 'Lead pediu para falar com uma pessoa', via: 'regra fixa (não chamou o modelo)' });
       const { texto, uso } = await perguntarModelo({
-        sistema: textoDoSistema(cfg),
-        mensagens: montarPedido({ cfg, lead: { primeiroNome: req.body?.nome || null }, historico: lista, foraDoHorario, saudacao: saudacaoDoMomento(cfg), primeiroContato: !lista.some((m) => m.from_me), origem: req.body?.origem === 'yayforms' ? 'yayforms' : 'whatsapp', jaAvisouForaHorario: false }),
+        sistema: textoDoSistema(cfg, diretrizesAtivas()),
+        mensagens: montarPedido({
+          cfg, lead: { primeiroNome: req.body?.nome || null }, historico: lista, foraDoHorario, saudacao: saudacaoDoMomento(cfg),
+          primeiroContato: !lista.some((m) => m.from_me), origem: formulario ? 'yayforms' : req.body?.origem === 'yayforms' ? 'yayforms' : 'whatsapp',
+          jaAvisouForaHorario: false, formulario,
+        }),
         maxTokens: 450,
       });
       registrar(null, 'simulacao', null, uso);

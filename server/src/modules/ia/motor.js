@@ -19,6 +19,8 @@ import { lerConfig } from './config.js';
 import { dentroDoHorario, saudacaoDoMomento } from './horario.js';
 import { tentativaDeComando, pedeHumano, validarSaida } from './seguranca.js';
 import { textoDoSistema, montarPedido, primeiroNome } from './prompt.js';
+import { diretrizesAtivas } from './diretrizes.js';
+import { dadosDoFormulario } from './formulario.js';
 import { perguntarModelo, lerJsonDaResposta, registrar, ErroIA } from './cliente.js';
 
 // Dependências do WhatsApp (trocadas nos testes)
@@ -383,10 +385,11 @@ export async function processarConversa(id) {
   let resposta;
   try {
     const { texto, uso } = await perguntarModelo({
-      sistema: textoDoSistema(cfg),
+      sistema: textoDoSistema(cfg, diretrizesAtivas()),
       mensagens: montarPedido({
         cfg, lead: { primeiroNome: nome }, historico, foraDoHorario, saudacao, primeiroContato,
         origem: conversa.origem, jaAvisouForaHorario: Boolean(conversa.aviso_fora_horario_em),
+        formulario: dadosDoFormulario(conversa.lead_id || contato.leadId, cfg),
       }),
       maxTokens: 450,
     });
