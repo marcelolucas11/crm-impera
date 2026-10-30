@@ -9,6 +9,7 @@ const ABAS = [
   { id: 'kanban', rotulo: 'Kanban' },
   { id: 'whatsapp', rotulo: 'WhatsApp' },
   { id: 'disparos', rotulo: 'Disparos' },
+  { id: 'ia', rotulo: 'IA' },
   { id: 'estatisticas', rotulo: 'Estatísticas' },
 ];
 

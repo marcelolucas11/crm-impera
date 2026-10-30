@@ -3,6 +3,7 @@
 //
 // Atenção: conexão por QR code não é oficial. O WhatsApp pode banir números que mandam mensagens em massa
 // ou automatizadas. O CRM só envia o que uma pessoa faz na tela, com intervalo mínimo entre envios.
+import { avisarGancho } from '../../ganchos.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
@@ -283,9 +284,10 @@ async function previaDeLink(texto) {
  * Envia texto e/ou arquivo (ou um conteúdo especial: figurinha, enquete, contato, localização).
  *  destino: { leadId } ou { jid }
  *  dados: { texto, arquivo: { caminho, mime, nome, modo: auto|documento|voz|figurinha|gif, unica }, responderId, mencoes,
- *          automatico (fila de disparos), semPrevia (não busca a prévia do link) }
+ *          automatico (fila de disparos), semPrevia (não busca a prévia do link),
+ *          origem ('ia' | 'disparo': mensagem automática — não conta como a equipe falando com o lead) }
  */
-export async function enviar(numeroId, destino, { texto = null, arquivo = null, responderId = null, especial = null, mencoes = null, automatico = false, semPrevia = false }, userId) {
+export async function enviar(numeroId, destino, { texto = null, arquivo = null, responderId = null, especial = null, mencoes = null, automatico = false, semPrevia = false, origem = null }, userId) {
   const e = numeroConectado(numeroId);
   const lib = await carregarBaileys();
   const { jid, leadId } = await resolverDestino(e, lib, destino);
@@ -338,8 +340,11 @@ export async function enviar(numeroId, destino, { texto = null, arquivo = null, 
     }
   }
 
+  if (origem) extra = { ...(extra || {}), origem };
   const linhaId = gravarSaindo({ numeroId, leadId, jid, waId, userId, horario, tipo, previa, legenda, midia, citada, extra, grupo, automatico });
   await despachar(e, lib, { linhaId, jid, waId, conteudo, citada, leadId });
+  // Alguém da equipe falou com o contato pelo CRM (a IA de primeiro contato para nesta conversa)
+  if (!automatico && !origem && !grupo) avisarGancho('whatsapp:humana', { jid, leadId, userId });
   if (preparo?.figurinhaId) marcarUsada(preparo.figurinhaId);
   return { id: linhaId, wa_id: waId };
 }

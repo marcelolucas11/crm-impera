@@ -229,7 +229,7 @@ async function processarItem(w, c, blocos, item, numeroId) {
         if (bloco.tipo === 'texto' && !texto) {
           // Texto que ficou vazio depois das variáveis: pula o bloco em vez de mandar mensagem vazia
         } else {
-          await deps.enviar(numeroId, destino, { texto, arquivo: preparo?.arquivo || null, automatico: true }, c.criado_por || null);
+          await deps.enviar(numeroId, destino, { texto, arquivo: preparo?.arquivo || null, automatico: true, origem: 'disparo' }, c.criado_por || null);
         }
       } finally {
         preparo?.limpar();

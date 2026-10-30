@@ -305,7 +305,12 @@ function Mensagem({
   else if (m.type === 'chamada') corpo = <Chamada m={m} />;
   else corpo = <div className="bolha-texto"><TextoFormatado texto={m.body} mencoes={mencoes} /></div>;
 
-  const autor = m.from_me ? m.enviado_por || 'Celular' : null;
+  // Quem mandou: a IA de primeiro contato (aprovada por alguém, no modo copiloto), a automação de disparos, a equipe ou o celular
+  const origem = m.extra?.origem;
+  const autor = !m.from_me ? null
+    : origem === 'ia' ? (m.enviado_por ? `IA · aprovada por ${m.enviado_por}` : 'IA')
+      : origem === 'disparo' ? 'Automação'
+        : m.enviado_por || 'Celular';
   const nomeParticipante = grupo && !m.from_me ? m.participant_name || nomeDe(m.participant_jid) : null;
   const clique = selecionando ? () => acoes.alternarSelecao(m) : undefined;
 

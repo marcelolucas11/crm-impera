@@ -9,8 +9,10 @@ import Estatisticas from './components/Estatisticas.jsx';
 import DisparosPagina from './components/disparos/DisparosPagina.jsx';
 import Equipe from './components/Equipe.jsx';
 import ChamadaRecebida from './components/ChamadaRecebida.jsx';
+import IaPagina from './components/ia/IaPagina.jsx';
+import AvisoPassagem from './components/ia/AvisoPassagem.jsx';
 
-const PAGINAS = new Set(['kanban', 'whatsapp', 'disparos', 'estatisticas', 'equipe']);
+const PAGINAS = new Set(['kanban', 'whatsapp', 'disparos', 'ia', 'estatisticas', 'equipe']);
 const paginaInicial = () => {
   const p = window.location.hash.replace('#', '');
   return PAGINAS.has(p) ? p : 'kanban';
@@ -58,6 +60,13 @@ function Sistema({ user, aoMudarUser, aoSair }) {
   // Mensagem nova: atualiza o contador da aba WhatsApp
   useEvento('whatsapp', (d) => { if (d?.chat || d?.reconectou) carregarResumo(); });
 
+  // Abre uma conversa na tela de WhatsApp (chamada recebida, aviso da IA, lista da tela IA)
+  const abrirConversa = (chave) => {
+    window.__waAbrir = chave;
+    setPagina('whatsapp');
+    setTimeout(() => window.dispatchEvent(new CustomEvent('wa-abrir', { detail: chave })), 50);
+  };
+
   const sair = async () => {
     await api('/auth/logout', { method: 'POST' }).catch(() => {});
     aoSair();
@@ -76,17 +85,15 @@ function Sistema({ user, aoMudarUser, aoSair }) {
       {pagina === 'kanban' && <KanbanPagina {...comum} usarPublico={usarPublico} />}
       {pagina === 'whatsapp' && <WhatsAppPagina {...comum} />}
       {pagina === 'disparos' && <DisparosPagina pedidoLista={pedidoDisparo} aoConsumirPedido={() => setPedidoDisparo(null)} />}
+      {pagina === 'ia' && <IaPagina user={user} aoAbrirConversa={abrirConversa} />}
       {pagina === 'estatisticas' && <Estatisticas {...comum} />}
       {pagina === 'equipe' && <Equipe user={user} aoMudarUsuarios={(lista) => {
         setUsers(lista);
         const eu = lista.find((u) => u.id === user.id);
         if (eu && eu.foto !== user.foto) aoMudarUser({ ...user, foto: eu.foto });
       }} />}
-      <ChamadaRecebida aoAbrirConversa={(chave) => {
-        window.__waAbrir = chave;
-        setPagina('whatsapp');
-        setTimeout(() => window.dispatchEvent(new CustomEvent('wa-abrir', { detail: chave })), 50);
-      }} />
+      <ChamadaRecebida aoAbrirConversa={abrirConversa} />
+      <AvisoPassagem aoAbrir={abrirConversa} />
     </div>
   );
 }

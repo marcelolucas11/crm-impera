@@ -4,7 +4,13 @@ CRM da agência: leads do Yay! Forms caindo direto num kanban, alerta de follow-
 Roda direto no Mac, a partir do SSD externo, sem Docker e sem instalar nada no sistema.
 A mesma pasta funciona depois na VPS da Contabo.
 
-**Versão atual: 0.9.0** — o número fica no arquivo `VERSAO` e é o que aparece em **Equipe e integrações → Atualização do CRM**.
+**Versão atual: 0.10.0** — o número fica no arquivo `VERSAO` e é o que aparece em **Equipe e integrações → Atualização do CRM**.
+
+**Versão 0.10.0:** aba nova **IA** — **primeiro contato automático** com leads novos (WhatsApp e Yay! Forms): cumprimenta, apresenta a Impera,
+tira dúvidas básicas e passa o lead para você (marca **aguardando minha resposta** no kanban, com um resumo). Para na hora em que alguém da
+equipe escreve. Modo **copiloto** (você aprova ou edita a resposta na conversa) ou **automático** · horário comercial com aviso de "sem
+atendimento humano de prontidão" · **playbook** aprendido das suas conversas · simulador · filtros de segurança na entrada e na saída ·
+modelo Claude Haiku (o mais econômico da Anthropic). Veja a seção [IA de primeiro contato](#ia-de-primeiro-contato).
 
 **Versão 0.9.0:** **responsável com foto** no canto inferior esquerdo do cartão — clique na foto para escolher ou trocar o responsável ·
 campo de **foto no cadastro** da equipe (Equipe e integrações) e **"Adicionar minha foto"** no menu do avatar · chip **Responsável** na barra rápida
@@ -324,6 +330,44 @@ id (`{{campo_<id>}}`), UTMs (`{{utm_source}}`) e variáveis do formulário. `{{v
 
 Mensagens automáticas contam como contato com o lead (como as enviadas pelo celular): zeram o follow-up e entram na taxa de resposta
 das Estatísticas. Elas **não** marcam como lidas as mensagens que o lead mandou — a equipe continua vendo o que precisa responder.
+
+## IA de primeiro contato
+
+Aba **IA** (só administradores alteram). Precisa de uma **chave da API da Anthropic** (console.anthropic.com → API keys): cole na própria
+tela — ela é conferida com a Anthropic antes de salvar e fica só no servidor (ou use `ANTHROPIC_API_KEY` no `.env`). Usa o modelo
+**Claude Haiku** (`IA_MODELO` no `.env` troca), o mais econômico; cada resposta custa uma fração de centavo, e o consumo de tokens aparece na tela.
+
+**Quando atua:** só em conversa individual de **lead novo** — ninguém da equipe falou com ele e a conversa tem menos de 72 h (ajustável).
+Contato antigo, lead fechado/perdido ou número na lista de bloqueio: a IA nunca entra. Lead novo do Yay! Forms recebe a primeira mensagem
+1 a 2 minutos depois do cadastro (se a **saudação automática dos Disparos** estiver ligada, ela tem prioridade e a IA só responde quando o
+lead escrever). Mensagens da saudação automática não contam como "contato da equipe".
+
+**Quando para:** na hora em que alguém da equipe manda mensagem — pelo CRM ou pelo celular. Na conversa aparece uma faixa com
+**Assumir**, **Pausar** e **Devolver para a IA**.
+
+**Quando passa para você:** o lead pede uma pessoa; pergunta preço, contrato, resultado ou detalhes do nicho (ela sempre diz que não pode
+prometer resultados); manda áudio, imagem ou arquivo; fica irritado; ou depois de 6 mensagens da IA (ajustável). O lead fica
+**aguardando minha resposta** no kanban, com o motivo, um resumo na conversa e um aviso flutuante no CRM.
+
+**Horário:** segunda a sexta 7h–18h e sábado 7h–16h (ajustável, fuso de São Paulo por padrão). Fora disso e no domingo, a primeira resposta
+avisa que a Impera não está com atendimento humano de prontidão e que o retorno pode levar algumas horas.
+
+**Copiloto × automático:** no **copiloto** (padrão) a IA escreve e você aprova, edita ou descarta na conversa; fora do horário ela pode
+responder sozinha (opção). No **automático** ela envia sozinha, com "digitando…" pelo tempo de uma pessoa. A tela mostra quantas sugestões
+você aprovou sem mudar — quando quase todas passarem direto, é hora de ligar o automático.
+
+**Playbook:** **Aprender com minhas conversas** lê as conversas em que a equipe respondeu leads (primeiro as que viraram reunião ou
+cliente), tira nomes, telefones, e-mails, links e valores, e resume seu estilo de atendimento. Revise e salve. O **Simulador** mostra o que a
+IA responderia, sem enviar nada.
+
+**Segurança:** a IA não recebe ordens do lead. Pedidos de código, senha, acesso, "ignore suas instruções" e afins recebem uma resposta
+pronta sem chegar ao modelo (na segunda vez, o lead vai para você). Ela só vê a conversa daquele lead — não tem acesso ao banco nem a dados
+de outros clientes. Toda resposta passa por um filtro antes de sair: código, telefones, e-mails, links não autorizados (só o link de
+agendamento configurado), assuntos de senha/sistema e promessas de resultado são barrados, e a conversa vai para você. Se o lead perguntar
+se está falando com um robô, ela nunca nega.
+
+> ⚠️ Mesmo cuidado dos Disparos: o WhatsApp por QR code não é oficial. A IA só fala com quem chegou agora, espera o lead terminar de
+> digitar e respeita um limite de mensagens por hora (30, ajustável).
 
 ## Calendly
 

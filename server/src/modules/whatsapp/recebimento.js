@@ -13,6 +13,7 @@ import { avisar, respirar } from './instancias.js';
 import { agendarDownload, podeBaixarNaHora } from './midia.js';
 
 import { serializar, desserializar } from './formato.js';
+import { avisarGancho } from '../../ganchos.js';
 export { serializar, desserializar, mensagemOriginal } from './formato.js';
 
 // ---------------------------------------------------------------- quem é quem
@@ -341,7 +342,10 @@ export function aplicarPreparada(instanciaId, p) {
     else if (aoVivo) run('UPDATE wa_messages SET read_at = ? WHERE lead_id IS NULL AND chat_jid = ? AND from_me = 0 AND read_at IS NULL', [agora(), chatJid]);
   }
   if (info.tipo === 'chamada') registrarChamadaNoLead(leadId, linhaId, p);
-  return { linhaId, chat: chatJid, leadId, midia: m && aoVivo && podeBaixarNaHora(m) ? linhaId : null };
+  return {
+    linhaId, chat: chatJid, leadId, midia: m && aoVivo && podeBaixarNaHora(m) ? linhaId : null,
+    fromMe: Boolean(fromMe), grupo: Boolean(p.grupo), tipo: info.tipo, telefone: p.telefone || null,
+  };
 }
 
 // Mensagem nossa para o lead: zera o follow-up (só avança a data) e, ao vivo, marca o que ele mandou antes como lido
@@ -367,6 +371,14 @@ export async function gravarMensagem(id, sock, lib, msg, modo) {
   const resultado = tx(() => aplicarPreparada(id, p));
   if (resultado?.chat && modo !== 'historico') avisar({ chat: resultado.chat });
   if (resultado?.midia) agendarDownload(resultado.midia);
+  // Avisos para a IA de primeiro contato: mensagem nova do contato / mensagem da equipe mandada pelo celular
+  if (resultado?.linhaId && !resultado.grupo && resultado.tipo !== 'chamada') {
+    if (!resultado.fromMe && modo === 'ao_vivo') {
+      avisarGancho('whatsapp:recebida', { instanciaId: id, chatJid: resultado.chat, leadId: resultado.leadId, phone: resultado.telefone, linhaId: resultado.linhaId, tipo: resultado.tipo });
+    } else if (resultado.fromMe && modo !== 'historico') {
+      avisarGancho('whatsapp:humana', { jid: resultado.chat, leadId: resultado.leadId });
+    }
+  }
   return resultado?.linhaId || null;
 }
 

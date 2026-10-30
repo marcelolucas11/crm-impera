@@ -11,6 +11,7 @@ import { interpretarPayload, extrairInicio, extrairSituacao } from './parser.js'
 import { idValido } from '../../util.js';
 import { lerEstado, salvarEstado } from '../../estado.js';
 import { aoReceberLeadYay } from '../disparos/servico.js';
+import { avisarGancho } from '../../ganchos.js';
 
 function iguaisSeguro(a, b) {
   const ba = Buffer.from(String(a));
@@ -210,6 +211,8 @@ function saudar(r) {
   } catch (err) {
     console.error('[yayforms] não consegui agendar a saudação automática:', err.message);
   }
+  // IA de primeiro contato (se estiver ligada e a saudação automática acima estiver desligada)
+  avisarGancho('yayforms:lead', r);
 }
 
 // Leads que vieram do Yay! Forms antes da versão com "form_started_at": lê o início do formulário

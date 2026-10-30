@@ -12,5 +12,6 @@ import whatsapp from './whatsapp/index.js';
 import estatisticas from './estatisticas/index.js';
 import disparos from './disparos/index.js';
 import sistema from './sistema/index.js';
+import ia from './ia/index.js';
 
-export const modulos = [auth, users, stages, leads, followup, yayforms, calendly, whatsapp, disparos, estatisticas, sistema];
+export const modulos = [auth, users, stages, leads, followup, yayforms, calendly, whatsapp, disparos, estatisticas, ia, sistema];

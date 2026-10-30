@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import IaConversa from './ia/IaConversa.jsx';
 import { Virtuoso } from 'react-virtuoso';
 import { X, Forward, Star, EyeOff, Copy, ChevronDown, Music, FileText, Video, Lock } from 'lucide-react';
 import { api } from '../api.js';
@@ -585,6 +586,8 @@ export default function Conversa({ chave, nome = '', onEnviado, cheia = false, p
           ))}
         </div>
       )}
+
+      {!grupo && <IaConversa chave={chave} />}
 
       {erro && <div className="erro conversa-erro" onClick={() => setErro('')}>{erro} <span><X size={14} /></span></div>}
 
