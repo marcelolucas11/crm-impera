@@ -211,7 +211,7 @@ function Conteudo({ user, aoAbrirConversa }) {
                 {admin && <button type="button" className="btn btn-pequeno" disabled={gerando || !cfg.chave_configurada} onClick={gerarPlaybook}>{gerando ? 'Analisando conversas…' : 'Aprender com minhas conversas'}</button>}
               </div>
               <p className="suave pequeno">
-                A IA lê as conversas do CRM em que a equipe respondeu leads (priorizando as que viraram reunião ou cliente), tira nomes, telefones, e-mails,
+                A IA lê só as conversas dos últimos 60 dias com leads que preencheram o formulário e foram respondidos pela equipe (sem conversas pessoais ou de grupo, priorizando as que viraram reunião ou cliente), tira nomes, telefones, e-mails,
                 links e valores, e resume seu estilo: tom, perguntas de qualificação e respostas a objeções. Revise antes de salvar.
               </p>
               <textarea rows={12} value={cfg.playbook} disabled={!admin} placeholder="Ainda sem playbook: a IA usa um estilo curto, cordial e direto." onChange={(e) => mudar({ playbook: e.target.value })} />
