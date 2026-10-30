@@ -20,7 +20,7 @@ import {
 import { emitir } from '../../tempoReal.js';
 import {
   aoReceberMensagem, aoMensagemHumana, aoReceberLeadFormulario, acharConversa, aprovarSugestao, descartarSugestao,
-  iniciarRelogio, pararRelogio, passarParaHumano,
+  iniciarRelogio, pararRelogio, passarParaHumano, leadsPendentes, enfileirarPendentes,
 } from './motor.js';
 
 // Converte erros da IA em respostas HTTP
@@ -111,6 +111,19 @@ export default {
       try { saudacaoDisparos = Boolean((await import('../disparos/servico.js')).lerConfigYay().ativo); } catch { /* ignora */ }
       const numeros = all('SELECT id, name AS nome, phone FROM wa_instances ORDER BY id');
       res.json({ config: configPublica(), resumo: resumoGeral(), numeros, saudacao_disparos_ativa: saudacaoDisparos, protecao: statusProtecao(lerConfig()) });
+    }));
+
+    // Fila: leads da janela de "lead novo" que chegaram antes de a IA ligar e ninguém chamou
+    r.get('/fila', rota((req, res) => {
+      const cfg = lerConfig();
+      res.json({ leads: leadsPendentes(cfg), janela_horas: cfg.janela_lead_novo_horas, limite_novos_por_dia: cfg.limite_novos_por_dia, ativo: cfg.ativo });
+    }));
+
+    r.post('/fila', exigirAdmin, rota((req, res) => {
+      if (!Array.isArray(req.body?.lead_ids) || !req.body.lead_ids.length) throw new ErroHttp(400, 'Escolha ao menos um lead');
+      const r2 = enfileirarPendentes(req.body.lead_ids);
+      emitir('ia', {});
+      res.json(r2);
     }));
 
     // Libera na hora a pausa de descanso ou o freio de falhas

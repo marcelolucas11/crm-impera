@@ -4,7 +4,9 @@ CRM da agência: leads do Yay! Forms caindo direto num kanban, alerta de follow-
 Roda direto no Mac, a partir do SSD externo, sem Docker e sem instalar nada no sistema.
 A mesma pasta funciona depois na VPS da Contabo.
 
-**Versão atual: 0.14.0** — o número fica no arquivo `VERSAO` e é o que aparece em **Equipe e integrações → Atualização do CRM**.
+**Versão atual: 0.15.0** — o número fica no arquivo `VERSAO` e é o que aparece em **Equipe e integrações → Atualização do CRM**.
+
+**Versão 0.15.0:** fila da IA para leads que chegaram antes de ela ligar (tela **IA → Limites e proteção → Quem é lead novo**): mostra os leads abertos da janela de "lead novo" (ex.: últimas 240 h), com telefone, com quem ninguém da equipe falou e que a IA ainda não atende. Você revisa a lista, desmarca quem não quer e manda o resto para a IA. Quem nunca escreveu recebe a primeira mensagem da IA (retomando o cadastro, sem fingir que acabou de chegar); quem escreveu e ficou sem resposta recebe um pedido de desculpas curto pela demora e a resposta. A primeira mensagem só sai dentro do horário comercial, os mais novos vão primeiro e tudo segue as travas de proteção (um por vez, intervalo entre leads, limite de leads novos em 24 h). Conversas que tinham sido ignoradas com uma janela menor voltam a ser avaliadas.
 
 **Versão 0.14.0:** contingência do número na IA (tela **IA → Limites e proteção**): atende **um lead por vez**, espera um
 tempo **sorteado entre X e Y segundos** antes de ir para outro lead, faz **pausas de descanso** de X a Y minutos a cada N mensagens,

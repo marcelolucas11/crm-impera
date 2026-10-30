@@ -428,3 +428,56 @@ test('contingência: faixas invertidas são corrigidas ao salvar', () => {
   assert.equal(c.descanso_min_min, 5); assert.equal(c.descanso_max_min, 20);
   assert.equal(c.intervalo_leads_min_seg, 30); assert.equal(c.intervalo_leads_max_seg, 90);
 });
+
+// ------------------------------------------------------------------ fila (leads que chegaram antes de a IA ligar)
+
+test('fila: lista só leads abertos da janela, com telefone e sem contato da equipe; enfileirar faz a IA abordar', async () => {
+  await preparar({ extra: { janela_lead_novo_horas: 240 } });
+  const h = (n) => new Date(Date.now() - n * 3600000).toISOString();
+  const semContato = await criarLeadDireto({ nome: 'Carla', telefone: '5511911110101', criadoEm: h(100) });
+  const escreveu = await criarLeadDireto({ nome: 'Diego', telefone: '5511911110102', criadoEm: h(50) });
+  const jaFalei = await criarLeadDireto({ nome: 'Eva', telefone: '5511911110103', criadoEm: h(10) });
+  await criarLeadDireto({ nome: 'Velho', telefone: '5511911110104', criadoEm: h(300) });
+  await criarLeadDireto({ nome: 'Sem telefone', telefone: null, criadoEm: h(5) });
+  run('INSERT INTO wa_contacts (jid, phone, lead_id) VALUES (?, ?, ?)', ['5511911110102@s.whatsapp.net', '5511911110102', escreveu]);
+  run('INSERT INTO wa_contacts (jid, phone, lead_id) VALUES (?, ?, ?)', ['5511911110103@s.whatsapp.net', '5511911110103', jaFalei]);
+  mensagemDoLead('5511911110102@s.whatsapp.net', 'Oi, vocês trabalham com rifa?', { leadId: escreveu, horasAtras: 49 });
+  mensagemDoLead('5511911110103@s.whatsapp.net', 'Oi Eva, tudo bem?', { leadId: jaFalei, horasAtras: 9, deMim: true });
+
+  const lista = motor.leadsPendentes();
+  assert.deepEqual(lista.map((l) => l.lead_id), [escreveu, semContato]); // mais novos primeiro
+  assert.equal(lista[0].mensagens_do_lead, 1);
+
+  const r = motor.enfileirarPendentes([semContato, escreveu, jaFalei]);
+  assert.equal(r.enfileirados, 2);
+  assert.equal(r.pendentes, 0);
+  const cSem = motor.acharConversa({ leadId: semContato });
+  const cEsc = motor.acharConversa({ leadId: escreveu });
+  assert.equal(cSem.origem, 'fila');
+  assert.equal(cEsc.origem, 'fila_whatsapp');
+  assert.equal((await processar(cSem)).feito, 'enviada'); // nunca escreveu: a IA manda a primeira mensagem
+  assert.equal((await processar(cEsc)).feito, 'enviada'); // escreveu e ninguém respondeu: a IA responde
+  assert.equal(enviadas.length, 2);
+});
+
+test('fila: a primeira mensagem espera o horário comercial; conversa ignorada antes (janela menor) volta para a fila', async () => {
+  await preparar({ horario: NUNCA, extra: { janela_lead_novo_horas: 72 } });
+  const leadId = await criarLeadDireto({ nome: 'Fábio', telefone: '5511911110201', criadoEm: new Date(Date.now() - 100 * 3600000).toISOString() });
+  assert.equal(motor.leadsPendentes().length, 0); // fora da janela de 72 h
+  salvarConfig({ janela_lead_novo_horas: 240 });
+  run("INSERT INTO ia_conversas (chave, lead_id, phone, origem, status, motivo) VALUES (?, ?, ?, 'yayforms', 'ignorada', 'Lead antigo no CRM')", [`l:${leadId}`, leadId, '5511911110201']);
+  assert.equal(motor.leadsPendentes().length, 1);
+  motor.enfileirarPendentes([leadId]);
+  const c = motor.acharConversa({ leadId });
+  assert.equal(c.status, 'ativa');
+  assert.equal((await processar(c)).feito, 'aguardando_horario');
+  assert.equal(enviadas.length, 0);
+  assert.ok(conversa(c.id).proxima_em);
+});
+
+test('fila: com a IA desligada não enfileira', async () => {
+  await preparar();
+  const leadId = await criarLeadDireto({ nome: 'Gil', telefone: '5511911110301' });
+  salvarConfig({ ativo: false });
+  assert.throws(() => motor.enfileirarPendentes([leadId]), /Ligue a IA/);
+});

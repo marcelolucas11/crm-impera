@@ -9,6 +9,7 @@ import { tempoDesde, formatarTelefone } from '../../utils.js';
 import { ProvedorAvisos, useAviso, Interruptor } from '../disparos/comum.jsx';
 import '../disparos/disparos.css';
 import DiretrizesIa from './DiretrizesIa.jsx';
+import FilaPendentes from './FilaPendentes.jsx';
 import './ia.css';
 
 const DIAS = [[1, 'Segunda'], [2, 'Terça'], [3, 'Quarta'], [4, 'Quinta'], [5, 'Sexta'], [6, 'Sábado'], [0, 'Domingo']];
@@ -402,6 +403,7 @@ function Conteudo({ user, aoAbrirConversa }) {
                     <input type="checkbox" checked={cfg.iniciar_formulario} disabled={!admin} onChange={(e) => mudar({ iniciar_formulario: e.target.checked })} />
                     <span>Lead novo do Yay! Forms: a IA manda a primeira mensagem (1 a 2 min depois do cadastro)</span>
                   </label>
+                  <FilaPendentes admin={admin} alterado={alterado} />
                 </div>
                 <div className="dp-config-item">
                   <span className="dp-config-titulo">Quando passa para você</span>

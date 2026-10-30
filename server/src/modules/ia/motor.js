@@ -151,6 +151,11 @@ export function motivoParaNaoAtuar(cfg, contato, { leadId } = {}) {
 
 const daquiA = (ms) => new Date(Date.now() + ms).toISOString();
 
+// Conversas em que a IA manda a primeira mensagem sem o lead ter escrito
+const ORIGENS_PROATIVAS = ['yayforms', 'fila'];
+// Conversas que entraram pela fila (leads que chegaram antes de a IA ligar): 'fila' = nunca escreveu, 'fila_whatsapp' = escreveu e ninguém respondeu
+const DA_FILA = ['fila', 'fila_whatsapp'];
+
 /** Mensagem nova do contato (ao vivo). dados: { instanciaId, chatJid, leadId, phone, grupo, fromMe } */
 export function aoReceberMensagem({ instanciaId, chatJid, leadId = null, phone = null, grupo = false }) {
   const cfg = lerConfig();
@@ -221,6 +226,82 @@ export function aoReceberLeadFormulario({ leadId, novo } = {}, { saudacaoDisparo
     avisarTela(conversa);
   }
   return conversa;
+}
+
+// ------------------------------------------------------------------ fila: leads que chegaram antes de a IA ligar
+//
+// A IA só reage a eventos novos (mensagem chegando, cadastro novo no Yay! Forms). Quem virou lead antes de ela ser
+// ligada — ou enquanto a saudação dos Disparos estava ligada — nunca entraria. A fila lista os leads abertos da janela de
+// "lead novo" com quem ninguém da equipe falou, e a equipe escolhe quais a IA deve atender. O ritmo continua sendo o das
+// travas de proteção (um por vez, intervalo entre leads, limite de leads novos em 24 h) e a primeira mensagem só sai
+// dentro do horário comercial.
+
+/** Leads abertos da janela, com telefone, sem contato da equipe e que a IA ainda não atende (mais novos primeiro). */
+export function leadsPendentes(cfg = lerConfig(), { limite = 500 } = {}) {
+  const desde = new Date(Date.now() - cfg.janela_lead_novo_horas * 3600000).toISOString();
+  const leads = all(
+    `SELECT l.id, l.name, l.phone, l.source, l.created_at FROM leads l JOIN stages s ON s.id = l.stage_id
+      WHERE l.created_at >= ? AND s.kind = 'open' AND l.phone IS NOT NULL AND trim(l.phone) <> ''
+      ORDER BY l.created_at DESC LIMIT ?`,
+    [desde, limite]
+  );
+  const lista = [];
+  for (const l of leads) {
+    const existente = acharConversa({ leadId: l.id, phone: l.phone });
+    // Só reavalia conversa "ignorada" (ex.: foi julgada com uma janela menor); as outras a IA já atende ou já passou
+    if (existente && existente.status !== 'ignorada') continue;
+    const contato = { leadId: l.id, phone: l.phone, jid: null, jids: jidsDoContato({ leadId: l.id, phone: l.phone }) };
+    if (motivoParaNaoAtuar(cfg, contato, { leadId: l.id })) continue;
+    const f = filtro(contato);
+    const recebidas = get(
+      `SELECT count(*) AS n, max(m.timestamp) AS ultima FROM wa_messages m
+        WHERE ${f.where} AND m.from_me = 0 AND m.type <> 'chamada' AND m.deleted_at IS NULL`,
+      f.params
+    );
+    lista.push({
+      lead_id: l.id, nome: l.name, phone: l.phone, origem: l.source, criado_em: l.created_at,
+      mensagens_do_lead: recebidas?.n || 0, ultima_mensagem_em: recebidas?.ultima || null, conversa_id: existente?.id || null,
+    });
+  }
+  return lista;
+}
+
+/** Coloca na fila da IA os leads escolhidos (só os que ainda estão pendentes). Mais novos são atendidos primeiro. */
+export function enfileirarPendentes(leadIds, cfg = lerConfig()) {
+  if (!cfg.ativo) throw new ErroIA('Ligue a IA antes de mandar leads para ela', { status: 400 });
+  const escolhidos = new Set((leadIds || []).map(Number).filter(Number.isInteger));
+  const pendentes = leadsPendentes(cfg).filter((p) => escolhidos.has(p.lead_id));
+  let enfileirados = 0;
+  for (const p of pendentes) {
+    const origem = p.mensagens_do_lead ? 'fila_whatsapp' : 'fila';
+    const proximaEm = daquiA(5000 + enfileirados * 1000);
+    let conversa;
+    if (p.conversa_id) {
+      atualizar(p.conversa_id, {
+        status: 'ativa', motivo: null, origem, lead_id: p.lead_id, proxima_em: proximaEm, ativada_em: agora(), ultima_lida_id: 0,
+      });
+      conversa = get('SELECT * FROM ia_conversas WHERE id = ?', [p.conversa_id]);
+    } else {
+      conversa = criarConversa({
+        leadId: p.lead_id, phone: p.phone, jid: null, instanciaId: cfg.numero_ids[0] || null, origem, status: 'ativa', motivo: null, proximaEm,
+      });
+    }
+    if (conversa?.status !== 'ativa') continue;
+    registrar(conversa.id, 'inicio', `Fila: lead das últimas ${cfg.janela_lead_novo_horas} h sem resposta`);
+    avisarTela(conversa);
+    enfileirados++;
+  }
+  if (enfileirados) console.log(`[ia] ${enfileirados} lead(s) da fila entregues para a IA`);
+  return { enfileirados, pendentes: leadsPendentes(cfg).length };
+}
+
+// Há quanto tempo o lead chegou (fila) e há quanto tempo mandou a última mensagem sem resposta
+function atrasoDaFila(conversa, contato) {
+  const lead = conversa.lead_id ? get('SELECT created_at, source FROM leads WHERE id = ?', [conversa.lead_id]) : null;
+  const f = filtro(contato);
+  const ultima = get(`SELECT max(m.timestamp) AS t FROM wa_messages m WHERE ${f.where} AND m.from_me = 0 AND m.type <> 'chamada'`, f.params)?.t;
+  const horas = (iso) => (iso ? Math.max(0, (Date.now() - new Date(iso).getTime()) / 3600000) : null);
+  return { fonte: lead?.source || null, horasDesdeCadastro: horas(lead?.created_at), horasDesdeUltimaMensagem: horas(ultima) };
 }
 
 // ------------------------------------------------------------------ passar para um humano
@@ -335,9 +416,19 @@ export async function processarConversa(id) {
   const historico = historicoDaConversa(contato);
   const novas = historico.filter((m) => !m.from_me && m.id > conversa.ultima_lida_id);
   const primeiroContato = !historico.some((m) => m.from_me);
-  if (!novas.length && !(conversa.origem === 'yayforms' && primeiroContato)) return { feito: 'sem_novidade' };
+  if (!novas.length && !(ORIGENS_PROATIVAS.includes(conversa.origem) && primeiroContato)) return { feito: 'sem_novidade' };
 
   const foraDoHorario = !dentroDoHorario(cfg);
+
+  // Lead da fila (chegou antes de a IA ligar): o primeiro contato só sai dentro do horário comercial, a não ser que o
+  // lead tenha escrito de novo depois de entrar na fila (aí ele está ativo agora e a IA responde).
+  if (DA_FILA.includes(conversa.origem) && !conversa.mensagens_ia && foraDoHorario
+      && !novas.some((m) => new Date(m.timestamp).getTime() >= new Date(conversa.ativada_em).getTime())) {
+    atualizar(id, { proxima_em: daquiA(15 * 60000) });
+    const ultimo = get('SELECT tipo FROM ia_registro WHERE conversa_id = ? ORDER BY id DESC LIMIT 1', [id])?.tipo;
+    if (ultimo !== 'aguardando_horario') registrar(id, 'aguardando_horario', 'Fila: primeira mensagem espera o horário comercial');
+    return { feito: 'aguardando_horario' };
+  }
   const automatico = cfg.modo === 'automatico' || (foraDoHorario && cfg.automatico_fora_horario);
 
   // Proteção do número: descanso, limites, intervalo entre leads e freio de falhas. A conversa só fica para depois.
@@ -404,6 +495,7 @@ export async function processarConversa(id) {
       mensagens: montarPedido({
         cfg, lead: { primeiroNome: nome }, historico, foraDoHorario, saudacao, primeiroContato,
         origem: conversa.origem, jaAvisouForaHorario: Boolean(conversa.aviso_fora_horario_em),
+        atraso: DA_FILA.includes(conversa.origem) ? atrasoDaFila(conversa, contato) : null,
         formulario: dadosDoFormulario(conversa.lead_id || contato.leadId, cfg),
       }),
     });

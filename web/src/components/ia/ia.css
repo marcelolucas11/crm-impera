@@ -157,3 +157,12 @@
 .ia-protecao-numeros { display: flex; flex-wrap: wrap; gap: 4px 14px; color: var(--suave); }
 .ia-protecao-numeros b { color: var(--texto); font-weight: 600; }
 .ia-protecao-cheio, .ia-protecao-cheio b { color: #f87171; }
+
+/* Fila: leads sem resposta que chegaram antes de a IA ligar */
+.ia-fila-faixa { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 10px; padding-top: 10px; border-top: 1px solid rgba(255, 255, 255, 0.08); }
+.ia-fila-faixa > span { flex: 1 1 180px; }
+.ia-fila-todos { margin: 10px 0 6px; }
+.ia-fila-lista { display: flex; flex-direction: column; gap: 4px; max-height: 52vh; overflow-y: auto; margin-bottom: 12px; padding-right: 4px; }
+.ia-fila-item { display: grid; grid-template-columns: auto 1fr; column-gap: 10px; row-gap: 2px; align-items: center; padding: 8px 10px; border-radius: 10px; background: rgba(255, 255, 255, 0.04); cursor: pointer; }
+.ia-fila-item > input { grid-row: span 3; }
+.ia-fila-nome { font-weight: 600; }

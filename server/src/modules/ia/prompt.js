@@ -82,7 +82,30 @@ export function textoDoFormulario(formulario) {
   return `<formulario>\n${linhas.join('\n')}\n</formulario>`;
 }
 
-export function montarPedido({ cfg, lead, historico, foraDoHorario, saudacao, primeiroContato, origem, jaAvisouForaHorario, formulario = null }) {
+// "há 5 horas", "há 3 dias"
+export function haQuanto(horas) {
+  if (horas === null || horas === undefined) return null;
+  if (horas < 2) return 'há pouco tempo';
+  if (horas < 36) return `há ${Math.round(horas)} horas`;
+  return `há ${Math.round(horas / 24)} dias`;
+}
+
+// Como o lead chegou, para o modelo não tratar quem espera há dias como se tivesse acabado de chegar
+function textoDaOrigem(origem, atraso) {
+  if (origem === 'yayforms') return 'Ele preencheu um formulário de cadastro de um anúncio da empresa.';
+  if (origem === 'fila') {
+    const quando = haQuanto(atraso?.horasDesdeCadastro);
+    const como = atraso?.fonte === 'yayforms' ? 'preencheu um formulário de cadastro de um anúncio da empresa' : 'entrou como lead da empresa';
+    return `Ele ${como}${quando ? ` ${quando}` : ''} e ainda não recebeu nenhuma mensagem nossa. Não finja que ele acabou de se cadastrar: retome o contato com naturalidade (ex.: "vi que você se cadastrou com a gente"), sem pedir desculpas longas.`;
+  }
+  if (origem === 'fila_whatsapp') {
+    const quando = haQuanto(atraso?.horasDesdeUltimaMensagem);
+    return `Ele chamou no WhatsApp e ninguém tinha respondido ainda${quando ? ` (a última mensagem dele foi ${quando})` : ''}. Peça desculpas pela demora em poucas palavras e responda o que ele perguntou.`;
+  }
+  return 'Ele chamou no WhatsApp.';
+}
+
+export function montarPedido({ cfg, lead, historico, foraDoHorario, saudacao, primeiroContato, origem, jaAvisouForaHorario, formulario = null, atraso = null }) {
   const linhas = historico.slice(-20).map((m) => {
     const quem = m.from_me ? 'VOCÊ/EQUIPE' : 'LEAD';
     return `${quem}: ${textoDaMensagem(m).replace(/\s+/g, ' ').slice(0, 600)}`;
@@ -91,7 +114,7 @@ export function montarPedido({ cfg, lead, historico, foraDoHorario, saudacao, pr
     `Agora: ${saudacao.toLowerCase()} (${foraDoHorario ? 'FORA DO HORÁRIO — sem atendimento humano de prontidão' : 'dentro do horário comercial'}).`,
     foraDoHorario && jaAvisouForaHorario ? 'O aviso de fora do horário já foi dado nesta conversa: não repita.' : null,
     `Primeiro nome do lead: ${lead?.primeiroNome || 'desconhecido (não invente)'}.`,
-    origem === 'yayforms' ? 'Ele preencheu um formulário de cadastro de um anúncio da empresa.' : 'Ele chamou no WhatsApp.',
+    textoDaOrigem(origem, atraso),
     primeiroContato
       ? 'Esta é a PRIMEIRA mensagem da empresa para ele: cumprimente, apresente-se e pergunte como pode ajudar ou sobre o negócio dele.'
       : 'Continue a conversa a partir da última mensagem do lead.',
