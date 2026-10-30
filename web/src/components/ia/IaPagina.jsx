@@ -23,6 +23,8 @@ const FUSOS = ['America/Sao_Paulo', 'America/Santiago', 'America/Manaus', 'Ameri
 const numeroFormatado = (n) => new Intl.NumberFormat('pt-BR').format(n || 0);
 const dataCurta = (iso) => (iso ? new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—');
 const ORIGEM_PLAYBOOK = { manual: 'editado à mão', analise: 'análise profunda', melhoria: 'melhoria', automatica: 'melhoria automática' };
+// Texto que termina sem pontuação, fechamento de negrito/aspas ou parêntese provavelmente parou no meio
+const parecePelaMetade = (t) => Boolean(t?.trim()) && !/[.!?)"”*:\]]\s*$/.test(t.trim());
 const rotuloModelo = (m) => `${m.nome} — ${m.nivel}${m.preco ? ` (${m.preco})` : ''}`;
 
 export default function IaPagina(props) {
@@ -98,6 +100,11 @@ function Conteudo({ user, aoAbrirConversa }) {
     if (t.automatica) {
       aviso(r.aplicado ? 'A melhoria automática atualizou o playbook.' : 'A melhoria automática não viu nada para mudar.', 'info');
       api('/ia/config').then((d) => { setDados(d); setCfg(d.config); setAlterado(false); }).catch(() => {});
+    } else if (t.tipo === 'continuar') {
+      mudar({ playbook: r.playbook });
+      aviso(r.completo
+        ? `Playbook completado com ${r.modelo}: ${numeroFormatado(r.acrescentado)} caracteres acrescentados no final, o resto ficou igual. Revise e salve.`
+        : `Acrescentei ${numeroFormatado(r.acrescentado)} caracteres, mas o modelo ${r.motivo_parada}. Salve e clique em "Continuar de onde parou" de novo.`, r.completo ? 'ok' : 'erro');
     } else if (r.sem_mudancas) {
       mudar({ playbook_lido_ate: r.lido_ate });
       setMudancas([]);
@@ -105,7 +112,7 @@ function Conteudo({ user, aoAbrirConversa }) {
     } else {
       mudar({ playbook: r.playbook, playbook_lido_ate: r.lido_ate, playbook_origem: t.tipo === 'melhorar' ? 'melhoria' : 'analise' });
       setMudancas(r.mudancas || null);
-      aviso(`${t.tipo === 'melhorar' ? 'Playbook melhorado' : 'Playbook gerado'} com ${r.modelo} a partir de ${r.conversas_analisadas} conversa(s). Revise e salve.${r.completo === false ? ' Atenção: veio longo demais e pode ter ficado incompleto.' : ''}`);
+      aviso(`${t.tipo === 'melhorar' ? 'Playbook melhorado' : 'Playbook gerado'} com ${r.modelo} a partir de ${r.conversas_analisadas} conversa(s). Revise e salve.${r.completo === false ? ` Atenção: ficou incompleto (o modelo ${r.motivo_parada}). Use "Continuar de onde parou".` : ''}`, r.completo === false ? 'erro' : 'ok');
     }
     api('/ia/playbook/tarefa', { method: 'DELETE' }).catch(() => {});
   }, [aviso]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -131,12 +138,12 @@ function Conteudo({ user, aoAbrirConversa }) {
 
   const rodarPlaybook = async (tipo) => {
     if (tipo === 'gerar' && cfg.playbook && !confirm('Fazer a análise profunda e substituir o playbook atual? (Você revisa antes de salvar e a versão atual fica guardada.)')) return;
-    if (alterado && !confirm('Há mudanças não salvas na tela. A análise usa o playbook SALVO. Continuar mesmo assim?')) return;
+    if (tipo !== 'continuar' && alterado && !confirm('Há mudanças não salvas na tela. A análise usa o playbook SALVO. Continuar mesmo assim?')) return;
     setMudancas(null);
     try {
       // Salva antes a escolha do modelo de análise, se mudou
       if (cfg.modelo_playbook !== dados.config.modelo_playbook) await api('/ia/config', { method: 'PUT', body: { modelo_playbook: cfg.modelo_playbook } });
-      const d = await api(`/ia/playbook/${tipo}`, { method: 'POST' });
+      const d = await api(`/ia/playbook/${tipo}`, { method: 'POST', ...(tipo === 'continuar' ? { body: { playbook: cfg.playbook } } : {}) });
       setTarefa(d.tarefa);
     } catch (e) { aviso(e.message, 'erro'); }
   };
@@ -291,6 +298,10 @@ function Conteudo({ user, aoAbrirConversa }) {
                       title="Lê só as conversas novas desde a última leitura (suas e da IA) e complementa o playbook se precisar">
                       <Wand2 size={14} /> Melhorar com conversas novas
                     </button>
+                    <button type="button" className="btn" disabled={tarefa?.status === 'rodando' || !cfg.chave_configurada || !cfg.playbook?.trim()} onClick={() => rodarPlaybook('continuar')}
+                      title="Usa o texto que está na tela (mesmo sem salvar): a IA escreve só o que falta, a partir do último caractere">
+                      <Send size={14} /> Continuar de onde parou
+                    </button>
                   </div>
                   <span className="suave pequeno">
                     A análise profunda lê tudo dos últimos 60 dias com o raciocínio ligado e leva alguns minutos (a tela pode ficar aberta ou não).
@@ -302,7 +313,7 @@ function Conteudo({ user, aoAbrirConversa }) {
               {tarefa?.status === 'rodando' && (
                 <div className="ia-playbook-tarefa">
                   <div className="carregando pequeno" />
-                  <span>{tarefa.tipo === 'melhorar' ? 'Lendo as conversas novas' : 'Estudando as conversas dos últimos 60 dias'} com {tarefa.modelo}… pode levar alguns minutos.
+                  <span>{tarefa.tipo === 'melhorar' ? 'Lendo as conversas novas' : tarefa.tipo === 'continuar' ? 'Completando o playbook a partir de onde parou' : 'Estudando as conversas dos últimos 60 dias'} com {tarefa.modelo}… pode levar alguns minutos.
                     {tarefa.automatica ? ' (melhoria automática)' : ''} Começou {tempoDesde(tarefa.iniciada_em)}.</span>
                 </div>
               )}
@@ -314,7 +325,14 @@ function Conteudo({ user, aoAbrirConversa }) {
                 </div>
               )}
 
-              <textarea rows={18} value={cfg.playbook} disabled={!admin} placeholder="Ainda sem playbook: a IA usa um estilo curto, cordial e direto. Use a análise profunda para montar o primeiro."
+              {admin && tarefa?.status !== 'rodando' && parecePelaMetade(cfg.playbook) && (
+                <div className="ia-playbook-mudancas ia-playbook-incompleto">
+                  <span>O playbook parece ter parado no meio (termina em "…{cfg.playbook.trim().slice(-30)}").</span>
+                  <button type="button" className="btn btn-pequeno" onClick={() => rodarPlaybook('continuar')}><Send size={13} /> Continuar de onde parou</button>
+                </div>
+              )}
+
+              <textarea rows={18} value={cfg.playbook} disabled={!admin || (tarefa?.status === 'rodando' && tarefa.tipo === 'continuar')} placeholder="Ainda sem playbook: a IA usa um estilo curto, cordial e direto. Use a análise profunda para montar o primeiro."
                 onChange={(e) => mudar({ playbook: e.target.value, playbook_origem: 'manual' })} />
 
               {admin && (

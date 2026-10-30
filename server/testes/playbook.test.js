@@ -74,8 +74,9 @@ test('resposta cortada pelo limite: pede para continuar e junta as partes (o pla
   respostas = [{ texto: '## Tom\n- Curto\n- **Dú', parada: 'max_tokens' }, { texto: 'vidas:** responda com calma' }];
   const r = await pb.gerarPlaybook();
   assert.equal(pedidos.length, 2);
-  assert.match(pedidos[1].messages.at(-1).content, /Continue exatamente de onde parou/);
-  assert.match(r.playbook, /Dú\nvidas:\*\* responda com calma/);
+  assert.match(pedidos[1].messages.at(-1).content, /Continue exatamente do último caractere/);
+  assert.match(r.playbook, /\*\*Dúvidas:\*\* responda com calma/);
+  assert.equal(r.completo, true);
 });
 
 test('melhoria: lê só conversas com mensagens novas desde a última leitura (equipe e IA) e devolve o que mudou', async () => {
@@ -139,4 +140,30 @@ test('modelo que responde os leads: o escolhido na tela; modelo desconhecido é 
   assert.equal(config.configPublica().modelo_nome, 'Claude Sonnet 5.5');
   assert.throws(() => config.salvarConfig({ modelo_atendimento: 'gpt-qualquer' }), /Modelo desconhecido/);
   config.salvarConfig({ modelo_atendimento: 'claude-haiku-5-5' });
+});
+
+test('pausa no meio também é continuada; recusa é marcada como incompleta (não passa por completa em silêncio)', async () => {
+  await preparar();
+  for (const n of ['Joaquim', 'Severino', 'Clodoaldo']) await leadComConversa(n, 5);
+  respostas = [{ texto: '## Tom\n- Cur', parada: 'pause_turn' }, { texto: 'to e direto' }];
+  let r = await pb.gerarPlaybook();
+  assert.equal(r.playbook, '## Tom\n- Curto e direto', 'continua do meio da palavra');
+  respostas = [{ texto: '## Tom\n- Curto\n**"É certeza que v', parada: 'refusal' }];
+  r = await pb.gerarPlaybook();
+  assert.equal(r.completo, false);
+  assert.match(r.motivo_parada, /recusou/);
+});
+
+test('continuar: escreve só o que falta a partir do último caractere e mantém o que já existe', async () => {
+  await preparar();
+  for (const n of ['Joaquim', 'Severino', 'Clodoaldo']) await leadComConversa(n, 5);
+  const parcial = '## 1. Tom\n- Curto e direto\n\n## 5. Objeções\n**"É certeza que v';
+  respostas = [{ texto: 'ai dar certo?"**\n- Explique que cada caso é avaliado pelo especialista.\n\n## 8. Exemplos\n- "Bora marcar uma call?"' }];
+  pb.iniciarTarefa('continuar', { texto: parcial });
+  const t = await esperarTarefa();
+  assert.equal(t.status, 'concluida');
+  assert.ok(t.resultado.playbook.startsWith(parcial), 'o que já existia fica igual');
+  assert.match(t.resultado.playbook, /É certeza que vai dar certo\?"\*\*/);
+  assert.match(pedidos[0].messages[0].content, /## Playbook até agora/);
+  await assert.rejects(pb.continuarPlaybook('   '), /Não há texto/);
 });

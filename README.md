@@ -4,7 +4,12 @@ CRM da agência: leads do Yay! Forms caindo direto num kanban, alerta de follow-
 Roda direto no Mac, a partir do SSD externo, sem Docker e sem instalar nada no sistema.
 A mesma pasta funciona depois na VPS da Contabo.
 
-**Versão atual: 0.13.0** — o número fica no arquivo `VERSAO` e é o que aparece em **Equipe e integrações → Atualização do CRM**.
+**Versão atual: 0.13.1** — o número fica no arquivo `VERSAO` e é o que aparece em **Equipe e integrações → Atualização do CRM**.
+
+**Versão 0.13.1:** botão **Continuar de onde parou** no playbook: usa o texto da tela (mesmo sem salvar) e a IA escreve só o que falta,
+a partir do último caractere, sem mexer no resto. Aparece também um aviso quando o playbook parece ter parado no meio. A análise agora
+também continua quando o modelo **pausa** a resposta (antes só no limite de tamanho), mostra o motivo quando não termina e não
+quebra mais palavras ao juntar as partes. A melhoria automática nunca troca o playbook por um incompleto.
 
 **Versão 0.13.0:** **escolha do modelo** da IA na aba **IA** — o que responde os leads (Haiku, Sonnet, Opus ou Fable, do mais barato
 ao mais potente) e o que analisa as conversas. O playbook ganhou **Análise profunda (60 dias)**: um modelo potente (padrão Opus) lê as

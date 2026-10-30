@@ -151,6 +151,13 @@ export default {
       res.status(202).json({ tarefa: iniciarTarefa('melhorar', { usuario: req.user.name }) });
     }));
 
+    // Completa o playbook que está na tela (mesmo sem salvar) a partir de onde parou, sem mexer no que já existe
+    r.post('/playbook/continuar', exigirAdmin, rota((req, res) => {
+      const texto = typeof req.body?.playbook === 'string' ? req.body.playbook.slice(0, LIMITE_PLAYBOOK) : '';
+      if (!texto.trim()) throw new ErroHttp(400, 'Não há texto na tela para continuar');
+      res.status(202).json({ tarefa: iniciarTarefa('continuar', { usuario: req.user.name, texto }) });
+    }));
+
     r.get('/playbook/tarefa', rota((req, res) => {
       res.json({ tarefa: estadoTarefa() });
     }));

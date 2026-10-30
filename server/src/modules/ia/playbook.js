@@ -23,7 +23,7 @@ const SITUACAO = { parcial: 'preencheu o formulário pela metade', completo_sem_
 const MARCA_MUDANCAS = '===MUDANCAS===';
 const SEM_MUDANCAS = 'SEM_MUDANCAS';
 const MAX_TOKENS = 32000;
-const MAX_CONTINUACOES = 2;
+const MAX_CONTINUACOES = 4;
 const TEMPO_LIMITE_MS = 10 * 60 * 1000;
 
 const origemDe = (extra) => {
@@ -132,22 +132,45 @@ const ESTRUTURA = `Organize em seções com títulos curtos (markdown), nesta or
 8. Exemplos — de 8 a 12 frases curtas no estilo da equipe (sem nomes nem dados).
 Escreva em tópicos objetivos. Seja completo, mas sem repetir; o playbook inteiro deve ter no máximo uns 12 mil caracteres. Termine sempre a última seção.`;
 
-// Chama o modelo de análise e, se a resposta vier cortada pelo limite, pede para continuar de onde parou
+// Por que o modelo parou (stop_reason da Anthropic), em português
+const MOTIVO_PARADA = {
+  max_tokens: 'chegou ao limite de tamanho da resposta',
+  pause_turn: 'pausou a resposta no meio',
+  refusal: 'recusou continuar esse trecho',
+  model_context_window_exceeded: 'o pedido ficou grande demais para o modelo',
+};
+const CONTINUAVEL = new Set(['max_tokens', 'pause_turn']);
+
+// Junta a continuação ao texto anterior sem repetir: se o modelo recomeçar com o fim do que já existia, corta a repetição
+export function juntarSemRepetir(anterior, continuacao) {
+  const a = String(anterior || '');
+  let c = String(continuacao || '').replace(/^```(?:markdown)?\s*/, '');
+  for (let n = Math.min(300, a.length, c.length); n >= 8; n--) {
+    if (c.startsWith(a.slice(-n))) { c = c.slice(n); break; }
+  }
+  return a + c;
+}
+
+// Chama o modelo de análise e, se a resposta for interrompida (limite de tamanho ou pausa), pede para continuar de onde parou
 async function analisar({ sistema, pedido, cfg }) {
   const mensagens = [{ role: 'user', content: pedido }];
   let texto = '';
   let uso = null;
+  let parada = null;
   for (let i = 0; i <= MAX_CONTINUACOES; i++) {
     const r = await perguntarModelo({ sistema, mensagens, maxTokens: MAX_TOKENS, modelo: cfg.modelo_playbook, pensar: true, tempoMs: TEMPO_LIMITE_MS });
-    texto += (texto && r.texto ? '\n' : '') + r.texto;
+    texto = juntarSemRepetir(texto, r.texto);
     uso = somarUso(uso, r.uso);
-    if (r.parada !== 'max_tokens') return { texto, uso, completo: true };
-    mensagens.push({ role: 'assistant', content: r.texto || '(vazio)' }, { role: 'user', content: 'Sua resposta foi cortada pelo limite de tamanho. Continue exatamente de onde parou, sem repetir nada do que já escreveu.' });
+    parada = r.parada;
+    if (!CONTINUAVEL.has(parada)) break;
+    mensagens.push({ role: 'assistant', content: texto || '(vazio)' }, { role: 'user', content: 'Sua resposta foi interrompida. Continue exatamente do último caractere (mesmo que seja no meio de uma palavra), sem repetir nada do que já escreveu.' });
   }
-  return { texto, uso, completo: false };
+  const completo = !parada || parada === 'end_turn' || parada === 'stop_sequence';
+  return { texto, uso, completo, parada, motivo_parada: completo ? null : MOTIVO_PARADA[parada] || `parou (${parada})` };
 }
 
 const limpar = (texto) => anonimizar(texto).replace(/^```(?:markdown)?\s*|```\s*$/g, '').trim().slice(0, LIMITE_PLAYBOOK);
+const detalheParada = (r) => (r.completo ? '' : ` — incompleto: ${r.motivo_parada}`);
 
 export async function gerarPlaybook() {
   const cfg = lerConfig();
@@ -159,11 +182,11 @@ export async function gerarPlaybook() {
     `${conversas.join('\n\n')}\n\n---\n` +
     `Estude as ${leadsAnalisados} conversas acima e escreva o melhor playbook possível para a atendente virtual.\n${ESTRUTURA}\n` +
     'Responda só com o playbook, em português do Brasil, sem introdução nem comentários.';
-  const { texto, uso, completo } = await analisar({ sistema: textoDoAnalista(cfg), pedido, cfg });
-  registrar(null, 'playbook', `análise profunda: ${leadsAnalisados} conversas (${nomeDoModelo(cfg.modelo_playbook)})`, uso);
-  const limpo = limpar(texto);
+  const r = await analisar({ sistema: textoDoAnalista(cfg), pedido, cfg });
+  registrar(null, 'playbook', `análise profunda: ${leadsAnalisados} conversas (${nomeDoModelo(cfg.modelo_playbook)})${detalheParada(r)}`, r.uso);
+  const limpo = limpar(r.texto);
   if (!limpo) throw new ErroIA('O modelo não devolveu o playbook. Tente de novo.');
-  return { playbook: limpo, conversas_analisadas: leadsAnalisados, contagem, lido_ate: lidoAte, completo, modelo: nomeDoModelo(cfg.modelo_playbook) };
+  return { playbook: limpo, conversas_analisadas: leadsAnalisados, contagem, lido_ate: lidoAte, completo: r.completo, motivo_parada: r.motivo_parada, modelo: nomeDoModelo(cfg.modelo_playbook) };
 }
 
 export async function melhorarPlaybook() {
@@ -183,9 +206,12 @@ export async function melhorarPlaybook() {
     'Mantenha tudo o que continua valendo e a mesma estrutura de seções; não reescreva por reescrever.\n' +
     `Se nada precisar mudar, responda apenas: ${SEM_MUDANCAS}\n` +
     `Se mudar, responda com o playbook COMPLETO já atualizado, depois uma linha com ${MARCA_MUDANCAS} e, abaixo dela, de 1 a 6 tópicos curtos dizendo o que mudou e por quê.`;
-  const { texto, uso, completo } = await analisar({ sistema: textoDoAnalista(cfg), pedido, cfg });
-  registrar(null, 'playbook', `melhoria: ${leadsAnalisados} conversas novas (${nomeDoModelo(cfg.modelo_playbook)})`, uso);
-  const base = { conversas_analisadas: leadsAnalisados, contagem, lido_ate: lidoAte, completo, modelo: nomeDoModelo(cfg.modelo_playbook) };
+  const r = await analisar({ sistema: textoDoAnalista(cfg), pedido, cfg });
+  const { texto } = r;
+  registrar(null, 'playbook', `melhoria: ${leadsAnalisados} conversas novas (${nomeDoModelo(cfg.modelo_playbook)})${detalheParada(r)}`, r.uso);
+  const base = { conversas_analisadas: leadsAnalisados, contagem, lido_ate: lidoAte, completo: r.completo, motivo_parada: r.motivo_parada, modelo: nomeDoModelo(cfg.modelo_playbook) };
+  // Automática incompleta não pode substituir o playbook bom por um pela metade
+  if (!r.completo && !texto.includes(MARCA_MUDANCAS)) throw new ErroIA(`A melhoria não terminou (o modelo ${r.motivo_parada}). Nada foi alterado; tente de novo.`);
   if (texto.trim().startsWith(SEM_MUDANCAS)) return { ...base, sem_mudancas: true, playbook: cfg.playbook, mudancas: [] };
   const [corpo, notas = ''] = texto.split(MARCA_MUDANCAS);
   const limpo = limpar(corpo);
@@ -194,13 +220,37 @@ export async function melhorarPlaybook() {
   return { ...base, sem_mudancas: false, playbook: limpo, mudancas };
 }
 
+// Completa um playbook que ficou pela metade: o modelo relê as conversas e escreve SÓ o que falta, a partir do último caractere.
+// O que já existe não é alterado.
+export async function continuarPlaybook(parcial) {
+  const cfg = lerConfig();
+  const atual = String(parcial ?? '').replace(/\r/g, '').replace(/\s+$/, '');
+  if (!atual.trim()) throw new ErroIA('Não há texto na tela para continuar.', { status: 400 });
+  const { conversas, leadsAnalisados } = coletarConversas();
+  const pedido =
+    `${leadsAnalisados ? `${conversas.join('\n\n')}\n\n---\n` : ''}` +
+    `## Playbook até agora (foi interrompido antes de terminar)\n${atual}\n\n---\n` +
+    'O playbook acima parou no meio. Escreva SOMENTE o que falta para terminá-lo, começando exatamente depois do último caractere ' +
+    '(se parou no meio de uma palavra ou frase, comece completando-a). Não repita nem reescreva nada do que já está escrito; ' +
+    'mantenha o mesmo estilo, formatação e numeração de seções.\n' +
+    `Para saber o que ainda falta, siga esta estrutura (pule as seções que já estão completas):\n${ESTRUTURA}\n` +
+    'Responda só com a continuação, sem introdução nem comentários.';
+  const r = await analisar({ sistema: textoDoAnalista(cfg), pedido, cfg });
+  registrar(null, 'playbook', `continuação (${nomeDoModelo(cfg.modelo_playbook)})${detalheParada(r)}`, r.uso);
+  const continuacao = anonimizar(r.texto).replace(/```\s*$/g, '').replace(/\s+$/, '');
+  if (!continuacao.trim()) throw new ErroIA('O modelo não devolveu a continuação. Tente de novo.');
+  // Se o texto parou no meio de uma palavra, a continuação vem colada; se parou no fim de uma linha, mantém a quebra
+  const playbook = juntarSemRepetir(atual, /^[\s.,;:!?)]/.test(continuacao) || /[\p{L}\d]$/u.test(atual) ? continuacao : `\n${continuacao}`).slice(0, LIMITE_PLAYBOOK);
+  return { playbook, acrescentado: playbook.length - atual.length, completo: r.completo, motivo_parada: r.motivo_parada, modelo: nomeDoModelo(cfg.modelo_playbook), conversas_analisadas: leadsAnalisados };
+}
+
 // ------------------------------------------------------------------ tarefa em segundo plano
 // A análise pode levar minutos (mais que o proxy da VPS espera numa requisição), então roda aqui e a tela acompanha.
 let tarefa = { status: 'parada' };
 
 export const estadoTarefa = () => tarefa;
 
-export function iniciarTarefa(tipo, { automatica = false, usuario = null } = {}) {
+export function iniciarTarefa(tipo, { automatica = false, usuario = null, texto = null } = {}) {
   if (tarefa.status === 'rodando') throw new ErroHttp(409, 'Já há uma análise do playbook em andamento. Aguarde terminar.');
   if (!chaveApi()) throw new ErroHttp(400, 'Cole a chave da API da Anthropic primeiro');
   const cfg = lerConfig();
@@ -208,7 +258,7 @@ export function iniciarTarefa(tipo, { automatica = false, usuario = null } = {})
   const id = tarefa.iniciada_em;
   (async () => {
     try {
-      const resultado = tipo === 'melhorar' ? await melhorarPlaybook() : await gerarPlaybook();
+      const resultado = tipo === 'melhorar' ? await melhorarPlaybook() : tipo === 'continuar' ? await continuarPlaybook(texto) : await gerarPlaybook();
       // Automática: aplica sozinha (a versão anterior fica guardada e dá para voltar na tela)
       if (automatica) {
         salvarConfig({

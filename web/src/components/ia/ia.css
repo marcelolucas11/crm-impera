@@ -139,3 +139,5 @@
 .ia-pagina label.ia-versoes { flex-direction: row; align-items: center; gap: 8px; }
 .ia-versoes > span { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
 .ia-versoes select { width: auto; max-width: 320px; }
+.ia-playbook-incompleto { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; border-color: rgba(242, 165, 58, .4); }
+.ia-playbook-incompleto .btn { display: inline-flex; align-items: center; gap: 5px; }
