@@ -4,7 +4,12 @@ CRM da agência: leads do Yay! Forms caindo direto num kanban, alerta de follow-
 Roda direto no Mac, a partir do SSD externo, sem Docker e sem instalar nada no sistema.
 A mesma pasta funciona depois na VPS da Contabo.
 
-**Versão atual: 0.11.1** — o número fica no arquivo `VERSAO` e é o que aparece em **Equipe e integrações → Atualização do CRM**.
+**Versão atual: 0.12.0** — o número fica no arquivo `VERSAO` e é o que aparece em **Equipe e integrações → Atualização do CRM**.
+
+**Versão 0.12.0:** a IA agora é a **Alice**, atendente virtual que **fala no feminino** (nome e gênero ajustáveis em **IA → Apresentação**).
+Ela se apresenta como Alice e, ao passar o lead, diz que **alguém da equipe** continua o atendimento. Se o lead perguntar se é robô, ela diz
+que é a assistente virtual. Quando a resposta tem **mais de um balão**, eles saem com **2 segundos de intervalo** e "digitando…" entre eles
+(também no modo copiloto e no simulador; ajustável em **Limites e proteção**). O simulador passa a usar o que está na tela, mesmo sem salvar.
 
 **Versão 0.11.1:** corrige o aviso **"A IA respondeu fora do formato"**: o limite de cada resposta subiu de 450 para 900 tokens (com
 diretrizes longas a resposta vinha cortada), a leitura ficou mais tolerante e, se a resposta ainda vier ilegível, a IA tenta de novo uma vez
