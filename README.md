@@ -4,7 +4,7 @@ CRM da agência: leads do Yay! Forms caindo direto num kanban, alerta de follow-
 Roda direto no Mac, a partir do SSD externo, sem Docker e sem instalar nada no sistema.
 A mesma pasta funciona depois na VPS da Contabo.
 
-**Versão atual: 0.10.0** — o número fica no arquivo `VERSAO` e é o que aparece em **Equipe e integrações → Atualização do CRM**.
+**Versão atual: 0.10.1** — o número fica no arquivo `VERSAO` e é o que aparece em **Equipe e integrações → Atualização do CRM**.
 
 **Versão 0.10.0:** aba nova **IA** — **primeiro contato automático** com leads novos (WhatsApp e Yay! Forms): cumprimenta, apresenta a Impera,
 tira dúvidas básicas e passa o lead para você (marca **aguardando minha resposta** no kanban, com um resumo). Para na hora em que alguém da

@@ -321,3 +321,15 @@ test('integração: mensagem real recebida pelo WhatsApp avisa a IA; mensagem do
   assert.equal(get('SELECT status FROM ia_conversas WHERE id = ?', [c.id]).status, 'humano');
   limparGanchos();
 });
+
+test('erros da Anthropic viram mensagens em português com status 4xx (o proxy da VPS não esconde a mensagem)', async () => {
+  const { traduzirErro } = await import('../src/modules/ia/cliente.js');
+  const semCredito = traduzirErro(400, 'Your credit balance is too low to access the Anthropic API. Please go to Plans & Billing to upgrade or purchase credits.');
+  assert.equal(semCredito.tipo, 'creditos');
+  assert.ok(semCredito.status < 500);
+  assert.match(semCredito.message, /sem créditos/);
+  assert.equal(traduzirErro(401, 'invalid x-api-key').tipo, 'chave');
+  assert.equal(traduzirErro(404, 'model: claude-x').tipo, 'modelo');
+  assert.equal(traduzirErro(529, 'Overloaded').temporario, true);
+  assert.ok(traduzirErro(529, 'Overloaded').status < 500);
+});

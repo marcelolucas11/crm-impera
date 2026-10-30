@@ -105,8 +105,13 @@ export default {
       try {
         await perguntarModelo({ sistema: 'Responda apenas: ok', mensagens: [{ role: 'user', content: 'ok' }], maxTokens: 5 });
       } catch (err) {
-        removerChave();
-        throw err;
+        // Chave recusada: não guarda. Outros problemas (sem créditos, rede, modelo): a chave fica salva e a tela mostra o aviso
+        if (!(err instanceof ErroIA) || err.tipo === 'chave') {
+          removerChave();
+          throw err;
+        }
+        console.error('[ia] chave salva, mas o teste falhou:', err.message);
+        return res.json({ config: configPublica(), aviso: `Chave salva, mas o teste não passou: ${err.message}` });
       }
       res.json({ config: configPublica() });
     }));

@@ -70,7 +70,8 @@ function Conteudo({ user, aoAbrirConversa }) {
       setChave('');
       setCfg((c) => ({ ...c, ...pegarChave(d.config) }));
       setDados((x) => ({ ...x, config: d.config }));
-      aviso('Chave conferida com a Anthropic e salva');
+      if (d.aviso) aviso(d.aviso, 'erro');
+      else aviso('Chave conferida com a Anthropic e salva');
     } catch (e) { aviso(e.message, 'erro'); } finally { setSalvando(false); }
   };
   const removerChave = async () => {
