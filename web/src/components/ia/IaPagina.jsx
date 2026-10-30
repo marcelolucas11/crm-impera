@@ -390,6 +390,9 @@ function Conteudo({ user, aoAbrirConversa }) {
 
             <section className="cartao-secao">
               <h2><ShieldCheck size={16} /> Limites e proteção</h2>
+              <StatusProtecao protecao={dados.protecao} cfg={cfg} admin={admin} aoRetomar={async () => {
+                try { await api('/ia/protecao/retomar', { method: 'POST' }); aviso('IA liberada para voltar a atender'); carregar(); } catch (e) { aviso(e.message, 'erro'); }
+              }} />
               <div className="dp-config-grade">
                 <div className="dp-config-item">
                   <span className="dp-config-titulo">Quem é lead novo</span>
@@ -406,9 +409,35 @@ function Conteudo({ user, aoAbrirConversa }) {
                     <input className="dp-inline-num" type="number" min={1} max={20} value={cfg.max_mensagens_ia} disabled={!admin} onChange={(e) => mudar({ max_mensagens_ia: Number(e.target.value) })} /> mensagens da IA.</span>
                 </div>
                 <div className="dp-config-item">
-                  <span className="dp-config-titulo">Proteção do número</span>
+                  <span className="dp-config-titulo">Ritmo de atendimento</span>
+                  <label className="dp-check">
+                    <input type="checkbox" disabled={!admin} checked={Boolean(cfg.um_por_vez)} onChange={(e) => mudar({ um_por_vez: e.target.checked })} />
+                    <span>Atende um lead por vez (só começa o próximo quando termina de responder o atual)</span>
+                  </label>
+                  <span className="pequeno">Ao trocar de lead, espera de
+                    <input className="dp-inline-num" type="number" min={0} max={1800} value={cfg.intervalo_leads_min_seg} disabled={!admin} onChange={(e) => mudar({ intervalo_leads_min_seg: Number(e.target.value) })} /> a
+                    <input className="dp-inline-num" type="number" min={0} max={1800} value={cfg.intervalo_leads_max_seg} disabled={!admin} onChange={(e) => mudar({ intervalo_leads_max_seg: Number(e.target.value) })} /> s (sorteado a cada vez).</span>
+                  <label className="dp-check">
+                    <input type="checkbox" disabled={!admin} checked={Boolean(cfg.descanso_ativo)} onChange={(e) => mudar({ descanso_ativo: e.target.checked })} />
+                    <span>Pausas de descanso</span>
+                  </label>
+                  <span className={`pequeno${cfg.descanso_ativo ? '' : ' suave'}`}>A cada
+                    <input className="dp-inline-num" type="number" min={2} max={500} value={cfg.descanso_a_cada} disabled={!admin || !cfg.descanso_ativo} onChange={(e) => mudar({ descanso_a_cada: Number(e.target.value) })} /> mensagens, descansa de
+                    <input className="dp-inline-num" type="number" min={1} max={240} value={cfg.descanso_min_min} disabled={!admin || !cfg.descanso_ativo} onChange={(e) => mudar({ descanso_min_min: Number(e.target.value) })} /> a
+                    <input className="dp-inline-num" type="number" min={1} max={240} value={cfg.descanso_max_min} disabled={!admin || !cfg.descanso_ativo} onChange={(e) => mudar({ descanso_max_min: Number(e.target.value) })} /> min.</span>
+                </div>
+                <div className="dp-config-item">
+                  <span className="dp-config-titulo">Limites de envio</span>
                   <span className="pequeno">No máximo
                     <input className="dp-inline-num" type="number" min={1} max={200} value={cfg.limite_por_hora} disabled={!admin} onChange={(e) => mudar({ limite_por_hora: Number(e.target.value) })} /> mensagens da IA por hora.</span>
+                  <span className="pequeno">No máximo
+                    <input className="dp-inline-num" type="number" min={1} max={3000} value={cfg.limite_por_dia} disabled={!admin} onChange={(e) => mudar({ limite_por_dia: Number(e.target.value) })} /> mensagens em 24 horas.</span>
+                  <span className="pequeno">No máximo
+                    <input className="dp-inline-num" type="number" min={1} max={1000} value={cfg.limite_novos_por_dia} disabled={!admin} onChange={(e) => mudar({ limite_novos_por_dia: Number(e.target.value) })} /> leads novos abordados em 24 horas.</span>
+                  <span className="suave pequeno">3 erros de envio seguidos pausam a IA por 30 min.</span>
+                </div>
+                <div className="dp-config-item">
+                  <span className="dp-config-titulo">Jeito humano de digitar</span>
                   <span className="pequeno">Espera
                     <input className="dp-inline-num" type="number" min={3} max={120} value={cfg.espera_agrupar_seg} disabled={!admin} onChange={(e) => mudar({ espera_agrupar_seg: Number(e.target.value) })} /> s o lead terminar de digitar antes de responder.</span>
                   <span className="pequeno">Mais de um balão: espera
@@ -580,5 +609,33 @@ function Simulador({ cfg, admin }) {
         <button type="submit" className="btn btn-ouro" disabled={ocupado || !admin || !cfg.chave_configurada} aria-label="Enviar"><Send size={14} /></button>
       </form>
     </section>
+  );
+}
+
+// Painel ao vivo da contingência: pausa em andamento e quanto de cada limite já foi usado
+function StatusProtecao({ protecao, cfg, admin, aoRetomar }) {
+  const [, setTique] = useState(0);
+  useEffect(() => { const t = setInterval(() => setTique((x) => x + 1), 15000); return () => clearInterval(t); }, []);
+  if (!protecao) return null;
+  const hora = (iso) => new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  const noFuturo = (iso) => iso && new Date(iso).getTime() > Date.now();
+  const pausa = noFuturo(protecao.pausa_falhas_ate)
+    ? { texto: `Pausada até ${hora(protecao.pausa_falhas_ate)} por erros de envio seguidos`, tom: 'erro' }
+    : noFuturo(protecao.descanso_ate) ? { texto: `Em pausa de descanso até ${hora(protecao.descanso_ate)}`, tom: 'aviso' } : null;
+  const uso = (n, max) => `${n}/${max}`;
+  const cheio = (n, max) => (n >= max ? ' ia-protecao-cheio' : '');
+  return (
+    <div className={`ia-protecao${pausa ? ` ia-protecao-${pausa.tom}` : ''}`}>
+      <span className="ia-protecao-estado">
+        {pausa ? pausa.texto : 'Atendendo normalmente'}
+        {pausa && admin && <button type="button" className="botao-link" onClick={aoRetomar}>Retomar agora</button>}
+      </span>
+      <span className="ia-protecao-numeros pequeno">
+        <span className={cheio(protecao.enviadas_hora, cfg.limite_por_hora)}>Última hora: <b>{uso(protecao.enviadas_hora, cfg.limite_por_hora)}</b></span>
+        <span className={cheio(protecao.enviadas_dia, cfg.limite_por_dia)}>24 h: <b>{uso(protecao.enviadas_dia, cfg.limite_por_dia)}</b></span>
+        <span className={cheio(protecao.leads_novos_dia, cfg.limite_novos_por_dia)}>Leads novos 24 h: <b>{uso(protecao.leads_novos_dia, cfg.limite_novos_por_dia)}</b></span>
+        {cfg.descanso_ativo && !pausa && <span>Próximo descanso em <b>{Math.max(0, cfg.descanso_a_cada - protecao.enviadas_desde_descanso)}</b> msgs</span>}
+      </span>
+    </div>
   );
 }

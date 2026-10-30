@@ -141,3 +141,19 @@
 .ia-versoes select { width: auto; max-width: 320px; }
 .ia-playbook-incompleto { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; border-color: rgba(242, 165, 58, .4); }
 .ia-playbook-incompleto .btn { display: inline-flex; align-items: center; gap: 5px; }
+
+/* Contingência do número: estado ao vivo (pausa, limites usados) */
+.ia-protecao {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; margin: 4px 0 14px;
+  padding: 10px 14px; border-radius: 12px; border: 1px solid var(--vidro-borda, var(--borda)); background: rgba(0, 0, 0, .22);
+}
+.ia-protecao-estado { display: inline-flex; align-items: center; gap: 10px; font-size: 13px; font-weight: 600; color: var(--texto); }
+.ia-protecao-estado::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: #4ade80; flex: 0 0 8px; }
+.ia-protecao-aviso { border-color: rgba(224, 190, 108, .5); }
+.ia-protecao-aviso .ia-protecao-estado::before { background: var(--ouro); }
+.ia-protecao-erro { border-color: rgba(248, 113, 113, .5); }
+.ia-protecao-erro .ia-protecao-estado::before { background: #f87171; }
+.ia-protecao-estado .botao-link { background: none; border: 0; padding: 0; color: var(--ouro); font-size: 12.5px; cursor: pointer; text-decoration: underline; }
+.ia-protecao-numeros { display: flex; flex-wrap: wrap; gap: 4px 14px; color: var(--suave); }
+.ia-protecao-numeros b { color: var(--texto); font-weight: 600; }
+.ia-protecao-cheio, .ia-protecao-cheio b { color: #f87171; }

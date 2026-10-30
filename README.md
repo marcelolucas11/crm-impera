@@ -4,7 +4,13 @@ CRM da agência: leads do Yay! Forms caindo direto num kanban, alerta de follow-
 Roda direto no Mac, a partir do SSD externo, sem Docker e sem instalar nada no sistema.
 A mesma pasta funciona depois na VPS da Contabo.
 
-**Versão atual: 0.13.1** — o número fica no arquivo `VERSAO` e é o que aparece em **Equipe e integrações → Atualização do CRM**.
+**Versão atual: 0.14.0** — o número fica no arquivo `VERSAO` e é o que aparece em **Equipe e integrações → Atualização do CRM**.
+
+**Versão 0.14.0:** contingência do número na IA (tela **IA → Limites e proteção**): atende **um lead por vez**, espera um
+tempo **sorteado entre X e Y segundos** antes de ir para outro lead, faz **pausas de descanso** de X a Y minutos a cada N mensagens,
+limita mensagens em **24 horas** e **leads novos abordados em 24 horas**, e **pausa sozinha por 30 min** se o envio falhar 3 vezes
+seguidas. Um painel mostra ao vivo se a IA está descansando e quanto de cada limite já foi usado (com botão **Retomar agora**).
+Nada se perde: a conversa segurada por uma trava só fica para depois.
 
 **Versão 0.13.1:** botão **Continuar de onde parou** no playbook: usa o texto da tela (mesmo sem salvar) e a IA escreve só o que falta,
 a partir do último caractere, sem mexer no resto. Aparece também um aviso quando o playbook parece ter parado no meio. A análise agora

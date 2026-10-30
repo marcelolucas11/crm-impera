@@ -12,6 +12,7 @@ const { dentroDoHorario, momentoNoFuso } = await import('../src/modules/ia/horar
 const { tentativaDeComando, pedeHumano, validarSaida, anonimizar } = await import('../src/modules/ia/seguranca.js');
 const { definirChamadaFalsa } = await import('../src/modules/ia/cliente.js');
 const motor = await import('../src/modules/ia/motor.js');
+const protecao = await import('../src/modules/ia/protecao.js');
 
 const SEMPRE = Object.fromEntries([0, 1, 2, 3, 4, 5, 6].map((d) => [d, { inicio: '00:00', fim: '23:59' }]));
 const NUNCA = Object.fromEntries([0, 1, 2, 3, 4, 5, 6].map((d) => [d, null]));
@@ -47,11 +48,13 @@ function mensagemDoLead(jid, texto, { leadId = null, horasAtras = 0, deMim = fal
   return Number(r.lastInsertRowid);
 }
 
-async function preparar({ modo = 'automatico', horario = SEMPRE } = {}) {
+async function preparar({ modo = 'automatico', horario = SEMPRE, extra = {} } = {}) {
   await limparBanco();
   exec('DELETE FROM ia_sugestoes; DELETE FROM ia_registro; DELETE FROM ia_conversas; DELETE FROM wa_instances;');
   run("INSERT INTO wa_instances (id, name) VALUES (1, 'Comercial')");
-  salvarConfig({ ativo: true, modo, horario, automatico_fora_horario: true, espera_agrupar_seg: 3 });
+  // Intervalo entre leads zerado: os testes antigos atendem vários leads em sequência
+  salvarConfig({ ativo: true, modo, horario, automatico_fora_horario: true, espera_agrupar_seg: 3, intervalo_leads_min_seg: 0, intervalo_leads_max_seg: 0, ...extra });
+  protecao.zerarProtecao();
   enviadas = [];
   chamadasModelo = 0;
   respostaModelo = { mensagens: ['Oi! Aqui é o Marcelo, da Impera Services. Somos focados em nichos sensíveis. Como posso ajudar?'], acao: 'responder', resumo: 'lead novo' };
@@ -332,4 +335,96 @@ test('erros da Anthropic viram mensagens em português com status 4xx (o proxy d
   assert.equal(traduzirErro(404, 'model: claude-x').tipo, 'modelo');
   assert.equal(traduzirErro(529, 'Overloaded').temporario, true);
   assert.ok(traduzirErro(529, 'Overloaded').status < 500);
+});
+
+// ------------------------------------------------------------------ contingência do número
+
+const vencer = (id) => run('UPDATE ia_conversas SET proxima_em = ? WHERE id = ?', [new Date(Date.now() - 1000).toISOString(), id]);
+
+test('contingência: intervalo aleatório antes de ir para OUTRO lead; o mesmo lead continua sendo atendido', async () => {
+  await preparar({ extra: { intervalo_leads_min_seg: 60, intervalo_leads_max_seg: 60 } });
+  const a = await chegou('5511933330001@s.whatsapp.net', 'oi');
+  const b = await chegou('5511933330002@s.whatsapp.net', 'olá');
+  assert.equal((await processar(a)).feito, 'enviada');
+  const r = await processar(b);
+  assert.equal(r.feito, 'intervalo_leads');
+  assert.ok(new Date(conversa(b.id).proxima_em).getTime() > Date.now() + 50000, 'B fica para depois do intervalo');
+  // O lead A responde de novo: não precisa esperar o intervalo (é o mesmo lead)
+  mensagemDoLead('5511933330001@s.whatsapp.net', 'quanto custa?');
+  vencer(a.id);
+  assert.equal((await processar(a)).feito, 'enviada');
+});
+
+test('contingência: pausa de descanso depois de N mensagens; "retomar agora" libera', async () => {
+  await preparar({ extra: { descanso_ativo: true, descanso_a_cada: 2, descanso_min_min: 10, descanso_max_min: 10 } });
+  respostaModelo = { mensagens: ['Oi! Tudo bem?', 'Como posso ajudar?'], acao: 'responder' };
+  const a = await chegou('5511933330003@s.whatsapp.net', 'oi');
+  assert.equal((await processar(a)).feito, 'enviada');
+  const st = protecao.statusProtecao({ ...PADRAO, descanso_ativo: true });
+  assert.ok(st.descanso_ate, 'entrou em descanso');
+  mensagemDoLead('5511933330003@s.whatsapp.net', 'e aí?');
+  vencer(a.id);
+  assert.equal((await processar(a)).feito, 'descanso');
+  protecao.retomarAgora();
+  vencer(a.id);
+  assert.equal((await processar(a)).feito, 'enviada');
+});
+
+test('contingência: limite de leads novos em 24 h segura só quem ainda não recebeu mensagem', async () => {
+  await preparar({ extra: { limite_novos_por_dia: 1 } });
+  const a = await chegou('5511933330004@s.whatsapp.net', 'oi');
+  const b = await chegou('5511933330005@s.whatsapp.net', 'oi');
+  assert.equal((await processar(a)).feito, 'enviada');
+  assert.equal((await processar(b)).feito, 'limite_novos');
+  mensagemDoLead('5511933330004@s.whatsapp.net', 'e o preço?');
+  vencer(a.id);
+  assert.equal((await processar(a)).feito, 'enviada', 'quem já está em conversa continua');
+});
+
+test('contingência: limite de mensagens em 24 h', async () => {
+  await preparar({ extra: { limite_por_dia: 1 } });
+  const a = await chegou('5511933330006@s.whatsapp.net', 'oi');
+  assert.equal((await processar(a)).feito, 'enviada');
+  mensagemDoLead('5511933330006@s.whatsapp.net', 'e aí?');
+  vencer(a.id);
+  assert.equal((await processar(a)).feito, 'limite_dia');
+});
+
+test('contingência: 3 erros de envio seguidos pausam a IA por 30 minutos', async () => {
+  await preparar();
+  let pausou = false;
+  for (let i = 0; i < 3; i++) pausou = protecao.falhaDeEnvio();
+  assert.equal(pausou, true);
+  const a = await chegou('5511933330007@s.whatsapp.net', 'oi');
+  assert.equal((await processar(a)).feito, 'pausa_falhas');
+});
+
+test('contingência: no copiloto as travas não seguram a sugestão (nada sai sozinho)', async () => {
+  await preparar({ modo: 'sugestao', extra: { limite_por_dia: 1 } });
+  protecao.falhaDeEnvio(); protecao.falhaDeEnvio(); protecao.falhaDeEnvio();
+  const a = await chegou('5511933330008@s.whatsapp.net', 'oi');
+  assert.equal((await processar(a)).feito, 'sugestao');
+});
+
+test('contingência: um lead por vez — o relógio só pega uma conversa e espera ela terminar', async () => {
+  await preparar();
+  let liberar;
+  const trava = new Promise((r) => { liberar = r; });
+  motor.definirDependencias({ esperar: () => trava });
+  const a = await chegou('5511933330009@s.whatsapp.net', 'oi');
+  const b = await chegou('5511933330010@s.whatsapp.net', 'oi');
+  vencer(a.id); vencer(b.id);
+  await motor.verificarPendentes();
+  await motor.verificarPendentes();
+  await new Promise((r) => setTimeout(r, 20));
+  assert.equal(get("SELECT count(*) AS n FROM ia_conversas WHERE proxima_em IS NULL AND id IN (?, ?)", [a.id, b.id]).n, 1, 'só uma em atendimento');
+  liberar();
+  motor.definirDependencias({ esperar: async () => {} });
+  await new Promise((r) => setTimeout(r, 20));
+});
+
+test('contingência: faixas invertidas são corrigidas ao salvar', () => {
+  const c = salvarConfig({ descanso_min_min: 20, descanso_max_min: 5, intervalo_leads_min_seg: 90, intervalo_leads_max_seg: 30 });
+  assert.equal(c.descanso_min_min, 5); assert.equal(c.descanso_max_min, 20);
+  assert.equal(c.intervalo_leads_min_seg, 30); assert.equal(c.intervalo_leads_max_seg, 90);
 });

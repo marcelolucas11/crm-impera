@@ -80,6 +80,20 @@ export const PADRAO = {
   espera_agrupar_seg: 15,
   // Quando a resposta tem mais de um bloco, espera este tempo (com "digitando…") entre um e outro
   intervalo_blocos_seg: 2,
+  // Contingência do número (ver protecao.js)
+  // Atende um lead por vez: só começa a próxima conversa quando termina de responder a atual
+  um_por_vez: true,
+  // Depois de responder um lead, espera um tempo aleatório entre estes valores antes de ir para OUTRO lead (segundos)
+  intervalo_leads_min_seg: 30,
+  intervalo_leads_max_seg: 90,
+  // Pausas de descanso: a cada N mensagens enviadas, para por um tempo aleatório entre X e Y minutos
+  descanso_ativo: true,
+  descanso_a_cada: 15,
+  descanso_min_min: 5,
+  descanso_max_min: 15,
+  // No máximo N mensagens da IA em 24 horas e N leads novos abordados (primeira mensagem) em 24 horas
+  limite_por_dia: 150,
+  limite_novos_por_dia: 40,
   api_key_painel: null,
 };
 
@@ -122,6 +136,9 @@ const inteiro = (v, min, max, padrao) => {
   const n = Math.round(Number(v));
   return Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : padrao;
 };
+
+// "de X a Y": se vier invertido, troca
+const faixa = (a, b, campoMin, campoMax) => ({ [campoMin]: Math.min(a, b), [campoMax]: Math.max(a, b) });
 
 function validarHorario(entrada, atual) {
   const h = {};
@@ -206,7 +223,16 @@ export function salvarConfig(entrada = {}) {
     limite_por_hora: inteiro(v('limite_por_hora'), 1, 200, 30),
     espera_agrupar_seg: inteiro(v('espera_agrupar_seg'), 3, 120, 15),
     intervalo_blocos_seg: inteiro(v('intervalo_blocos_seg'), 0, 15, 2),
+    um_por_vez: Boolean(v('um_por_vez')),
+    ...faixa(inteiro(v('intervalo_leads_min_seg'), 0, 1800, 30), inteiro(v('intervalo_leads_max_seg'), 0, 1800, 90), 'intervalo_leads_min_seg', 'intervalo_leads_max_seg'),
+    descanso_ativo: Boolean(v('descanso_ativo')),
+    descanso_a_cada: inteiro(v('descanso_a_cada'), 2, 500, 15),
+    ...faixa(inteiro(v('descanso_min_min'), 1, 240, 5), inteiro(v('descanso_max_min'), 1, 240, 15), 'descanso_min_min', 'descanso_max_min'),
+    limite_por_dia: inteiro(v('limite_por_dia'), 1, 3000, 150),
+    limite_novos_por_dia: inteiro(v('limite_novos_por_dia'), 1, 1000, 40),
   };
+  // Mais por hora do que por dia não faz sentido: o limite de 24 h manda
+  if (novo.limite_por_hora > novo.limite_por_dia) novo.limite_por_hora = novo.limite_por_dia;
   if (novo.ativo && !chaveApi()) throw new ErroHttp(400, 'Cole a chave da API da Anthropic antes de ligar a IA');
   // Playbook mudou: guarda a versão anterior (dá para voltar na tela) e marca quando foi atualizado
   if (novo.playbook !== (atual.playbook || '')) {

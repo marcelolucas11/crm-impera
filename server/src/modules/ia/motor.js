@@ -11,6 +11,8 @@
 //
 // Proteção do número (WhatsApp por QR code não é oficial): espera o lead terminar de digitar, mostra "digitando…"
 // pelo tempo de uma pessoa, respeita o limite de mensagens por hora e só fala com quem chegou agora.
+// Contingência (protecao.js): um lead por vez, intervalo aleatório entre leads, pausas de descanso, limites de 24 h e
+// freio quando o envio falha várias vezes seguidas.
 import { get, all, run, agora } from '../../db.js';
 import { registrarEvento } from '../../events.js';
 import { emitir } from '../../tempoReal.js';
@@ -22,6 +24,7 @@ import { textoDoSistema, montarPedido, primeiroNome } from './prompt.js';
 import { diretrizesAtivas } from './diretrizes.js';
 import { dadosDoFormulario } from './formulario.js';
 import { perguntarModelo, lerJsonDaResposta, registrar, ErroIA, perguntarNoFormato } from './cliente.js';
+import { bloqueioAgora, depoisDeEnviar, falhaDeEnvio } from './protecao.js';
 
 // Dependências do WhatsApp (trocadas nos testes)
 const deps = {
@@ -245,9 +248,6 @@ export async function passarParaHumano(conversa, { motivo, resumo = null, userId
 
 // ------------------------------------------------------------------ envio
 
-const enviadasNaUltimaHora = () =>
-  get("SELECT count(*) AS n FROM ia_registro WHERE tipo = 'enviada' AND created_at >= ?", [new Date(Date.now() - 3600000).toISOString()]).n;
-
 async function numeroDaConversa(conversa, cfg) {
   const preferidos = [conversa.instance_id, ...cfg.numero_ids].filter(Boolean);
   return deps.numeroDisponivel(preferidos);
@@ -337,17 +337,24 @@ export async function processarConversa(id) {
   const primeiroContato = !historico.some((m) => m.from_me);
   if (!novas.length && !(conversa.origem === 'yayforms' && primeiroContato)) return { feito: 'sem_novidade' };
 
-  // Proteção do número: limite de mensagens por hora
-  if (enviadasNaUltimaHora() >= cfg.limite_por_hora) {
-    atualizar(id, { proxima_em: daquiA(5 * 60000) });
-    registrar(id, 'limite_hora');
-    return { feito: 'limite_hora' };
+  const foraDoHorario = !dentroDoHorario(cfg);
+  const automatico = cfg.modo === 'automatico' || (foraDoHorario && cfg.automatico_fora_horario);
+
+  // Proteção do número: descanso, limites, intervalo entre leads e freio de falhas. A conversa só fica para depois.
+  // (No copiloto nada sai sozinho, então as travas valem só quando a IA vai enviar.)
+  if (automatico) {
+    const trava = bloqueioAgora(cfg, conversa);
+    if (trava) {
+      atualizar(id, { proxima_em: new Date(Math.max(trava.ate, Date.now() + 5000)).toISOString() });
+      // Registra só a primeira vez que a trava segura esta conversa (para não encher o registro a cada volta do relógio)
+      const ultimo = get('SELECT tipo FROM ia_registro WHERE conversa_id = ? ORDER BY id DESC LIMIT 1', [id])?.tipo;
+      if (ultimo !== trava.tipo) registrar(id, trava.tipo, trava.motivo);
+      return { feito: trava.tipo, ate: trava.ate };
+    }
   }
 
   if (novas.length) atualizar(id, { ultima_lida_id: Math.max(...novas.map((m) => m.id)) });
   const textoNovo = novas.map((m) => (m.type === 'texto' ? m.body : m.legenda) || '').join('\n');
-  const foraDoHorario = !dentroDoHorario(cfg);
-  const automatico = cfg.modo === 'automatico' || (foraDoHorario && cfg.automatico_fora_horario);
   const saudacao = saudacaoDoMomento(cfg);
   const nome = primeiroNome(nomeDoLead(conversa, contato));
   const precisaAvisoHorario = foraDoHorario && !conversa.aviso_fora_horario_em;
@@ -454,9 +461,11 @@ async function decidir(conversa, cfg, { mensagens, acao, motivo = null, resumo =
   try {
     const enviadas = await enviarComoPessoa(conversa, mensagens);
     if (!enviadas) return { feito: 'interrompida' };
+    depoisDeEnviar(cfg, conversa.id, enviadas, { aleatorio: deps.aleatorio });
     if (precisaAvisoHorario) atualizar(conversa.id, { aviso_fora_horario_em: agora() });
   } catch (err) {
     registrar(conversa.id, 'erro', `Envio: ${err.message}`);
+    if (falhaDeEnvio()) avisarTela(conversa, { pausa_falhas: true });
     if (err.temporario) {
       atualizar(conversa.id, { proxima_em: daquiA(2 * 60000) });
       return { feito: 'tentar_de_novo' };
@@ -508,7 +517,10 @@ let relogio = null;
 const emAndamento = new Set();
 
 export async function verificarPendentes() {
-  const vencidas = all("SELECT id FROM ia_conversas WHERE status = 'ativa' AND proxima_em IS NOT NULL AND proxima_em <= ? ORDER BY proxima_em LIMIT 10", [agora()]);
+  // Um lead por vez: enquanto uma conversa está sendo atendida (inclusive "digitando…" e enviando), as outras esperam
+  const umPorVez = lerConfig().um_por_vez;
+  if (umPorVez && emAndamento.size) return;
+  const vencidas = all(`SELECT id FROM ia_conversas WHERE status = 'ativa' AND proxima_em IS NOT NULL AND proxima_em <= ? ORDER BY proxima_em LIMIT ${umPorVez ? 1 : 10}`, [agora()]);
   for (const { id } of vencidas) {
     if (emAndamento.has(id)) continue;
     emAndamento.add(id);

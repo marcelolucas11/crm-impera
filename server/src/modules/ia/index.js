@@ -12,6 +12,7 @@ import { tentativaDeComando, pedeHumano, validarSaida } from './seguranca.js';
 import { textoDoSistema, montarPedido } from './prompt.js';
 import { perguntarModelo, perguntarNoFormato, registrar, ErroIA } from './cliente.js';
 import { iniciarTarefa, estadoTarefa, dispensarTarefa, iniciarRelogioPlaybook, pararRelogioPlaybook } from './playbook.js';
+import { statusProtecao, retomarAgora } from './protecao.js';
 import {
   listarDiretrizes, obterDiretriz, criarDiretriz, atualizarDiretriz, apagarDiretriz, ordenarDiretrizes,
   versoesDaDiretriz, restaurarVersao, diretrizesAtivas, resumoDiretrizes,
@@ -109,7 +110,14 @@ export default {
       let saudacaoDisparos = false;
       try { saudacaoDisparos = Boolean((await import('../disparos/servico.js')).lerConfigYay().ativo); } catch { /* ignora */ }
       const numeros = all('SELECT id, name AS nome, phone FROM wa_instances ORDER BY id');
-      res.json({ config: configPublica(), resumo: resumoGeral(), numeros, saudacao_disparos_ativa: saudacaoDisparos });
+      res.json({ config: configPublica(), resumo: resumoGeral(), numeros, saudacao_disparos_ativa: saudacaoDisparos, protecao: statusProtecao(lerConfig()) });
+    }));
+
+    // Libera na hora a pausa de descanso ou o freio de falhas
+    r.post('/protecao/retomar', exigirAdmin, rota((req, res) => {
+      retomarAgora();
+      emitir('ia', {});
+      res.json({ protecao: statusProtecao(lerConfig()) });
     }));
 
     r.put('/config', exigirAdmin, rota((req, res) => {
