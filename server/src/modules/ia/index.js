@@ -1,17 +1,17 @@
 // Módulo IA de primeiro contato: conversa com o lead que acabou de chegar (WhatsApp ou Yay! Forms),
-// apresenta a Impera, tira dúvidas básicas e passa para um humano. Usa o modelo mais barato da Anthropic (Haiku).
+// apresenta a Impera, tira dúvidas básicas e passa para um humano. O modelo é escolhido na tela "IA" (padrão: Haiku, o mais barato).
 // Ouve os outros módulos pelos ganchos (src/ganchos.js) — se este módulo for retirado, nada mais quebra.
 import { Router } from 'express';
 import { get, all, run, agora } from '../../db.js';
 import { exigirLogin, exigirAdmin } from '../auth/middleware.js';
 import { idValido, ErroHttp } from '../../util.js';
 import { aoAcontecer } from '../../ganchos.js';
-import { respostasProntas, configPublica, salvarConfig, guardarChave, guardarWorkspace, removerChave, lerConfig, chaveApi } from './config.js';
+import { respostasProntas, configPublica, salvarConfig, guardarChave, guardarWorkspace, removerChave, lerConfig, chaveApi, versaoDoPlaybook, LIMITE_PLAYBOOK } from './config.js';
 import { dentroDoHorario, saudacaoDoMomento } from './horario.js';
 import { tentativaDeComando, pedeHumano, validarSaida } from './seguranca.js';
 import { textoDoSistema, montarPedido } from './prompt.js';
 import { perguntarModelo, perguntarNoFormato, registrar, ErroIA } from './cliente.js';
-import { gerarPlaybook } from './playbook.js';
+import { iniciarTarefa, estadoTarefa, dispensarTarefa, iniciarRelogioPlaybook, pararRelogioPlaybook } from './playbook.js';
 import {
   listarDiretrizes, obterDiretriz, criarDiretriz, atualizarDiretriz, apagarDiretriz, ordenarDiretrizes,
   versoesDaDiretriz, restaurarVersao, diretrizesAtivas, resumoDiretrizes,
@@ -142,8 +142,27 @@ export default {
       res.json({ config: configPublica() });
     }));
 
-    r.post('/playbook/gerar', exigirAdmin, rota(async (req, res) => {
-      res.json(await gerarPlaybook());
+    // Playbook: a análise roda em segundo plano (pode levar minutos); a tela acompanha por /playbook/tarefa
+    r.post('/playbook/gerar', exigirAdmin, rota((req, res) => {
+      res.status(202).json({ tarefa: iniciarTarefa('gerar', { usuario: req.user.name }) });
+    }));
+
+    r.post('/playbook/melhorar', exigirAdmin, rota((req, res) => {
+      res.status(202).json({ tarefa: iniciarTarefa('melhorar', { usuario: req.user.name }) });
+    }));
+
+    r.get('/playbook/tarefa', rota((req, res) => {
+      res.json({ tarefa: estadoTarefa() });
+    }));
+
+    r.delete('/playbook/tarefa', exigirAdmin, rota((req, res) => {
+      res.json({ tarefa: dispensarTarefa() });
+    }));
+
+    r.get('/playbook/versoes/:indice', exigirAdmin, rota((req, res) => {
+      const i = Number(req.params.indice);
+      if (!Number.isInteger(i) || i < 0) throw new ErroHttp(400, 'Versão inválida');
+      res.json({ versao: versaoDoPlaybook(i) });
     }));
 
     // ------------------------------------------------------------ diretrizes (prompts que dão o norte para a IA)
@@ -196,7 +215,7 @@ export default {
       const daTela = (v, max) => (typeof v === 'string' && v.trim() ? v.trim().slice(0, max) : undefined);
       const cfg = Object.fromEntries(Object.entries({
         ...lerConfig(),
-        ...(typeof req.body?.playbook === 'string' ? { playbook: req.body.playbook.slice(0, 8000) } : {}),
+        ...(typeof req.body?.playbook === 'string' ? { playbook: req.body.playbook.slice(0, LIMITE_PLAYBOOK) } : {}),
       }).concat(Object.entries({
         nome_atendente: daTela(tela.nome_atendente, 60), apresentacao: daTela(tela.apresentacao, 300), empresa: daTela(tela.empresa, 80),
         sobre_empresa: daTela(tela.sobre_empresa, 2000),
@@ -301,10 +320,12 @@ export default {
   },
   start() {
     iniciarRelogio();
+    iniciarRelogioPlaybook();
     const cfg = lerConfig();
     console.log(`[ia] primeiro contato ${cfg.ativo ? `ligado (modo ${cfg.modo === 'automatico' ? 'automático' : 'copiloto'})` : 'desligado'}`);
   },
   stop() {
     pararRelogio();
+    pararRelogioPlaybook();
   },
 };

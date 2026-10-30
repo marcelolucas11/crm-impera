@@ -4,7 +4,15 @@ CRM da agência: leads do Yay! Forms caindo direto num kanban, alerta de follow-
 Roda direto no Mac, a partir do SSD externo, sem Docker e sem instalar nada no sistema.
 A mesma pasta funciona depois na VPS da Contabo.
 
-**Versão atual: 0.12.0** — o número fica no arquivo `VERSAO` e é o que aparece em **Equipe e integrações → Atualização do CRM**.
+**Versão atual: 0.13.0** — o número fica no arquivo `VERSAO` e é o que aparece em **Equipe e integrações → Atualização do CRM**.
+
+**Versão 0.13.0:** **escolha do modelo** da IA na aba **IA** — o que responde os leads (Haiku, Sonnet, Opus ou Fable, do mais barato
+ao mais potente) e o que analisa as conversas. O playbook ganhou **Análise profunda (60 dias)**: um modelo potente (padrão Opus) lê as
+conversas com o raciocínio ligado, compara as que viraram reunião/cliente com as perdidas e monta o playbook completo, em seções. Se a
+resposta vier longa demais, o CRM pede para o modelo continuar de onde parou — o playbook não termina mais pela metade. **Melhorar com
+conversas novas** lê só o que chegou desde a última leitura (suas conversas e as da IA) e complementa o playbook, mostrando o que mudou.
+Opcional: **melhorar sozinha a cada N dias**. As 10 versões anteriores do playbook ficam guardadas para voltar. A análise roda em segundo
+plano (pode levar minutos sem a VPS cortar a conexão).
 
 **Versão 0.12.0:** a IA agora é a **Alice**, atendente virtual que **fala no feminino** (nome e gênero ajustáveis em **IA → Apresentação**).
 Ela se apresenta como Alice e, ao passar o lead, diz que **alguém da equipe** continua o atendimento. Se o lead perguntar se é robô, ela diz
@@ -349,8 +357,9 @@ das Estatísticas. Elas **não** marcam como lidas as mensagens que o lead mando
 ## IA de primeiro contato
 
 Aba **IA** (só administradores alteram). Precisa de uma **chave da API da Anthropic** (console.anthropic.com → API keys): cole na própria
-tela — ela é conferida com a Anthropic antes de salvar e fica só no servidor (ou use `ANTHROPIC_API_KEY` no `.env`). Usa o modelo
-**Claude Haiku** (`IA_MODELO` no `.env` troca), o mais econômico; cada resposta custa uma fração de centavo, e o consumo de tokens aparece na tela.
+tela — ela é conferida com a Anthropic antes de salvar e fica só no servidor (ou use `ANTHROPIC_API_KEY` no `.env`). O modelo que
+responde os leads é escolhido na tela (padrão **Claude Haiku**, o mais econômico; `IA_MODELO` no `.env` muda o padrão); cada resposta do
+Haiku custa uma fração de centavo, e o consumo de tokens aparece na tela.
 
 **Quando atua:** só em conversa individual de **lead novo** — ninguém da equipe falou com ele e a conversa tem menos de 72 h (ajustável).
 Contato antigo, lead fechado/perdido ou número na lista de bloqueio: a IA nunca entra. Lead novo do Yay! Forms recebe a primeira mensagem
@@ -371,8 +380,11 @@ avisa que a Impera não está com atendimento humano de prontidão e que o retor
 responder sozinha (opção). No **automático** ela envia sozinha, com "digitando…" pelo tempo de uma pessoa. A tela mostra quantas sugestões
 você aprovou sem mudar — quando quase todas passarem direto, é hora de ligar o automático.
 
-**Playbook:** **Aprender com minhas conversas** lê as conversas em que a equipe respondeu leads (primeiro as que viraram reunião ou
-cliente), tira nomes, telefones, e-mails, links e valores, e resume seu estilo de atendimento. Revise e salve. O **Simulador** mostra o que a
+**Playbook:** **Análise profunda (60 dias)** lê as conversas com leads do formulário dos últimos 60 dias (primeiro as que viraram
+reunião ou cliente), tira nomes, telefones, e-mails, links e valores, e monta o playbook com o **modelo da análise** (padrão Opus,
+`IA_MODELO_PLAYBOOK` no `.env` muda o padrão) e o raciocínio ligado. **Melhorar com conversas novas** lê só as conversas com mensagens
+novas desde a última leitura — da equipe e da IA — e complementa o playbook se precisar. As duas rodam em segundo plano e devolvem um
+rascunho para revisar e salvar; a **melhoria automática** (a cada N dias) aplica direto. **Versões anteriores** guarda as 10 últimas. O **Simulador** mostra o que a
 IA responderia, sem enviar nada.
 
 **Diretrizes (prompts):** textos que dão o norte para a IA — roteiro de SDR, tratamento por tipo de lead, dúvidas frequentes.

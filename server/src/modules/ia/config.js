@@ -6,8 +6,22 @@ import { ErroHttp } from '../../util.js';
 
 const ESTADO = 'ia';
 
-// Modelo mais barato da Anthropic (Haiku). Pode ser trocado no .env por IA_MODELO.
+// Modelos que podem ser escolhidos na tela "IA" (do mais barato ao mais potente). Preço em US$ por milhão de tokens (entrada / saída).
+export const MODELOS = [
+  { id: 'claude-haiku-5-5', nome: 'Claude Haiku 5.5', nivel: 'Mais barato e rápido', preco: 'a partir de US$ 0,10 / 0,50' },
+  { id: 'claude-sonnet-5-5', nome: 'Claude Sonnet 5.5', nivel: 'Equilibrado', preco: 'US$ 2 / 10' },
+  { id: 'claude-opus-5-5', nome: 'Claude Opus 5.5', nivel: 'Potente', preco: 'US$ 4 / 20' },
+  { id: 'claude-fable-5-1', nome: 'Claude Fable 5.1', nivel: 'O mais potente (e caro)', preco: 'US$ 10 / 50' },
+];
+// Modelo que responde os leads quando nada foi escolhido na tela (o mais barato). Pode ser trocado no .env por IA_MODELO.
 export const MODELO_PADRAO = process.env.IA_MODELO || 'claude-haiku-5-5';
+// Modelo da análise das conversas que monta o playbook (roda poucas vezes, então vale um mais potente)
+export const MODELO_PLAYBOOK_PADRAO = process.env.IA_MODELO_PLAYBOOK || 'claude-opus-5-5';
+if (!MODELOS.some((m) => m.id === MODELO_PADRAO)) MODELOS.push({ id: MODELO_PADRAO, nome: MODELO_PADRAO, nivel: 'Definido no .env', preco: '' });
+if (!MODELOS.some((m) => m.id === MODELO_PLAYBOOK_PADRAO)) MODELOS.push({ id: MODELO_PLAYBOOK_PADRAO, nome: MODELO_PLAYBOOK_PADRAO, nivel: 'Definido no .env', preco: '' });
+export const nomeDoModelo = (id) => MODELOS.find((m) => m.id === id)?.nome || id;
+export const LIMITE_PLAYBOOK = 20000;
+const MAX_VERSOES_PLAYBOOK = 10;
 export const API_URL = (process.env.ANTHROPIC_API_URL || 'https://api.anthropic.com').replace(/\/+$/, '');
 
 export const PADRAO = {
@@ -29,6 +43,15 @@ export const PADRAO = {
     'geração de leads e estratégia de campanhas. Cada projeto é avaliado individualmente por um especialista.',
   // Como o Marcelo atende (gerado a partir das conversas antigas na tela "IA" e editável)
   playbook: '',
+  // Modelo que conversa com os leads e modelo que analisa as conversas para montar o playbook
+  modelo_atendimento: MODELO_PADRAO,
+  modelo_playbook: MODELO_PLAYBOOK_PADRAO,
+  // Até quando as conversas já foram lidas para o playbook (a melhoria lê só o que veio depois)
+  playbook_lido_ate: null,
+  playbook_atualizado_em: null,
+  // Melhoria automática: a cada N dias lê as conversas novas e complementa o playbook sozinha
+  playbook_auto: false,
+  playbook_auto_dias: 7,
   // Link de agendamento (Calendly) que a IA pode mandar quando o lead quiser conversar. Vazio = não manda link.
   link_agenda: '',
   fuso: process.env.IA_FUSO || process.env.DISPAROS_FUSO || 'America/Sao_Paulo',
@@ -78,11 +101,15 @@ export function lerConfig() {
 
 // O que a tela recebe (nunca a chave)
 export function configPublica() {
-  const { api_key_painel, workspace_id_painel, ...resto } = lerConfig();
+  const { api_key_painel, workspace_id_painel, playbook_historico, ...resto } = lerConfig();
   const chave = chaveApi();
   return {
     ...resto,
-    modelo: MODELO_PADRAO,
+    modelo: resto.modelo_atendimento,
+    modelo_nome: nomeDoModelo(resto.modelo_atendimento),
+    modelos: MODELOS,
+    // Versões anteriores do playbook: só a lista (o texto vem pela rota /ia/playbook/versoes/:indice)
+    playbook_versoes: (playbook_historico || []).map((v, i) => ({ indice: i, em: v.em, origem: v.origem, tamanho: v.texto.length })),
     chave_configurada: Boolean(chave),
     chave_origem: api_key_painel ? 'painel' : chave ? 'env' : null,
     chave_final: chave ? `••••${chave.slice(-4)}` : null,
@@ -118,6 +145,26 @@ function validarFuso(fuso) {
   }
 }
 
+function validarModelo(id, padrao) {
+  const m = String(id || '').trim();
+  if (!m) return padrao;
+  if (!MODELOS.some((x) => x.id === m)) throw new ErroHttp(400, `Modelo desconhecido: ${m}`);
+  return m;
+}
+
+function dataValida(v) {
+  if (!v) return null;
+  const d = new Date(v);
+  return Number.isNaN(d.getTime()) ? null : d.toISOString();
+}
+
+// Texto de uma versão anterior do playbook (0 = a mais recente)
+export function versaoDoPlaybook(indice) {
+  const v = (lerConfig().playbook_historico || [])[indice];
+  if (!v) throw new ErroHttp(404, 'Versão não encontrada');
+  return v;
+}
+
 function validarLink(link) {
   const l = textoLimpo(link, 300);
   if (!l) return '';
@@ -143,7 +190,12 @@ export function salvarConfig(entrada = {}) {
     empresa: textoLimpo(v('empresa'), 80) || PADRAO.empresa,
     apresentacao: textoLimpo(v('apresentacao'), 300) || PADRAO.apresentacao,
     sobre_empresa: textoLimpo(v('sobre_empresa'), 2000) || PADRAO.sobre_empresa,
-    playbook: textoLimpo(v('playbook'), 8000),
+    playbook: textoLimpo(v('playbook'), LIMITE_PLAYBOOK),
+    modelo_atendimento: validarModelo(v('modelo_atendimento'), MODELO_PADRAO),
+    modelo_playbook: validarModelo(v('modelo_playbook'), MODELO_PLAYBOOK_PADRAO),
+    playbook_auto: Boolean(v('playbook_auto')),
+    playbook_auto_dias: inteiro(v('playbook_auto_dias'), 1, 60, 7),
+    playbook_lido_ate: dataValida(v('playbook_lido_ate')),
     link_agenda: validarLink(v('link_agenda')),
     fuso: validarFuso(textoLimpo(v('fuso'), 60) || PADRAO.fuso),
     horario: validarHorario(entrada.horario, atual.horario),
@@ -156,6 +208,14 @@ export function salvarConfig(entrada = {}) {
     intervalo_blocos_seg: inteiro(v('intervalo_blocos_seg'), 0, 15, 2),
   };
   if (novo.ativo && !chaveApi()) throw new ErroHttp(400, 'Cole a chave da API da Anthropic antes de ligar a IA');
+  // Playbook mudou: guarda a versão anterior (dá para voltar na tela) e marca quando foi atualizado
+  if (novo.playbook !== (atual.playbook || '')) {
+    novo.playbook_atualizado_em = new Date().toISOString();
+    if (atual.playbook?.trim()) {
+      novo.playbook_historico = [{ texto: atual.playbook, em: atual.playbook_atualizado_em || null, origem: atual.playbook_origem || 'manual' }, ...(atual.playbook_historico || [])].slice(0, MAX_VERSOES_PLAYBOOK);
+    }
+    novo.playbook_origem = ['analise', 'melhoria', 'automatica'].includes(entrada.playbook_origem) ? entrada.playbook_origem : 'manual';
+  }
   salvarEstado(ESTADO, novo);
   return configPublica();
 }

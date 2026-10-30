@@ -1,7 +1,7 @@
 // Chamada à API da Anthropic (Messages API) direto com fetch — sem biblioteca externa.
 // O texto fixo (regras + empresa + playbook) vai marcado para cache, o que barateia as chamadas seguidas.
 import { run } from '../../db.js';
-import { API_URL, MODELO_PADRAO, chaveApi, workspaceApi } from './config.js';
+import { API_URL, MODELO_PADRAO, chaveApi, workspaceApi, lerConfig, nomeDoModelo } from './config.js';
 
 // status é o que o CRM devolve para a tela. Erros da Anthropic viram 4xx de propósito: o proxy da VPS troca
 // respostas 502/503 por uma página própria e a mensagem explicando o problema se perderia.
@@ -15,7 +15,7 @@ export class ErroIA extends Error {
 }
 
 // Mensagens da Anthropic em português, com o que fazer
-export function traduzirErro(status, msg = '') {
+export function traduzirErro(status, msg = '', modelo = null) {
   const m = String(msg).toLowerCase();
   const detalhe = msg ? ` (Anthropic: ${msg})` : '';
   if (status === 401 || m.includes('invalid x-api-key') || m.includes('authentication')) {
@@ -29,7 +29,7 @@ export function traduzirErro(status, msg = '') {
     return new ErroIA(`A organização dessa chave está sem créditos de API. Adicione créditos em console.anthropic.com → Billing (ou vincule os créditos mensais do plano Max/Team) e tente de novo.${detalhe}`, { status: 422, tipo: 'creditos' });
   }
   if (status === 404 || m.includes('model')) {
-    return new ErroIA(`O modelo configurado (${process.env.IA_MODELO || 'claude-haiku-5-5'}) não está disponível para esta chave.${detalhe}`, { status: 422, tipo: 'modelo' });
+    return new ErroIA(`O modelo escolhido (${modelo ? nomeDoModelo(modelo) : MODELO_PADRAO}) não está disponível para esta chave.${detalhe}`, { status: 422, tipo: 'modelo' });
   }
   if (status === 429) return new ErroIA(`Limite de uso da API atingido; tente de novo em instantes.${detalhe}`, { status: 429, temporario: true, tipo: 'limite' });
   if (status >= 500) return new ErroIA(`A API da Anthropic está instável agora; tente de novo em alguns minutos.${detalhe}`, { status: 422, temporario: true, tipo: 'instavel' });
@@ -54,16 +54,23 @@ export function registrar(conversaId, tipo, detalhe = null, uso = null) {
 }
 
 /**
- * Manda o pedido ao modelo e devolve { texto, uso }.
+ * Manda o pedido ao modelo e devolve { texto, uso, parada }.
  *  sistema: texto fixo (cacheado) | mensagens: [{ role, content }] | maxTokens
+ *  modelo: id do modelo (padrão: o escolhido na tela para responder os leads)
+ *  pensar: liga o raciocínio do modelo antes de responder (análises longas, como o playbook)
+ *  tempoMs: quanto esperar a resposta
  */
-export async function perguntarModelo({ sistema, mensagens, maxTokens = 500 }) {
+export async function perguntarModelo({ sistema, mensagens, maxTokens = 500, modelo = null, pensar = false, tempoMs = 45000 }) {
   const corpo = {
-    model: MODELO_PADRAO,
+    model: modelo || lerConfig().modelo_atendimento || MODELO_PADRAO,
     max_tokens: maxTokens,
     system: [{ type: 'text', text: sistema, cache_control: { type: 'ephemeral' } }],
     messages: mensagens,
   };
+  if (pensar) {
+    corpo.thinking = { type: 'adaptive' };
+    corpo.output_config = { effort: 'high' };
+  }
   if (chamadaFalsa) return chamadaFalsa(corpo);
 
   const chave = chaveApi();
@@ -77,7 +84,7 @@ export async function perguntarModelo({ sistema, mensagens, maxTokens = 500 }) {
         ...(workspaceApi() ? { 'anthropic-workspace-id': workspaceApi() } : {}),
       },
       body: JSON.stringify(corpo),
-      signal: AbortSignal.timeout(45000),
+      signal: AbortSignal.timeout(tempoMs),
     });
   } catch (err) {
     const tempo = err?.name === 'TimeoutError' ? 'a Anthropic demorou demais para responder' : err.message;
@@ -85,7 +92,7 @@ export async function perguntarModelo({ sistema, mensagens, maxTokens = 500 }) {
   }
   let dados = null;
   try { dados = await resposta.json(); } catch { /* sem corpo */ }
-  if (!resposta.ok) throw traduzirErro(resposta.status, dados?.error?.message || '');
+  if (!resposta.ok) throw traduzirErro(resposta.status, dados?.error?.message || '', corpo.model);
   const texto = (dados?.content || []).filter((b) => b.type === 'text').map((b) => b.text).join('').trim();
   return { texto, uso: dados?.usage || null, parada: dados?.stop_reason || null };
 }
@@ -155,7 +162,7 @@ export async function perguntarNoFormato({ sistema, mensagens, maxTokens = LIMIT
   return { ...segunda, uso, resposta: lerJsonDaResposta(segunda.texto), tentativas: 2, primeiraParada: primeira.parada };
 }
 
-function somarUso(a, b) {
+export function somarUso(a, b) {
   if (!a) return b;
   if (!b) return a;
   const r = { ...a };

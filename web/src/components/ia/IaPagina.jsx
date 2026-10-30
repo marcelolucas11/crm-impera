@@ -1,7 +1,7 @@
 // Tela "IA": configuração da IA de primeiro contato, playbook aprendido das conversas, diretrizes (prompts), simulador e conversas atendidas.
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  Bot, Save, KeyRound, Building2, Wand2, Clock, ShieldCheck, MessageSquareText, Send, RotateCcw, ExternalLink, Trash2,
+  Bot, Save, KeyRound, Building2, Wand2, Clock, ShieldCheck, MessageSquareText, Send, RotateCcw, ExternalLink, Trash2, Sparkles, History,
 } from 'lucide-react';
 import { api } from '../../api.js';
 import { useEvento } from '../../tempoReal.js';
@@ -21,6 +21,9 @@ const STATUS = {
 };
 const FUSOS = ['America/Sao_Paulo', 'America/Santiago', 'America/Manaus', 'America/Fortaleza', 'America/Recife', 'America/Belem', 'America/Cuiaba', 'America/Rio_Branco'];
 const numeroFormatado = (n) => new Intl.NumberFormat('pt-BR').format(n || 0);
+const dataCurta = (iso) => (iso ? new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—');
+const ORIGEM_PLAYBOOK = { manual: 'editado à mão', analise: 'análise profunda', melhoria: 'melhoria', automatica: 'melhoria automática' };
+const rotuloModelo = (m) => `${m.nome} — ${m.nivel}${m.preco ? ` (${m.preco})` : ''}`;
 
 export default function IaPagina(props) {
   return <ProvedorAvisos><Conteudo {...props} /></ProvedorAvisos>;
@@ -35,7 +38,9 @@ function Conteudo({ user, aoAbrirConversa }) {
   const [salvando, setSalvando] = useState(false);
   const [chave, setChave] = useState('');
   const [workspace, setWorkspace] = useState(null);
-  const [gerando, setGerando] = useState(false);
+  const [tarefa, setTarefa] = useState(null);
+  const [mudancas, setMudancas] = useState(null);
+  const tarefaTratada = useRef(null);
   const [conversas, setConversas] = useState([]);
   const [filtro, setFiltro] = useState('');
 
@@ -50,7 +55,7 @@ function Conteudo({ user, aoAbrirConversa }) {
 
   useEffect(() => { carregar(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { carregarConversas(); }, [carregarConversas]);
-  useEvento('ia', () => { carregarConversas(); api('/ia/config').then((d) => setDados(d)).catch(() => {}); });
+  useEvento('ia', (d) => { carregarConversas(); api('/ia/config').then((x) => setDados(x)).catch(() => {}); if (d?.playbook) acompanharTarefa(); });
 
   const mudar = (p) => { setCfg((c) => ({ ...c, ...p })); setAlterado(true); };
 
@@ -87,14 +92,63 @@ function Conteudo({ user, aoAbrirConversa }) {
     } catch (e) { aviso(e.message, 'erro'); }
   };
 
-  const gerarPlaybook = async () => {
-    if (cfg.playbook && !confirm('Substituir o playbook atual pelo gerado a partir das conversas? (Você ainda pode editar antes de salvar.)')) return;
-    setGerando(true);
+  // Playbook: a análise roda no servidor em segundo plano; aqui acompanhamos até terminar
+  const aplicarResultado = useCallback((t) => {
+    const r = t.resultado || {};
+    if (t.automatica) {
+      aviso(r.aplicado ? 'A melhoria automática atualizou o playbook.' : 'A melhoria automática não viu nada para mudar.', 'info');
+      api('/ia/config').then((d) => { setDados(d); setCfg(d.config); setAlterado(false); }).catch(() => {});
+    } else if (r.sem_mudancas) {
+      mudar({ playbook_lido_ate: r.lido_ate });
+      setMudancas([]);
+      aviso(`Li ${r.conversas_analisadas} conversa(s) nova(s) e o playbook já cobre tudo. Salve para marcar a leitura.`, 'info');
+    } else {
+      mudar({ playbook: r.playbook, playbook_lido_ate: r.lido_ate, playbook_origem: t.tipo === 'melhorar' ? 'melhoria' : 'analise' });
+      setMudancas(r.mudancas || null);
+      aviso(`${t.tipo === 'melhorar' ? 'Playbook melhorado' : 'Playbook gerado'} com ${r.modelo} a partir de ${r.conversas_analisadas} conversa(s). Revise e salve.${r.completo === false ? ' Atenção: veio longo demais e pode ter ficado incompleto.' : ''}`);
+    }
+    api('/ia/playbook/tarefa', { method: 'DELETE' }).catch(() => {});
+  }, [aviso]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const acompanharTarefa = useCallback(async () => {
     try {
-      const d = await api('/ia/playbook/gerar', { method: 'POST' });
-      mudar({ playbook: d.playbook });
-      aviso(`Playbook gerado a partir de ${d.conversas_analisadas} conversas. Revise e salve.`);
-    } catch (e) { aviso(e.message, 'erro'); } finally { setGerando(false); }
+      const { tarefa: t } = await api('/ia/playbook/tarefa');
+      setTarefa(t);
+      if (t.status !== 'concluida' && t.status !== 'erro') return;
+      if (tarefaTratada.current === t.iniciada_em) return;
+      tarefaTratada.current = t.iniciada_em;
+      if (t.status === 'concluida') aplicarResultado(t);
+      else if (t.status === 'erro') { aviso(t.erro, 'erro'); api('/ia/playbook/tarefa', { method: 'DELETE' }).catch(() => {}); }
+    } catch { /* tenta de novo no próximo ciclo */ }
+  }, [aplicarResultado, aviso]);
+
+  useEffect(() => { acompanharTarefa(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (tarefa?.status !== 'rodando') return undefined;
+    const t = setInterval(acompanharTarefa, 3000);
+    return () => clearInterval(t);
+  }, [tarefa?.status, acompanharTarefa]);
+
+  const rodarPlaybook = async (tipo) => {
+    if (tipo === 'gerar' && cfg.playbook && !confirm('Fazer a análise profunda e substituir o playbook atual? (Você revisa antes de salvar e a versão atual fica guardada.)')) return;
+    if (alterado && !confirm('Há mudanças não salvas na tela. A análise usa o playbook SALVO. Continuar mesmo assim?')) return;
+    setMudancas(null);
+    try {
+      // Salva antes a escolha do modelo de análise, se mudou
+      if (cfg.modelo_playbook !== dados.config.modelo_playbook) await api('/ia/config', { method: 'PUT', body: { modelo_playbook: cfg.modelo_playbook } });
+      const d = await api(`/ia/playbook/${tipo}`, { method: 'POST' });
+      setTarefa(d.tarefa);
+    } catch (e) { aviso(e.message, 'erro'); }
+  };
+
+  const restaurarVersao = async (indice) => {
+    if (indice === '') return;
+    try {
+      const { versao } = await api(`/ia/playbook/versoes/${indice}`);
+      if (!confirm(`Colocar na tela a versão de ${dataCurta(versao.em)} (${ORIGEM_PLAYBOOK[versao.origem] || versao.origem})? Ela só vale depois de salvar.`)) return;
+      mudar({ playbook: versao.texto, playbook_origem: 'manual' });
+      setMudancas(null);
+    } catch (e) { aviso(e.message, 'erro'); }
   };
 
   if (!cfg || !dados) return <div className="dp-centro"><div className="carregando" /></div>;
@@ -111,7 +165,7 @@ function Conteudo({ user, aoAbrirConversa }) {
             <h2>Atende só leads novos e passa para você</h2>
             <p className="suave">
               Cumprimenta, apresenta a {cfg.empresa}, tira dúvidas básicas e marca o lead como <b>aguardando você</b> no kanban.
-              Para na hora em que alguém da equipe escreve. Modelo: <b>{cfg.modelo}</b> (o mais econômico da Anthropic).
+              Para na hora em que alguém da equipe escreve. Modelo: <b>{cfg.modelo_nome}</b>.
             </p>
             <p className="dp-mestre-status">
               {r.dentro_do_horario ? 'Dentro do horário comercial agora.' : 'Fora do horário comercial agora: a IA avisa que não há atendimento humano de prontidão.'}
@@ -141,6 +195,12 @@ function Conteudo({ user, aoAbrirConversa }) {
                   <b>Automático</b><span>A IA envia sozinha, com "digitando…" e tempo de uma pessoa.</span>
                 </button>
               </div>
+              <label>Modelo que responde os leads
+                <select value={cfg.modelo_atendimento} disabled={!admin} onChange={(e) => mudar({ modelo_atendimento: e.target.value })}>
+                  {cfg.modelos.map((m) => <option key={m.id} value={m.id}>{rotuloModelo(m)}</option>)}
+                </select>
+                <span className="suave pequeno">Preço em US$ por milhão de tokens (entrada / saída). Para o primeiro contato o Haiku costuma bastar; os maiores entendem melhor conversas difíceis, mas custam mais a cada mensagem.</span>
+              </label>
               {cfg.modo === 'sugestao' && (
                 <label className="dp-check">
                   <input type="checkbox" checked={cfg.automatico_fora_horario} disabled={!admin} onChange={(e) => mudar({ automatico_fora_horario: e.target.checked })} />
@@ -208,13 +268,74 @@ function Conteudo({ user, aoAbrirConversa }) {
             <section className="cartao-secao">
               <div className="dp-secao-topo">
                 <h2><Wand2 size={16} /> Seu jeito de atender (playbook)</h2>
-                {admin && <button type="button" className="btn btn-pequeno" disabled={gerando || !cfg.chave_configurada} onClick={gerarPlaybook}>{gerando ? 'Analisando conversas…' : 'Aprender com minhas conversas'}</button>}
+                {cfg.playbook_atualizado_em && <span className="suave pequeno">Atualizado em {dataCurta(cfg.playbook_atualizado_em)}{cfg.playbook_origem ? ` · ${ORIGEM_PLAYBOOK[cfg.playbook_origem] || ''}` : ''}</span>}
               </div>
               <p className="suave pequeno">
-                A IA lê só as conversas dos últimos 60 dias com leads que preencheram o formulário e foram respondidos pela equipe (sem conversas pessoais ou de grupo, priorizando as que viraram reunião ou cliente), tira nomes, telefones, e-mails,
-                links e valores, e resume seu estilo: tom, perguntas de qualificação e respostas a objeções. Revise antes de salvar.
+                Só conversas com leads que preencheram o formulário (sem pessoais nem de grupo, sem mensagens dos Disparos), priorizando as que viraram reunião ou cliente.
+                Antes de ir para a IA, nomes, telefones, e-mails, links e valores são retirados. Revise antes de salvar.
               </p>
-              <textarea rows={12} value={cfg.playbook} disabled={!admin} placeholder="Ainda sem playbook: a IA usa um estilo curto, cordial e direto." onChange={(e) => mudar({ playbook: e.target.value })} />
+
+              {admin && (
+                <div className="ia-playbook-acoes">
+                  <label>Modelo da análise
+                    <select value={cfg.modelo_playbook} disabled={tarefa?.status === 'rodando'} onChange={(e) => mudar({ modelo_playbook: e.target.value })}>
+                      {cfg.modelos.map((m) => <option key={m.id} value={m.id}>{rotuloModelo(m)}</option>)}
+                    </select>
+                  </label>
+                  <div className="ia-playbook-botoes">
+                    <button type="button" className="btn" disabled={tarefa?.status === 'rodando' || !cfg.chave_configurada} onClick={() => rodarPlaybook('gerar')}
+                      title="Lê as conversas dos últimos 60 dias, raciocina sobre elas e monta o playbook do zero">
+                      <Sparkles size={14} /> Análise profunda (60 dias)
+                    </button>
+                    <button type="button" className="btn" disabled={tarefa?.status === 'rodando' || !cfg.chave_configurada || !cfg.playbook?.trim()} onClick={() => rodarPlaybook('melhorar')}
+                      title="Lê só as conversas novas desde a última leitura (suas e da IA) e complementa o playbook se precisar">
+                      <Wand2 size={14} /> Melhorar com conversas novas
+                    </button>
+                  </div>
+                  <span className="suave pequeno">
+                    A análise profunda lê tudo dos últimos 60 dias com o raciocínio ligado e leva alguns minutos (a tela pode ficar aberta ou não).
+                    A melhoria lê só o que chegou depois da última leitura{cfg.playbook_lido_ate ? ` (${dataCurta(cfg.playbook_lido_ate)})` : ''}, das suas conversas e das da IA.
+                  </span>
+                </div>
+              )}
+
+              {tarefa?.status === 'rodando' && (
+                <div className="ia-playbook-tarefa">
+                  <div className="carregando pequeno" />
+                  <span>{tarefa.tipo === 'melhorar' ? 'Lendo as conversas novas' : 'Estudando as conversas dos últimos 60 dias'} com {tarefa.modelo}… pode levar alguns minutos.
+                    {tarefa.automatica ? ' (melhoria automática)' : ''} Começou {tempoDesde(tarefa.iniciada_em)}.</span>
+                </div>
+              )}
+
+              {mudancas && (
+                <div className="ia-playbook-mudancas">
+                  <b>{mudancas.length ? 'O que mudou' : 'Nada para mudar'}</b>
+                  {mudancas.length ? <ul>{mudancas.map((m, i) => <li key={i}>{m}</li>)}</ul> : <span className="suave pequeno"> — as conversas novas já estão cobertas pelo playbook.</span>}
+                </div>
+              )}
+
+              <textarea rows={18} value={cfg.playbook} disabled={!admin} placeholder="Ainda sem playbook: a IA usa um estilo curto, cordial e direto. Use a análise profunda para montar o primeiro."
+                onChange={(e) => mudar({ playbook: e.target.value, playbook_origem: 'manual' })} />
+
+              {admin && (
+                <div className="ia-playbook-rodape">
+                  <label className="dp-check">
+                    <input type="checkbox" checked={Boolean(cfg.playbook_auto)} disabled={!cfg.playbook?.trim()} onChange={(e) => mudar({ playbook_auto: e.target.checked })} />
+                    <span>Melhorar sozinha a cada
+                      {' '}<input type="number" min={1} max={60} className="ia-dias" value={cfg.playbook_auto_dias} onChange={(e) => mudar({ playbook_auto_dias: e.target.value })} />{' '}
+                      dias, lendo só as conversas novas (aplica direto; a versão anterior fica guardada)</span>
+                  </label>
+                  {cfg.playbook_versoes?.length > 0 && (
+                    <label className="ia-versoes"><span><History size={13} /> Versões anteriores</span>
+                      <select value="" onChange={(e) => restaurarVersao(e.target.value)}>
+                        <option value="">Escolher para voltar…</option>
+                        {cfg.playbook_versoes.map((v) => <option key={v.indice} value={v.indice}>{dataCurta(v.em)} · {ORIGEM_PLAYBOOK[v.origem] || v.origem} · {numeroFormatado(v.tamanho)} caracteres</option>)}
+                      </select>
+                    </label>
+                  )}
+                </div>
+              )}
+              <span className="suave pequeno">{numeroFormatado(cfg.playbook?.length)} de 20.000 caracteres.</span>
             </section>
 
             <DiretrizesIa admin={admin} />

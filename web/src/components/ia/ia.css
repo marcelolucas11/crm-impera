@@ -120,3 +120,22 @@
   .ia-faixa-acoes { width: 100%; justify-content: flex-end; }
   .ia-dia-horas input { width: 96px; }
 }
+
+/* Playbook: modelo da análise, botões, tarefa em andamento, o que mudou, melhoria automática e versões */
+.ia-playbook-acoes { display: flex; flex-direction: column; gap: 10px; margin: 10px 0 12px; }
+.ia-playbook-botoes { display: flex; flex-wrap: wrap; gap: 8px; }
+.ia-playbook-botoes .btn { display: inline-flex; align-items: center; gap: 6px; }
+.ia-playbook-tarefa {
+  display: flex; align-items: center; gap: 10px; padding: 10px 12px; margin-bottom: 10px; border-radius: 12px; font-size: 13px;
+  border: 1px solid rgba(224, 190, 108, .35); background: rgba(224, 190, 108, .07);
+}
+.ia-playbook-tarefa .carregando { width: 18px; height: 18px; flex: none; }
+.ia-playbook-mudancas { padding: 10px 12px; margin-bottom: 10px; border-radius: 12px; font-size: 13px; border: 1px solid var(--borda); background: rgba(0, 0, 0, .22); }
+.ia-playbook-mudancas b { color: var(--ouro); }
+.ia-playbook-mudancas ul { margin: 6px 0 0; padding-left: 18px; line-height: 1.5; }
+.ia-playbook-rodape { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; margin-top: 10px; }
+.ia-playbook-rodape .dp-check span { line-height: 1.8; }
+.ia-dias { width: 58px; display: inline-block; padding: 2px 6px; text-align: center; }
+.ia-pagina label.ia-versoes { flex-direction: row; align-items: center; gap: 8px; }
+.ia-versoes > span { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+.ia-versoes select { width: auto; max-width: 320px; }
