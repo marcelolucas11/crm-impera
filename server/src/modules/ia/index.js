@@ -6,7 +6,7 @@ import { get, all, run, agora } from '../../db.js';
 import { exigirLogin, exigirAdmin } from '../auth/middleware.js';
 import { idValido, ErroHttp } from '../../util.js';
 import { aoAcontecer } from '../../ganchos.js';
-import { configPublica, salvarConfig, guardarChave, removerChave, lerConfig } from './config.js';
+import { configPublica, salvarConfig, guardarChave, guardarWorkspace, removerChave, lerConfig, chaveApi } from './config.js';
 import { dentroDoHorario, saudacaoDoMomento } from './horario.js';
 import { tentativaDeComando, pedeHumano, validarSaida } from './seguranca.js';
 import { textoDoSistema, montarPedido } from './prompt.js';
@@ -101,13 +101,17 @@ export default {
 
     // Cola a chave da API e confere com uma chamada mínima antes de guardar
     r.put('/chave', exigirAdmin, rota(async (req, res) => {
-      guardarChave(req.body?.chave);
+      // Pode vir a chave nova, o workspace, ou os dois (trocar só o workspace mantém a chave atual)
+      const temChave = typeof req.body?.chave === 'string' && req.body.chave.trim();
+      if (req.body?.workspace_id !== undefined) guardarWorkspace(req.body.workspace_id);
+      if (temChave) guardarChave(req.body.chave);
+      else if (!chaveApi()) throw new ErroHttp(400, 'Cole a chave da API');
       try {
         await perguntarModelo({ sistema: 'Responda apenas: ok', mensagens: [{ role: 'user', content: 'ok' }], maxTokens: 5 });
       } catch (err) {
         // Chave recusada: não guarda. Outros problemas (sem créditos, rede, modelo): a chave fica salva e a tela mostra o aviso
         if (!(err instanceof ErroIA) || err.tipo === 'chave') {
-          removerChave();
+          if (temChave) removerChave();
           throw err;
         }
         console.error('[ia] chave salva, mas o teste falhou:', err.message);

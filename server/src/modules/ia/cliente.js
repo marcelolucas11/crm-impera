@@ -1,7 +1,7 @@
 // Chamada à API da Anthropic (Messages API) direto com fetch — sem biblioteca externa.
 // O texto fixo (regras + empresa + playbook) vai marcado para cache, o que barateia as chamadas seguidas.
 import { run } from '../../db.js';
-import { API_URL, MODELO_PADRAO, chaveApi } from './config.js';
+import { API_URL, MODELO_PADRAO, chaveApi, workspaceApi } from './config.js';
 
 // status é o que o CRM devolve para a tela. Erros da Anthropic viram 4xx de propósito: o proxy da VPS troca
 // respostas 502/503 por uma página própria e a mensagem explicando o problema se perderia.
@@ -20,6 +20,9 @@ export function traduzirErro(status, msg = '') {
   const detalhe = msg ? ` (Anthropic: ${msg})` : '';
   if (status === 401 || m.includes('invalid x-api-key') || m.includes('authentication')) {
     return new ErroIA(`A Anthropic recusou a chave: confira se copiou a chave inteira e se ela não foi apagada no Console.${detalhe}`, { status: 400, tipo: 'chave' });
+  }
+  if (m.includes('workspace')) {
+    return new ErroIA('Esta chave não pertence a um workspace. Informe o ID do workspace no campo abaixo da chave (Console → Settings → Workspaces) ou crie uma chave dentro de um workspace e cole de novo.' + detalhe, { status: 422, tipo: 'workspace' });
   }
   if (status === 403) return new ErroIA(`Esta chave não tem permissão para usar a API.${detalhe}`, { status: 400, tipo: 'chave' });
   if (m.includes('credit balance') || m.includes('billing') || m.includes('credits')) {
@@ -69,7 +72,10 @@ export async function perguntarModelo({ sistema, mensagens, maxTokens = 500 }) {
   try {
     resposta = await fetch(`${API_URL}/v1/messages`, {
       method: 'POST',
-      headers: { 'content-type': 'application/json', 'x-api-key': chave, 'anthropic-version': '2023-06-01' },
+      headers: {
+        'content-type': 'application/json', 'x-api-key': chave, 'anthropic-version': '2023-06-01',
+        ...(workspaceApi() ? { 'anthropic-workspace-id': workspaceApi() } : {}),
+      },
       body: JSON.stringify(corpo),
       signal: AbortSignal.timeout(45000),
     });

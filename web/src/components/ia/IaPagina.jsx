@@ -33,6 +33,7 @@ function Conteudo({ user, aoAbrirConversa }) {
   const [alterado, setAlterado] = useState(false);
   const [salvando, setSalvando] = useState(false);
   const [chave, setChave] = useState('');
+  const [workspace, setWorkspace] = useState(null);
   const [gerando, setGerando] = useState(false);
   const [conversas, setConversas] = useState([]);
   const [filtro, setFiltro] = useState('');
@@ -66,10 +67,11 @@ function Conteudo({ user, aoAbrirConversa }) {
   const salvarChave = async () => {
     setSalvando(true);
     try {
-      const d = await api('/ia/chave', { method: 'PUT', body: { chave } });
+      const d = await api('/ia/chave', { method: 'PUT', body: { chave, ...(workspace !== null ? { workspace_id: workspace } : {}) } });
       setChave('');
       setCfg((c) => ({ ...c, ...pegarChave(d.config) }));
       setDados((x) => ({ ...x, config: d.config }));
+      setWorkspace(null);
       if (d.aviso) aviso(d.aviso, 'erro');
       else aviso('Chave conferida com a Anthropic e salva');
     } catch (e) { aviso(e.message, 'erro'); } finally { setSalvando(false); }
@@ -164,6 +166,13 @@ function Conteudo({ user, aoAbrirConversa }) {
                   <input type="password" autoComplete="off" placeholder="sk-ant-..." value={chave} onChange={(e) => setChave(e.target.value)} />
                   <button type="button" className="btn" disabled={!chave.trim() || salvando} onClick={salvarChave}>{cfg.chave_configurada ? 'Trocar' : 'Salvar'}</button>
                 </div>
+                <label>ID do workspace (só se a Anthropic pedir)
+                  <div className="ia-linha">
+                    <input placeholder="wrkspc_..." value={workspace ?? cfg.workspace_id ?? ''} onChange={(e) => setWorkspace(e.target.value)} />
+                    <button type="button" className="btn" disabled={salvando || workspace === null || (!chave.trim() && !cfg.chave_configurada)} onClick={salvarChave}>Salvar e testar</button>
+                  </div>
+                  <span className="suave pequeno">No Console: Settings → Workspaces → copie o ID do workspace onde estão os créditos.</span>
+                </label>
               </section>
             )}
 
@@ -295,7 +304,7 @@ function Conteudo({ user, aoAbrirConversa }) {
   );
 }
 
-const pegarChave = (c) => ({ chave_configurada: c.chave_configurada, chave_final: c.chave_final, chave_origem: c.chave_origem });
+const pegarChave = (c) => ({ chave_configurada: c.chave_configurada, chave_final: c.chave_final, chave_origem: c.chave_origem, workspace_id: c.workspace_id });
 
 function ConversasDaIa({ conversas, filtro, setFiltro, aoAbrir }) {
   return (

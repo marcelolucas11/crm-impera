@@ -62,6 +62,11 @@ export function chaveApi() {
   return lerEstado(ESTADO).api_key_painel || process.env.ANTHROPIC_API_KEY || '';
 }
 
+// Workspace do Console: chaves que não pertencem a um workspace precisam dizer qual usar (cabeçalho anthropic-workspace-id)
+export function workspaceApi() {
+  return lerEstado(ESTADO).workspace_id_painel || process.env.ANTHROPIC_WORKSPACE_ID || '';
+}
+
 export function lerConfig() {
   const salvo = lerEstado(ESTADO);
   return { ...PADRAO, ...salvo, horario: { ...PADRAO.horario, ...(salvo.horario || {}) } };
@@ -69,7 +74,7 @@ export function lerConfig() {
 
 // O que a tela recebe (nunca a chave)
 export function configPublica() {
-  const { api_key_painel, ...resto } = lerConfig();
+  const { api_key_painel, workspace_id_painel, ...resto } = lerConfig();
   const chave = chaveApi();
   return {
     ...resto,
@@ -77,6 +82,7 @@ export function configPublica() {
     chave_configurada: Boolean(chave),
     chave_origem: api_key_painel ? 'painel' : chave ? 'env' : null,
     chave_final: chave ? `••••${chave.slice(-4)}` : null,
+    workspace_id: workspaceApi(),
   };
 }
 
@@ -154,6 +160,15 @@ export function guardarChave(bruta) {
   const chave = String(bruta ?? '').replace(/\s+/g, '').replace(/^bearer/i, '');
   if (!FORMATO_CHAVE.test(chave)) throw new ErroHttp(400, 'Essa não parece uma chave da API da Anthropic (começa com sk-ant-).');
   salvarEstado(ESTADO, { api_key_painel: chave });
+}
+
+const FORMATO_WORKSPACE = /^[A-Za-z0-9_-]{3,120}$/;
+
+// Vazio remove o workspace
+export function guardarWorkspace(bruto) {
+  const w = String(bruto ?? '').trim();
+  if (w && !FORMATO_WORKSPACE.test(w)) throw new ErroHttp(400, 'ID do workspace inválido: copie do Console (Settings → Workspaces), algo como wrkspc_…');
+  salvarEstado(ESTADO, { workspace_id_painel: w || null });
 }
 
 export function removerChave() {
