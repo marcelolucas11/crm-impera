@@ -179,13 +179,22 @@ function Conteudo({ user, aoAbrirConversa }) {
 
             <section className="cartao-secao">
               <h2><Building2 size={16} /> Apresentação</h2>
-              <div className="ia-campos-2">
-                <label>Quem atende (para quem a IA passa)<input value={cfg.nome_atendente} disabled={!admin} onChange={(e) => mudar({ nome_atendente: e.target.value })} /></label>
+              <div className="ia-campos-3">
+                <label>Nome da atendente virtual<input value={cfg.nome_atendente} disabled={!admin} onChange={(e) => mudar({ nome_atendente: e.target.value })} /></label>
+                <label>Fala no
+                  <select value={cfg.genero_atendente || 'feminino'} disabled={!admin} onChange={(e) => mudar({ genero_atendente: e.target.value })}>
+                    <option value="feminino">Feminino (obrigada, a atendente)</option>
+                    <option value="masculino">Masculino (obrigado, o atendente)</option>
+                  </select>
+                </label>
                 <label>Empresa<input value={cfg.empresa} disabled={!admin} onChange={(e) => mudar({ empresa: e.target.value })} /></label>
               </div>
               <label>Como se apresenta na primeira mensagem
                 <input value={cfg.apresentacao} disabled={!admin} onChange={(e) => mudar({ apresentacao: e.target.value })} />
-                <span className="suave pequeno">Se o lead perguntar se é um robô, a IA nunca nega: diz que é o assistente automático do atendimento e chama {cfg.nome_atendente}.</span>
+                <span className="suave pequeno">
+                  A IA se apresenta como {cfg.genero_atendente === 'masculino' ? 'o' : 'a'} {cfg.nome_atendente || 'atendente'} e, ao passar o lead, diz que alguém da equipe continua por aqui.
+                  Se o lead perguntar se é um robô, ela nunca nega: diz que é {cfg.genero_atendente === 'masculino' ? 'o assistente virtual' : 'a assistente virtual'} do atendimento.
+                </span>
               </label>
               <label>Sobre a empresa (o que a IA pode explicar)
                 <textarea rows={4} value={cfg.sobre_empresa} disabled={!admin} onChange={(e) => mudar({ sobre_empresa: e.target.value })} />
@@ -263,6 +272,8 @@ function Conteudo({ user, aoAbrirConversa }) {
                     <input className="dp-inline-num" type="number" min={1} max={200} value={cfg.limite_por_hora} disabled={!admin} onChange={(e) => mudar({ limite_por_hora: Number(e.target.value) })} /> mensagens da IA por hora.</span>
                   <span className="pequeno">Espera
                     <input className="dp-inline-num" type="number" min={3} max={120} value={cfg.espera_agrupar_seg} disabled={!admin} onChange={(e) => mudar({ espera_agrupar_seg: Number(e.target.value) })} /> s o lead terminar de digitar antes de responder.</span>
+                  <span className="pequeno">Mais de um balão: espera
+                    <input className="dp-inline-num" type="number" min={0} max={15} value={cfg.intervalo_blocos_seg ?? 2} disabled={!admin} onChange={(e) => mudar({ intervalo_blocos_seg: Number(e.target.value) })} /> s entre um e outro (com "digitando…").</span>
                 </div>
                 <div className="dp-config-item">
                   <span className="dp-config-titulo">Números em que atua</span>
@@ -365,16 +376,27 @@ function Simulador({ cfg, admin }) {
     setOcupado(true);
     setInfo('');
     try {
-      const r = await api('/ia/simular', { method: 'POST', body: { mensagens: lista, fora_do_horario: fora, playbook: cfg.playbook, nome: 'Lead', formulario: situacao ? { situacao, respostas } : null } });
+      const r = await api('/ia/simular', { method: 'POST', body: {
+        mensagens: lista, fora_do_horario: fora, playbook: cfg.playbook, nome: 'Lead', formulario: situacao ? { situacao, respostas } : null,
+        config: { nome_atendente: cfg.nome_atendente, genero_atendente: cfg.genero_atendente, apresentacao: cfg.apresentacao, empresa: cfg.empresa, sobre_empresa: cfg.sobre_empresa },
+      } });
       if (r.erro_formato) {
         setInfo(r.motivo || 'A IA respondeu fora do formato. Tente de novo.');
         setBruto(r.bruto || '');
         return;
       }
       setBruto('');
-      setMensagens([...lista, ...(r.mensagens || []).map((t) => ({ de: 'equipe', texto: t }))]);
+      // Mostra os balões como no WhatsApp: o segundo aparece depois do intervalo configurado, com "digitando…"
+      const baloes = (r.mensagens || []).map((t) => ({ de: 'equipe', texto: t }));
+      const intervalo = Math.max(0, Number(cfg.intervalo_blocos_seg ?? 2)) * 1000;
+      let atual = lista;
+      for (const [i, b] of baloes.entries()) {
+        if (i > 0 && intervalo) await new Promise((ok) => setTimeout(ok, intervalo));
+        atual = [...atual, b];
+        setMensagens(atual);
+      }
       setInfo([
-        r.acao === 'passar_humano' ? `→ passaria para ${cfg.nome_atendente}${r.motivo ? `: ${r.motivo}` : ''}` : null,
+        r.acao === 'passar_humano' ? `→ passaria para a equipe${r.motivo ? `: ${r.motivo}` : ''}` : null,
         r.filtro && r.filtro !== 'aprovada' ? `⚠ filtro: ${r.filtro} (na vida real não seria enviada)` : null,
         r.via && r.via !== 'modelo' ? r.via : null,
       ].filter(Boolean).join(' · '));

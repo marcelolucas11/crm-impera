@@ -18,9 +18,11 @@ export const PADRAO = {
   automatico_fora_horario: true,
   // Números de WhatsApp em que a IA atua (vazio = todos)
   numero_ids: [],
-  nome_atendente: 'Marcelo',
+  // Nome e gênero da atendente virtual (é assim que a IA se chama e fala com o lead)
+  nome_atendente: 'Alice',
+  genero_atendente: 'feminino',
   empresa: 'Impera Services',
-  apresentacao: 'Aqui é o Marcelo, da Impera Services.',
+  apresentacao: 'Aqui é a Alice, da Impera Services.',
   sobre_empresa:
     'A Impera Services é uma agência de marketing digital focada em nichos sensíveis: negócios que precisam de cuidado ' +
     'extra com as regras das plataformas de anúncio. Trabalhamos com gestão de tráfego pago no Meta Ads (Facebook e Instagram), ' +
@@ -53,6 +55,8 @@ export const PADRAO = {
   limite_por_hora: 30,
   // Espera o lead terminar de mandar mensagens antes de responder (segundos)
   espera_agrupar_seg: 15,
+  // Quando a resposta tem mais de um bloco, espera este tempo (com "digitando…") entre um e outro
+  intervalo_blocos_seg: 2,
   api_key_painel: null,
 };
 
@@ -135,6 +139,7 @@ export function salvarConfig(entrada = {}) {
     automatico_fora_horario: Boolean(v('automatico_fora_horario')),
     numero_ids: (Array.isArray(v('numero_ids')) ? v('numero_ids') : []).map(Number).filter((n) => Number.isInteger(n) && n > 0),
     nome_atendente: textoLimpo(v('nome_atendente'), 60) || PADRAO.nome_atendente,
+    genero_atendente: v('genero_atendente') === 'masculino' ? 'masculino' : 'feminino',
     empresa: textoLimpo(v('empresa'), 80) || PADRAO.empresa,
     apresentacao: textoLimpo(v('apresentacao'), 300) || PADRAO.apresentacao,
     sobre_empresa: textoLimpo(v('sobre_empresa'), 2000) || PADRAO.sobre_empresa,
@@ -148,6 +153,7 @@ export function salvarConfig(entrada = {}) {
     iniciar_formulario: Boolean(v('iniciar_formulario')),
     limite_por_hora: inteiro(v('limite_por_hora'), 1, 200, 30),
     espera_agrupar_seg: inteiro(v('espera_agrupar_seg'), 3, 120, 15),
+    intervalo_blocos_seg: inteiro(v('intervalo_blocos_seg'), 0, 15, 2),
   };
   if (novo.ativo && !chaveApi()) throw new ErroHttp(400, 'Cole a chave da API da Anthropic antes de ligar a IA');
   salvarEstado(ESTADO, novo);
@@ -173,4 +179,26 @@ export function guardarWorkspace(bruto) {
 
 export function removerChave() {
   salvarEstado(ESTADO, { api_key_painel: null, ativo: false });
+}
+
+// Textos que mudam com o gênero da atendente virtual
+export function falas(cfg) {
+  const fem = cfg.genero_atendente !== 'masculino';
+  return {
+    fem,
+    artigo: fem ? 'a' : 'o',
+    obrigado: fem ? 'obrigada' : 'obrigado',
+    assistente: fem ? 'a assistente virtual' : 'o assistente virtual',
+  };
+}
+
+// Respostas prontas (sem chamar o modelo). A IA fala por si e passa o lead para a equipe.
+export function respostasProntas(cfg) {
+  return {
+    soDuvidas: `Por aqui eu consigo te ajudar só com dúvidas básicas sobre a ${cfg.empresa} ou chamar alguém da equipe. Quer que eu chame?`,
+    insistiu: `Por aqui eu só consigo ajudar com dúvidas básicas sobre a ${cfg.empresa}. Vou deixar a equipe a par da conversa, tudo bem?`,
+    pediuPessoa: 'Claro! Já avisei a equipe, alguém vai continuar seu atendimento por aqui. 😊',
+    limite: 'Vou passar você para a equipe, que consegue te explicar tudo com mais detalhes. Alguém continua por aqui. 😊',
+    naoSabe: 'Essa a equipe vai saber te responder melhor. Já deixei avisado, alguém continua por aqui. 😊',
+  };
 }

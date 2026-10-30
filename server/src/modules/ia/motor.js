@@ -15,7 +15,7 @@ import { get, all, run, agora } from '../../db.js';
 import { registrarEvento } from '../../events.js';
 import { emitir } from '../../tempoReal.js';
 import { variantesTelefone } from '../../util.js';
-import { lerConfig } from './config.js';
+import { lerConfig, respostasProntas } from './config.js';
 import { dentroDoHorario, saudacaoDoMomento } from './horario.js';
 import { tentativaDeComando, pedeHumano, validarSaida } from './seguranca.js';
 import { textoDoSistema, montarPedido, primeiroNome } from './prompt.js';
@@ -253,19 +253,27 @@ async function numeroDaConversa(conversa, cfg) {
   return deps.numeroDisponivel(preferidos);
 }
 
-/** Envia como uma pessoa: espera ler, mostra "digitando…" pelo tempo proporcional ao texto e manda. */
+/** Envia como uma pessoa: espera ler, mostra "digitando…" pelo tempo proporcional ao texto e manda o 1º balão;
+ *  os seguintes saem com o intervalo configurado entre eles (2 s por padrão), também com "digitando…". */
 export async function enviarComoPessoa(conversa, mensagens, { userId = null, simularDigitacao = true } = {}) {
   const cfg = lerConfig();
   const numeroId = await numeroDaConversa(conversa, cfg);
   if (!numeroId) throw new ErroIA('Nenhum número de WhatsApp conectado', { temporario: true });
   const destino = conversa.lead_id ? { leadId: conversa.lead_id } : { jid: conversa.jid };
   let enviadas = 0;
-  for (const texto of mensagens) {
-    if (simularDigitacao) {
+  const intervalo = Math.max(0, Number(cfg.intervalo_blocos_seg ?? 2)) * 1000;
+  const jidPresenca = conversa.jid || (destino.leadId ? get('SELECT jid FROM wa_contacts WHERE lead_id = ? LIMIT 1', [destino.leadId])?.jid : null);
+  for (const [i, texto] of mensagens.entries()) {
+    if (i > 0) {
+      // Entre um balão e outro: "digitando…" pelo intervalo configurado (2 s por padrão), como uma pessoa
+      if (!userId && get('SELECT status FROM ia_conversas WHERE id = ?', [conversa.id])?.status !== 'ativa') break;
+      if (jidPresenca && intervalo) await deps.digitando(numeroId, jidPresenca, 'composing').catch(() => {});
+      if (intervalo) await deps.esperar(intervalo);
+      if (!userId && get('SELECT status FROM ia_conversas WHERE id = ?', [conversa.id])?.status !== 'ativa') break;
+    } else if (simularDigitacao) {
       await deps.esperar(1500 + Math.round(deps.aleatorio() * 2500));
       // Alguém da equipe assumiu enquanto a IA "lia": não envia mais nada
       if (!userId && get('SELECT status FROM ia_conversas WHERE id = ?', [conversa.id])?.status !== 'ativa') break;
-      const jidPresenca = conversa.jid || (destino.leadId ? get('SELECT jid FROM wa_contacts WHERE lead_id = ? LIMIT 1', [destino.leadId])?.jid : null);
       if (jidPresenca) await deps.digitando(numeroId, jidPresenca, 'composing').catch(() => {});
       await deps.esperar(Math.min(1200 + texto.length * 45, 12000) + Math.round(deps.aleatorio() * 1500));
       if (!userId && get('SELECT status FROM ia_conversas WHERE id = ?', [conversa.id])?.status !== 'ativa') break;
@@ -355,12 +363,12 @@ export async function processarConversa(id) {
     registrar(id, 'bloqueio_entrada', textoNovo.slice(0, 300));
     if (avisos >= 2) {
       return decidir(conversa, cfg, {
-        mensagens: comExtras(`Por aqui eu só consigo ajudar com dúvidas básicas sobre a ${cfg.empresa}. Vou deixar o ${cfg.nome_atendente} a par da conversa, tudo bem?`),
+        mensagens: comExtras(respostasProntas(cfg).insistiu),
         acao: 'passar_humano', motivo: 'Lead insistiu em pedidos fora do atendimento (bloqueados pela segurança)',
       }, { automatico, foraDoHorario, precisaAvisoHorario });
     }
     return decidir(conversa, cfg, {
-      mensagens: comExtras(`Por aqui eu consigo te ajudar só com dúvidas básicas sobre a ${cfg.empresa} ou chamar o ${cfg.nome_atendente}. Quer que eu chame ele?`),
+      mensagens: comExtras(respostasProntas(cfg).soDuvidas),
       acao: 'responder',
     }, { automatico, foraDoHorario, precisaAvisoHorario });
   }
@@ -368,7 +376,7 @@ export async function processarConversa(id) {
   // 2) Pediu para falar com uma pessoa
   if (textoNovo && pedeHumano(textoNovo)) {
     return decidir(conversa, cfg, {
-      mensagens: comExtras(`Claro! Já avisei o ${cfg.nome_atendente}, ele vai continuar seu atendimento por aqui. 😊`),
+      mensagens: comExtras(respostasProntas(cfg).pediuPessoa),
       acao: 'passar_humano', motivo: 'Lead pediu para falar com uma pessoa',
     }, { automatico, foraDoHorario, precisaAvisoHorario });
   }
@@ -376,7 +384,7 @@ export async function processarConversa(id) {
   // 3) Chegou no limite de mensagens da IA
   if (conversa.mensagens_ia >= cfg.max_mensagens_ia) {
     return decidir(conversa, cfg, {
-      mensagens: comExtras(`Vou passar você para o ${cfg.nome_atendente}, que consegue te explicar tudo com mais detalhes. Ele continua por aqui. 😊`),
+      mensagens: comExtras(respostasProntas(cfg).limite),
       acao: 'passar_humano', motivo: `IA chegou ao limite de ${cfg.max_mensagens_ia} mensagens`,
     }, { automatico, foraDoHorario, precisaAvisoHorario });
   }
@@ -418,7 +426,7 @@ export async function processarConversa(id) {
   if (!conferida.ok) {
     registrar(id, 'bloqueio_saida', `${conferida.motivo}: ${JSON.stringify(mensagens).slice(0, 400)}`);
     return decidir(conversa, cfg, {
-      mensagens: comExtras(`Essa o ${cfg.nome_atendente} vai saber te responder melhor. Já deixei ele avisado, ele continua por aqui. 😊`),
+      mensagens: comExtras(respostasProntas(cfg).naoSabe),
       acao: 'passar_humano', motivo: `Resposta da IA barrada pelo filtro de segurança (${conferida.motivo})`, resumo: resposta.resumo,
     }, { automatico, foraDoHorario, precisaAvisoHorario });
   }

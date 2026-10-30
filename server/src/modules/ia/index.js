@@ -6,7 +6,7 @@ import { get, all, run, agora } from '../../db.js';
 import { exigirLogin, exigirAdmin } from '../auth/middleware.js';
 import { idValido, ErroHttp } from '../../util.js';
 import { aoAcontecer } from '../../ganchos.js';
-import { configPublica, salvarConfig, guardarChave, guardarWorkspace, removerChave, lerConfig, chaveApi } from './config.js';
+import { respostasProntas, configPublica, salvarConfig, guardarChave, guardarWorkspace, removerChave, lerConfig, chaveApi } from './config.js';
 import { dentroDoHorario, saudacaoDoMomento } from './horario.js';
 import { tentativaDeComando, pedeHumano, validarSaida } from './seguranca.js';
 import { textoDoSistema, montarPedido } from './prompt.js';
@@ -191,15 +191,25 @@ export default {
 
     // Simulador: mostra o que a IA responderia, sem enviar nada para ninguém
     r.post('/simular', exigirAdmin, rota(async (req, res) => {
-      const cfg = { ...lerConfig(), ...(typeof req.body?.playbook === 'string' ? { playbook: req.body.playbook.slice(0, 8000) } : {}) };
+      // Usa o que está na tela, mesmo sem salvar (playbook, nome, gênero, apresentação, empresa)
+      const tela = req.body?.config || {};
+      const daTela = (v, max) => (typeof v === 'string' && v.trim() ? v.trim().slice(0, max) : undefined);
+      const cfg = Object.fromEntries(Object.entries({
+        ...lerConfig(),
+        ...(typeof req.body?.playbook === 'string' ? { playbook: req.body.playbook.slice(0, 8000) } : {}),
+      }).concat(Object.entries({
+        nome_atendente: daTela(tela.nome_atendente, 60), apresentacao: daTela(tela.apresentacao, 300), empresa: daTela(tela.empresa, 80),
+        sobre_empresa: daTela(tela.sobre_empresa, 2000),
+        genero_atendente: tela.genero_atendente === 'masculino' ? 'masculino' : tela.genero_atendente === 'feminino' ? 'feminino' : undefined,
+      }).filter(([, v]) => v !== undefined)));
       const lista = (Array.isArray(req.body?.mensagens) ? req.body.mensagens : []).slice(-20).map((m) => ({
         from_me: m.de === 'equipe' ? 1 : 0, type: 'texto', body: String(m.texto || '').slice(0, 1000),
       }));
       const formulario = formularioDoSimulador(req.body?.formulario);
       const ultimaDoLead = [...lista].reverse().find((m) => !m.from_me)?.body || '';
       const foraDoHorario = req.body?.fora_do_horario === undefined ? !dentroDoHorario(cfg) : Boolean(req.body.fora_do_horario);
-      if (ultimaDoLead && tentativaDeComando(ultimaDoLead)) return res.json({ mensagens: [`Por aqui eu consigo te ajudar só com dúvidas básicas sobre a ${cfg.empresa} ou chamar o ${cfg.nome_atendente}. Quer que eu chame ele?`], acao: 'responder', via: 'filtro de segurança (não chamou o modelo)' });
-      if (ultimaDoLead && pedeHumano(ultimaDoLead)) return res.json({ mensagens: [`Claro! Já avisei o ${cfg.nome_atendente}, ele vai continuar seu atendimento por aqui. 😊`], acao: 'passar_humano', motivo: 'Lead pediu para falar com uma pessoa', via: 'regra fixa (não chamou o modelo)' });
+      if (ultimaDoLead && tentativaDeComando(ultimaDoLead)) return res.json({ mensagens: [respostasProntas(cfg).soDuvidas], acao: 'responder', via: 'filtro de segurança (não chamou o modelo)' });
+      if (ultimaDoLead && pedeHumano(ultimaDoLead)) return res.json({ mensagens: [respostasProntas(cfg).pediuPessoa], acao: 'passar_humano', motivo: 'Lead pediu para falar com uma pessoa', via: 'regra fixa (não chamou o modelo)' });
       const { resposta, texto, uso, parada, tentativas } = await perguntarNoFormato({
         sistema: textoDoSistema(cfg, diretrizesAtivas()),
         mensagens: montarPedido({

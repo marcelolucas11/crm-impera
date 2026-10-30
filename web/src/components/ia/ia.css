@@ -3,6 +3,7 @@
 .ia-pagina .cartao-secao h2 { display: inline-flex; align-items: center; gap: 8px; }
 .ia-linha { display: flex; align-items: center; gap: 8px; justify-content: space-between; }
 .ia-linha input { flex: 1; min-width: 0; }
+.ia-campos-3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
 .ia-campos-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
 .ia-pagina label:not(.dp-check) { display: flex; flex-direction: column; gap: 6px; font-size: 12.5px; color: var(--suave); }
 .ia-pagina label:not(.dp-check) input, .ia-pagina label:not(.dp-check) textarea, .ia-pagina label:not(.dp-check) select { color: var(--texto); font-size: 13.5px; }

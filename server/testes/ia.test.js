@@ -196,7 +196,7 @@ test('lead pede uma pessoa: passa para humano sem chamar o modelo e marca "aguar
   assert.ok(lead.waiting_since);
   assert.match(lead.waiting_note, /^IA:/);
   // Primeira mensagem já se apresenta
-  assert.match(enviadas[0].texto, /Ana! Aqui é o Marcelo, da Impera Services/);
+  assert.match(enviadas[0].texto, /Ana! Aqui é a Alice, da Impera Services/);
 });
 
 test('tentativa de comando: resposta pronta, sem chamar o modelo; na segunda vez passa para humano', async () => {
