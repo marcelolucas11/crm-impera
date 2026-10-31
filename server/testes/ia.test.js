@@ -381,6 +381,28 @@ test('contingência: limite de leads novos em 24 h segura só quem ainda não re
   assert.equal((await processar(a)).feito, 'enviada', 'quem já está em conversa continua');
 });
 
+test('contingência: zerar leads novos na mão libera quem esperava vaga', async () => {
+  await preparar({ extra: { limite_novos_por_dia: 1 } });
+  const a = await chegou('5511933330014@s.whatsapp.net', 'oi');
+  const b = await chegou('5511933330015@s.whatsapp.net', 'oi');
+  assert.equal((await processar(a)).feito, 'enviada');
+  assert.equal((await processar(b)).feito, 'limite_novos');
+  assert.equal(protecao.statusProtecao({ ...PADRAO, limite_novos_por_dia: 1 }).leads_novos_dia, 1);
+  protecao.zerarLeadsNovos(Date.now() + 1000);
+  assert.equal(protecao.statusProtecao({ ...PADRAO, limite_novos_por_dia: 1 }, Date.now() + 2000).leads_novos_dia, 0);
+  vencer(b.id);
+  assert.equal((await processar(b)).feito, 'enviada');
+});
+
+test('contingência: meia-noite no fuso e vaga liberada à meia-noite', () => {
+  // 31/10/2026 15:00 em São Paulo (UTC-3) → meia-noite foi 03:00 UTC e a próxima é 01/11 03:00 UTC
+  const agora = Date.UTC(2026, 9, 31, 18, 0, 0);
+  assert.equal(new Date(protecao.meiaNoiteNoFuso(agora, 'America/Sao_Paulo')).toISOString(), '2026-10-31T03:00:00.000Z');
+  assert.equal(new Date(protecao.meiaNoiteNoFuso(agora, 'America/Sao_Paulo', 1)).toISOString(), '2026-11-01T03:00:00.000Z');
+  const st = protecao.statusProtecao({ ...PADRAO, zerar_novos_meia_noite: true, fuso: 'America/Sao_Paulo' }, agora);
+  assert.equal(st.novos_libera_em, '2026-11-01T03:00:00.000Z');
+});
+
 test('contingência: limite de mensagens em 24 h', async () => {
   await preparar({ extra: { limite_por_dia: 1 } });
   const a = await chegou('5511933330006@s.whatsapp.net', 'oi');

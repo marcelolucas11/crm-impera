@@ -12,7 +12,7 @@ import { tentativaDeComando, pedeHumano, validarSaida } from './seguranca.js';
 import { textoDoSistema, montarPedido } from './prompt.js';
 import { perguntarModelo, perguntarNoFormato, registrar, ErroIA } from './cliente.js';
 import { iniciarTarefa, estadoTarefa, dispensarTarefa, iniciarRelogioPlaybook, pararRelogioPlaybook } from './playbook.js';
-import { statusProtecao, retomarAgora } from './protecao.js';
+import { statusProtecao, retomarAgora, zerarLeadsNovos } from './protecao.js';
 import {
   listarDiretrizes, obterDiretriz, criarDiretriz, atualizarDiretriz, apagarDiretriz, ordenarDiretrizes,
   versoesDaDiretriz, restaurarVersao, diretrizesAtivas, resumoDiretrizes,
@@ -129,6 +129,13 @@ export default {
     // Libera na hora a pausa de descanso ou o freio de falhas
     r.post('/protecao/retomar', exigirAdmin, rota((req, res) => {
       retomarAgora();
+      emitir('ia', {});
+      res.json({ protecao: statusProtecao(lerConfig()) });
+    }));
+
+    // Zera na mão o contador de leads novos (a IA volta a abordar leads novos na hora)
+    r.post('/protecao/zerar-novos', exigirAdmin, rota((req, res) => {
+      zerarLeadsNovos();
       emitir('ia', {});
       res.json({ protecao: statusProtecao(lerConfig()) });
     }));

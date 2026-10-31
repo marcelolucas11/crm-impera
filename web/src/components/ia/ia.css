@@ -144,9 +144,10 @@
 
 /* Contingência do número: estado ao vivo (pausa, limites usados) */
 .ia-protecao {
-  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; margin: 4px 0 14px;
+  display: flex; flex-direction: column; gap: 10px; margin: 4px 0 14px;
   padding: 10px 14px; border-radius: 12px; border: 1px solid var(--vidro-borda, var(--borda)); background: rgba(0, 0, 0, .22);
 }
+.ia-protecao-linha { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; }
 .ia-protecao-estado { display: inline-flex; align-items: center; gap: 10px; font-size: 13px; font-weight: 600; color: var(--texto); }
 .ia-protecao-estado::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: #4ade80; flex: 0 0 8px; }
 .ia-protecao-aviso { border-color: rgba(224, 190, 108, .5); }
@@ -154,9 +155,36 @@
 .ia-protecao-erro { border-color: rgba(248, 113, 113, .5); }
 .ia-protecao-erro .ia-protecao-estado::before { background: #f87171; }
 .ia-protecao-estado .botao-link { background: none; border: 0; padding: 0; color: var(--ouro); font-size: 12.5px; cursor: pointer; text-decoration: underline; }
-.ia-protecao-numeros { display: flex; flex-wrap: wrap; gap: 4px 14px; color: var(--suave); }
+.ia-protecao-numeros { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; color: var(--suave); }
 .ia-protecao-numeros b { color: var(--texto); font-weight: 600; }
 .ia-protecao-cheio, .ia-protecao-cheio b { color: #f87171; }
+
+/* Linha do contador de leads novos: cronômetro, zerar na mão e chave da meia-noite */
+.ia-protecao-novos { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; padding-top: 10px; border-top: 1px solid rgba(255, 255, 255, .08); color: var(--suave); }
+.ia-protecao-cronometro { display: inline-flex; align-items: center; gap: 6px; flex: 1 1 220px; }
+.ia-protecao-cronometro b { color: var(--texto); font-weight: 600; font-variant-numeric: tabular-nums; letter-spacing: .02em; }
+.ia-protecao-cronometro.cheio, .ia-protecao-cronometro.cheio b { color: var(--ouro); }
+.ia-protecao-novos .btn-pequeno { display: inline-flex; align-items: center; gap: 5px; }
+.ia-protecao-chave .dp-interruptor { font-size: 12.5px; }
+
+/* Ícone "i" com a explicação dos contadores (passar o mouse ou clicar) */
+.ia-ajuda { position: relative; display: inline-flex; }
+.ia-ajuda-botao {
+  display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; padding: 0; border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, .18); background: rgba(255, 255, 255, .04); color: var(--suave); cursor: pointer;
+}
+.ia-ajuda-botao:hover, .ia-ajuda-botao.ativo { color: var(--ouro); border-color: rgba(224, 190, 108, .55); }
+.ia-ajuda-caixa {
+  position: fixed; z-index: 1000;
+  display: flex; flex-direction: column; gap: 9px; padding: 12px 14px; border-radius: 12px;
+  border: 1px solid var(--vidro-borda, var(--borda)); background: rgba(14, 14, 16, .985); box-shadow: 0 12px 32px rgba(0, 0, 0, .5);
+  backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); color: var(--texto); font-size: 12.5px; line-height: 1.45; text-align: left;
+}
+.ia-ajuda-caixa::before { content: ''; position: absolute; top: -10px; left: 0; right: 0; height: 10px; } /* ponte para o mouse não "cair" */
+.ia-ajuda-titulo { color: var(--ouro); font-size: 12px; letter-spacing: .04em; text-transform: uppercase; }
+.ia-ajuda-item { display: flex; flex-direction: column; gap: 2px; }
+.ia-ajuda-item b { color: var(--texto); font-weight: 600; }
+.ia-ajuda-item span { color: var(--suave); }
 
 /* Fila: leads sem resposta que chegaram antes de a IA ligar */
 .ia-fila-faixa { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 10px; padding-top: 10px; border-top: 1px solid rgba(255, 255, 255, 0.08); }

@@ -4,7 +4,9 @@ CRM da agência: leads do Yay! Forms caindo direto num kanban, alerta de follow-
 Roda direto no Mac, a partir do SSD externo, sem Docker e sem instalar nada no sistema.
 A mesma pasta funciona depois na VPS da Contabo.
 
-**Versão atual: 0.15.0** — o número fica no arquivo `VERSAO` e é o que aparece em **Equipe e integrações → Atualização do CRM**.
+**Versão atual: 0.16.0** — o número fica no arquivo `VERSAO` e é o que aparece em **Equipe e integrações → Atualização do CRM**.
+
+**Versão 0.16.0:** painel de status da IA (tela **IA → Limites e proteção**) mais claro. Um ícone **ⓘ** ao lado dos contadores explica o que cada número significa (passe o mouse ou clique). O contador de **leads novos** ganhou um cronômetro que mostra quando a IA volta a chamar leads novos, um botão **Zerar agora** (zera o contador na hora; quem estava esperando vaga é chamado de novo, respeitando as outras travas) e a chave **Zerar todo dia à meia-noite** (ligada por padrão): o limite de leads novos passa a valer por dia e zera à meia-noite no fuso do horário de atendimento. Desligada, volta a ser uma janela móvel de 24 h. Quando não há vaga de lead novo, o status fica amarelo avisando que a IA só responde quem já está em conversa.
 
 **Versão 0.15.0:** fila da IA para leads que chegaram antes de ela ligar (tela **IA → Limites e proteção → Quem é lead novo**): mostra os leads abertos da janela de "lead novo" (ex.: últimas 240 h), com telefone, com quem ninguém da equipe falou e que a IA ainda não atende. Você revisa a lista, desmarca quem não quer e manda o resto para a IA. Quem nunca escreveu recebe a primeira mensagem da IA (retomando o cadastro, sem fingir que acabou de chegar); quem escreveu e ficou sem resposta recebe um pedido de desculpas curto pela demora e a resposta. A primeira mensagem só sai dentro do horário comercial, os mais novos vão primeiro e tudo segue as travas de proteção (um por vez, intervalo entre leads, limite de leads novos em 24 h). Conversas que tinham sido ignoradas com uma janela menor voltam a ser avaliadas.
 

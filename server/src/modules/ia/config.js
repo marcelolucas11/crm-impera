@@ -94,6 +94,8 @@ export const PADRAO = {
   // No máximo N mensagens da IA em 24 horas e N leads novos abordados (primeira mensagem) em 24 horas
   limite_por_dia: 150,
   limite_novos_por_dia: 40,
+  // O contador de leads novos zera todo dia à meia-noite (no fuso acima) em vez de ser uma janela móvel de 24 h
+  zerar_novos_meia_noite: true,
   api_key_painel: null,
 };
 
@@ -230,6 +232,7 @@ export function salvarConfig(entrada = {}) {
     ...faixa(inteiro(v('descanso_min_min'), 1, 240, 5), inteiro(v('descanso_max_min'), 1, 240, 15), 'descanso_min_min', 'descanso_max_min'),
     limite_por_dia: inteiro(v('limite_por_dia'), 1, 3000, 150),
     limite_novos_por_dia: inteiro(v('limite_novos_por_dia'), 1, 1000, 40),
+    zerar_novos_meia_noite: Boolean(v('zerar_novos_meia_noite')),
   };
   // Mais por hora do que por dia não faz sentido: o limite de 24 h manda
   if (novo.limite_por_hora > novo.limite_por_dia) novo.limite_por_hora = novo.limite_por_dia;

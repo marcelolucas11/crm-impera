@@ -1,7 +1,8 @@
 // Tela "IA": configuração da IA de primeiro contato, playbook aprendido das conversas, diretrizes (prompts), simulador e conversas atendidas.
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
-  Bot, Save, KeyRound, Building2, Wand2, Clock, ShieldCheck, MessageSquareText, Send, RotateCcw, ExternalLink, Trash2, Sparkles, History,
+  Bot, Save, KeyRound, Building2, Wand2, Clock, ShieldCheck, MessageSquareText, Send, RotateCcw, ExternalLink, Trash2, Sparkles, History, Info, Timer,
 } from 'lucide-react';
 import { api } from '../../api.js';
 import { useEvento } from '../../tempoReal.js';
@@ -391,8 +392,24 @@ function Conteudo({ user, aoAbrirConversa }) {
 
             <section className="cartao-secao">
               <h2><ShieldCheck size={16} /> Limites e proteção</h2>
-              <StatusProtecao protecao={dados.protecao} cfg={cfg} admin={admin} aoRetomar={async () => {
+              <StatusProtecao protecao={dados.protecao} cfg={dados.config} admin={admin} aoRetomar={async () => {
                 try { await api('/ia/protecao/retomar', { method: 'POST' }); aviso('IA liberada para voltar a atender'); carregar(); } catch (e) { aviso(e.message, 'erro'); }
+              }} aoZerarNovos={async () => {
+                if (!confirm('Zerar agora o contador de leads novos? A IA volta a chamar leads novos na hora, e o limite passa a contar a partir de agora.')) return;
+                try {
+                  const r = await api('/ia/protecao/zerar-novos', { method: 'POST' });
+                  setDados((x) => ({ ...x, protecao: r.protecao }));
+                  aviso('Contador de leads novos zerado: a IA volta a chamar');
+                } catch (e) { aviso(e.message, 'erro'); }
+              }} aoMudarMeiaNoite={async (ligado) => {
+                try {
+                  // Salva só esta chave (não leva junto outras mudanças ainda não salvas da tela)
+                  const r = await api('/ia/config', { method: 'PUT', body: { zerar_novos_meia_noite: ligado } });
+                  setDados((x) => ({ ...x, config: r.config }));
+                  setCfg((c) => ({ ...c, zerar_novos_meia_noite: r.config.zerar_novos_meia_noite }));
+                  aviso(ligado ? 'O contador de leads novos vai zerar todo dia à meia-noite' : 'Contador de leads novos volta a ser das últimas 24 h', 'info');
+                  api('/ia/config').then((x) => setDados(x)).catch(() => {});
+                } catch (e) { aviso(e.message, 'erro'); }
               }} />
               <div className="dp-config-grade">
                 <div className="dp-config-item">
@@ -435,7 +452,7 @@ function Conteudo({ user, aoAbrirConversa }) {
                   <span className="pequeno">No máximo
                     <input className="dp-inline-num" type="number" min={1} max={3000} value={cfg.limite_por_dia} disabled={!admin} onChange={(e) => mudar({ limite_por_dia: Number(e.target.value) })} /> mensagens em 24 horas.</span>
                   <span className="pequeno">No máximo
-                    <input className="dp-inline-num" type="number" min={1} max={1000} value={cfg.limite_novos_por_dia} disabled={!admin} onChange={(e) => mudar({ limite_novos_por_dia: Number(e.target.value) })} /> leads novos abordados em 24 horas.</span>
+                    <input className="dp-inline-num" type="number" min={1} max={1000} value={cfg.limite_novos_por_dia} disabled={!admin} onChange={(e) => mudar({ limite_novos_por_dia: Number(e.target.value) })} /> leads novos abordados {cfg.zerar_novos_meia_noite ? 'por dia (zera à meia-noite)' : 'em 24 horas'}.</span>
                   <span className="suave pequeno">3 erros de envio seguidos pausam a IA por 30 min.</span>
                 </div>
                 <div className="dp-config-item">
@@ -614,30 +631,119 @@ function Simulador({ cfg, admin }) {
   );
 }
 
-// Painel ao vivo da contingência: pausa em andamento e quanto de cada limite já foi usado
-function StatusProtecao({ protecao, cfg, admin, aoRetomar }) {
-  const [, setTique] = useState(0);
-  useEffect(() => { const t = setInterval(() => setTique((x) => x + 1), 15000); return () => clearInterval(t); }, []);
+// Painel ao vivo da contingência: pausa em andamento, quanto de cada limite já foi usado e quando o de leads novos libera
+const doisDig = (n) => String(n).padStart(2, '0');
+function contagem(msRestantes) {
+  const t = Math.max(0, Math.floor(msRestantes / 1000));
+  return `${doisDig(Math.floor(t / 3600))}:${doisDig(Math.floor((t % 3600) / 60))}:${doisDig(t % 60)}`;
+}
+
+function AjudaContadores({ cfg }) {
+  const [fixo, setFixo] = useState(false);
+  const [hover, setHover] = useState(false);
+  const [pos, setPos] = useState(null);
+  const botao = useRef(null);
+  const caixa = useRef(null);
+  const aberto = fixo || hover;
+  // A caixa vai direto no <body> (os cartões de vidro criam camadas próprias e a cobririam)
+  useEffect(() => {
+    if (!aberto) return undefined;
+    const medir = () => {
+      const r = botao.current?.getBoundingClientRect();
+      if (!r) return;
+      const largura = Math.min(360, window.innerWidth - 24);
+      const left = Math.max(12, Math.min(r.right - largura, window.innerWidth - largura - 12));
+      setPos({ top: r.bottom + 8, left, width: largura });
+    };
+    medir();
+    window.addEventListener('scroll', medir, true);
+    window.addEventListener('resize', medir);
+    return () => { window.removeEventListener('scroll', medir, true); window.removeEventListener('resize', medir); };
+  }, [aberto]);
+  useEffect(() => {
+    if (!fixo) return undefined;
+    const fora = (e) => { if (!botao.current?.contains(e.target) && !caixa.current?.contains(e.target)) setFixo(false); };
+    const esc = (e) => { if (e.key === 'Escape') setFixo(false); };
+    document.addEventListener('mousedown', fora);
+    document.addEventListener('keydown', esc);
+    return () => { document.removeEventListener('mousedown', fora); document.removeEventListener('keydown', esc); };
+  }, [fixo]);
+  const itens = [
+    ['Bolinha e status', 'Verde: a IA está atendendo. Amarela: em pausa de descanso ou sem vaga de lead novo (continua respondendo quem já está em conversa). Vermelha: pausada por erros de envio seguidos.'],
+    ['Última hora', `Mensagens que a IA enviou nos últimos 60 minutos, contra o máximo de ${cfg.limite_por_hora} por hora. Ao chegar no máximo, ela espera a mensagem mais antiga sair da janela.`],
+    ['24 h', `Mensagens que a IA enviou nas últimas 24 horas (todas as conversas somadas), contra o máximo de ${cfg.limite_por_dia}.`],
+    ['Leads novos', `Leads que receberam a primeira mensagem da IA ${cfg.zerar_novos_meia_noite ? 'desde a meia-noite' : 'nas últimas 24 horas'}, contra o máximo de ${cfg.limite_novos_por_dia}. Cheio: a IA não chama mais ninguém novo, mas segue respondendo quem já está em conversa. O cronômetro mostra quando ela volta a chamar.`],
+    ['Próximo descanso', `Quantas mensagens faltam para a próxima pausa de descanso (a cada ${cfg.descanso_a_cada} mensagens, para de ${cfg.descanso_min_min} a ${cfg.descanso_max_min} min).`],
+    ['Zerar todo dia à meia-noite', 'Ligado: o contador de leads novos zera à meia-noite (no fuso do horário de atendimento) e a IA volta a chamar. Desligado: é uma janela móvel de 24 h, e cada vaga abre 24 h depois do lead que a ocupou.'],
+  ];
+  return (
+    <span className="ia-ajuda" onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}>
+      <button type="button" ref={botao} className={`ia-ajuda-botao${aberto ? ' ativo' : ''}`} aria-label="O que significa cada contador" aria-expanded={aberto} onClick={() => setFixo((f) => !f)}>
+        <Info size={14} />
+      </button>
+      {aberto && pos && createPortal(
+        <div className="ia-ajuda-caixa" role="tooltip" ref={caixa} style={pos} onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}>
+          <b className="ia-ajuda-titulo">O que significa cada contador</b>
+          {itens.map(([t, d]) => <span key={t} className="ia-ajuda-item"><b>{t}</b><span>{d}</span></span>)}
+        </div>,
+        document.body
+      )}
+    </span>
+  );
+}
+
+function StatusProtecao({ protecao, cfg, admin, aoRetomar, aoZerarNovos, aoMudarMeiaNoite }) {
+  const [agora, setAgora] = useState(Date.now());
+  useEffect(() => { const t = setInterval(() => setAgora(Date.now()), 1000); return () => clearInterval(t); }, []);
   if (!protecao) return null;
   const hora = (iso) => new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-  const noFuturo = (iso) => iso && new Date(iso).getTime() > Date.now();
+  const noFuturo = (iso) => iso && new Date(iso).getTime() > agora;
+  const novosCheio = protecao.leads_novos_dia >= cfg.limite_novos_por_dia;
   const pausa = noFuturo(protecao.pausa_falhas_ate)
     ? { texto: `Pausada até ${hora(protecao.pausa_falhas_ate)} por erros de envio seguidos`, tom: 'erro' }
-    : noFuturo(protecao.descanso_ate) ? { texto: `Em pausa de descanso até ${hora(protecao.descanso_ate)}`, tom: 'aviso' } : null;
+    : noFuturo(protecao.descanso_ate) ? { texto: `Em pausa de descanso até ${hora(protecao.descanso_ate)}`, tom: 'aviso', retomar: true }
+      : null;
+  const estado = pausa || (novosCheio ? { texto: 'Sem vaga de lead novo: só responde quem já está em conversa', tom: 'aviso' } : null);
   const uso = (n, max) => `${n}/${max}`;
   const cheio = (n, max) => (n >= max ? ' ia-protecao-cheio' : '');
+  const libera = protecao.novos_libera_em && new Date(protecao.novos_libera_em).getTime();
+  const mostraCronometro = libera && (cfg.zerar_novos_meia_noite || protecao.leads_novos_dia > 0);
+  const rotuloCronometro = cfg.zerar_novos_meia_noite
+    ? (novosCheio ? 'IA volta a chamar em' : 'Zera à meia-noite em')
+    : (novosCheio ? 'IA volta a chamar em' : 'Próxima vaga em');
   return (
-    <div className={`ia-protecao${pausa ? ` ia-protecao-${pausa.tom}` : ''}`}>
-      <span className="ia-protecao-estado">
-        {pausa ? pausa.texto : 'Atendendo normalmente'}
-        {pausa && admin && <button type="button" className="botao-link" onClick={aoRetomar}>Retomar agora</button>}
-      </span>
-      <span className="ia-protecao-numeros pequeno">
-        <span className={cheio(protecao.enviadas_hora, cfg.limite_por_hora)}>Última hora: <b>{uso(protecao.enviadas_hora, cfg.limite_por_hora)}</b></span>
-        <span className={cheio(protecao.enviadas_dia, cfg.limite_por_dia)}>24 h: <b>{uso(protecao.enviadas_dia, cfg.limite_por_dia)}</b></span>
-        <span className={cheio(protecao.leads_novos_dia, cfg.limite_novos_por_dia)}>Leads novos 24 h: <b>{uso(protecao.leads_novos_dia, cfg.limite_novos_por_dia)}</b></span>
-        {cfg.descanso_ativo && !pausa && <span>Próximo descanso em <b>{Math.max(0, cfg.descanso_a_cada - protecao.enviadas_desde_descanso)}</b> msgs</span>}
-      </span>
+    <div className={`ia-protecao${estado ? ` ia-protecao-${estado.tom}` : ''}`}>
+      <div className="ia-protecao-linha">
+        <span className="ia-protecao-estado">
+          {estado ? estado.texto : 'Atendendo normalmente'}
+          {pausa && admin && <button type="button" className="botao-link" onClick={aoRetomar}>Retomar agora</button>}
+        </span>
+        <span className="ia-protecao-numeros pequeno">
+          <span className={cheio(protecao.enviadas_hora, cfg.limite_por_hora)}>Última hora: <b>{uso(protecao.enviadas_hora, cfg.limite_por_hora)}</b></span>
+          <span className={cheio(protecao.enviadas_dia, cfg.limite_por_dia)}>24 h: <b>{uso(protecao.enviadas_dia, cfg.limite_por_dia)}</b></span>
+          <span className={cheio(protecao.leads_novos_dia, cfg.limite_novos_por_dia)}>Leads novos {cfg.zerar_novos_meia_noite ? 'hoje' : '24 h'}: <b>{uso(protecao.leads_novos_dia, cfg.limite_novos_por_dia)}</b></span>
+          {cfg.descanso_ativo && !pausa && <span>Próximo descanso em <b>{Math.max(0, cfg.descanso_a_cada - protecao.enviadas_desde_descanso)}</b> msgs</span>}
+          <AjudaContadores cfg={cfg} />
+        </span>
+      </div>
+      <div className="ia-protecao-novos pequeno">
+        <span className={`ia-protecao-cronometro${novosCheio ? ' cheio' : ''}`}>
+          <Timer size={13} />
+          {mostraCronometro
+            ? <>{rotuloCronometro} <b>{contagem(libera - agora)}</b>{cfg.zerar_novos_meia_noite && <span className="suave"> (00:00)</span>}</>
+            : <span className="suave">Nenhum lead novo abordado {protecao.novos_zerado_em && agora - new Date(protecao.novos_zerado_em).getTime() < 864e5
+              ? `desde que o contador foi zerado (${hora(protecao.novos_zerado_em)})` : 'nas últimas 24 h'}</span>}
+        </span>
+        {admin && (
+          <button type="button" className="btn btn-pequeno" onClick={aoZerarNovos} disabled={!protecao.leads_novos_dia}
+            title="Zera o contador de leads novos agora e a IA volta a chamar leads novos na hora">
+            <RotateCcw size={12} /> Zerar agora
+          </button>
+        )}
+        <span className="ia-protecao-chave">
+          <Interruptor ligado={Boolean(cfg.zerar_novos_meia_noite)} disabled={!admin} aoMudar={aoMudarMeiaNoite} rotulo="Zerar todo dia à meia-noite" />
+        </span>
+      </div>
     </div>
   );
 }
