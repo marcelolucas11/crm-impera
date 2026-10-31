@@ -22,6 +22,7 @@ import {
   aoReceberMensagem, aoMensagemHumana, aoReceberLeadFormulario, acharConversa, aprovarSugestao, descartarSugestao,
   iniciarRelogio, pararRelogio, passarParaHumano, leadsPendentes, enfileirarPendentes,
 } from './motor.js';
+import { estadoRevisao, revisarAtendimentos, iniciarRevisao, pararRevisao } from './revisao.js';
 
 // Converte erros da IA em respostas HTTP
 const rota = (fn) => async (req, res) => {
@@ -124,6 +125,17 @@ export default {
       const r2 = enfileirarPendentes(req.body.lead_ids);
       emitir('ia', {});
       res.json(r2);
+    }));
+
+    // Revisão: quem está em "IA atendendo" com mensagem do lead sem resposta (e se vai ser respondido)
+    r.get('/revisao', rota((req, res) => {
+      res.json(estadoRevisao());
+    }));
+
+    // Revisa agora e retoma de onde parou as conversas que ficaram sem resposta
+    r.post('/revisao', exigirAdmin, rota(async (req, res) => {
+      const resultado = await revisarAtendimentos({ origem: req.user.name });
+      res.json({ resultado, ...estadoRevisao() });
     }));
 
     // Libera na hora a pausa de descanso ou o freio de falhas
@@ -355,12 +367,14 @@ export default {
   },
   start() {
     iniciarRelogio();
+    iniciarRevisao();
     iniciarRelogioPlaybook();
     const cfg = lerConfig();
     console.log(`[ia] primeiro contato ${cfg.ativo ? `ligado (modo ${cfg.modo === 'automatico' ? 'automático' : 'copiloto'})` : 'desligado'}`);
   },
   stop() {
     pararRelogio();
+    pararRevisao();
     pararRelogioPlaybook();
   },
 };

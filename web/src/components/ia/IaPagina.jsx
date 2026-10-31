@@ -11,6 +11,7 @@ import { ProvedorAvisos, useAviso, Interruptor } from '../disparos/comum.jsx';
 import '../disparos/disparos.css';
 import DiretrizesIa from './DiretrizesIa.jsx';
 import FilaPendentes from './FilaPendentes.jsx';
+import RevisaoAtendimento from './RevisaoAtendimento.jsx';
 import './ia.css';
 
 const DIAS = [[1, 'Segunda'], [2, 'Terça'], [3, 'Quarta'], [4, 'Quinta'], [5, 'Sexta'], [6, 'Sábado'], [0, 'Domingo']];
@@ -486,7 +487,7 @@ function Conteudo({ user, aoAbrirConversa }) {
               </p>
             </section>
 
-            <ConversasDaIa conversas={conversas} filtro={filtro} setFiltro={setFiltro} aoAbrir={aoAbrirConversa} />
+            <ConversasDaIa conversas={conversas} filtro={filtro} setFiltro={setFiltro} aoAbrir={aoAbrirConversa} admin={admin} />
           </div>
 
           <aside className="dp-coluna-previa">
@@ -507,7 +508,7 @@ function Conteudo({ user, aoAbrirConversa }) {
 
 const pegarChave = (c) => ({ chave_configurada: c.chave_configurada, chave_final: c.chave_final, chave_origem: c.chave_origem, workspace_id: c.workspace_id });
 
-function ConversasDaIa({ conversas, filtro, setFiltro, aoAbrir }) {
+function ConversasDaIa({ conversas, filtro, setFiltro, aoAbrir, admin }) {
   return (
     <section className="cartao-secao">
       <div className="dp-secao-topo">
@@ -517,6 +518,7 @@ function ConversasDaIa({ conversas, filtro, setFiltro, aoAbrir }) {
           {Object.entries(STATUS).map(([k, [rotulo]]) => <option key={k} value={k}>{rotulo}</option>)}
         </select>
       </div>
+      <RevisaoAtendimento admin={admin} aoAbrir={aoAbrir} />
       {!conversas.length ? <p className="suave pequeno">Nenhuma conversa ainda.</p> : (
         <table className="tabela">
           <tbody>

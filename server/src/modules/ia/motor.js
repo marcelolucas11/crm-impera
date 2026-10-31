@@ -94,7 +94,7 @@ function mensagemMaisAntiga(contato) {
   return get(`SELECT min(m.timestamp) AS t FROM wa_messages m WHERE ${f.where} AND m.type <> 'chamada'`, f.params)?.t || null;
 }
 
-function contatoDaConversa(c) {
+export function contatoDaConversa(c) {
   return { leadId: c.lead_id, phone: c.phone, jid: c.jid, jids: jidsDoContato({ leadId: c.lead_id, phone: c.phone, jid: c.jid }) };
 }
 
@@ -124,7 +124,7 @@ function criarConversa({ leadId, phone, jid, instanciaId, origem, status, motivo
   return get('SELECT * FROM ia_conversas WHERE chave = ?', [chave]);
 }
 
-function atualizar(id, campos) {
+export function atualizar(id, campos) {
   const chaves = Object.keys(campos);
   run(`UPDATE ia_conversas SET ${chaves.map((k) => `${k} = ?`).join(', ')}, atualizada_em = ? WHERE id = ?`, [
     ...chaves.map((k) => campos[k]), agora(), id,
@@ -373,7 +373,7 @@ export async function enviarComoPessoa(conversa, mensagens, { userId = null, sim
 
 // ------------------------------------------------------------------ o atendimento em si
 
-function historicoDaConversa(contato) {
+export function historicoDaConversa(contato) {
   const f = filtro(contato);
   return all(
     `SELECT m.id, m.from_me, m.type, m.body, m.legenda, m.timestamp FROM wa_messages m
@@ -606,7 +606,18 @@ export function descartarSugestao(sugestaoId, userId) {
 // ------------------------------------------------------------------ relógio
 
 let relogio = null;
-const emAndamento = new Set();
+// Conversas sendo atendidas agora → quando começou (a revisão usa para soltar um atendimento que travou)
+const emAndamento = new Map();
+
+/** Conversas em atendimento neste momento: [{ id, desde }] */
+export function emAtendimento() {
+  return [...emAndamento].map(([id, desde]) => ({ id, desde }));
+}
+
+/** Solta uma conversa presa em "atendendo agora" (ex.: envio que nunca respondeu), para o relógio seguir para as outras. */
+export function soltarAtendimento(id) {
+  return emAndamento.delete(id);
+}
 
 export async function verificarPendentes() {
   // Um lead por vez: enquanto uma conversa está sendo atendida (inclusive "digitando…" e enviando), as outras esperam
@@ -615,10 +626,12 @@ export async function verificarPendentes() {
   const vencidas = all(`SELECT id FROM ia_conversas WHERE status = 'ativa' AND proxima_em IS NOT NULL AND proxima_em <= ? ORDER BY proxima_em LIMIT ${umPorVez ? 1 : 10}`, [agora()]);
   for (const { id } of vencidas) {
     if (emAndamento.has(id)) continue;
-    emAndamento.add(id);
+    const desde = Date.now();
+    emAndamento.set(id, desde);
     processarConversa(id)
       .catch((err) => console.error(`[ia] conversa #${id}:`, err.message))
-      .finally(() => emAndamento.delete(id));
+      // Só remove se ainda for o mesmo atendimento (a revisão pode ter soltado e o relógio já ter começado outro)
+      .finally(() => { if (emAndamento.get(id) === desde) emAndamento.delete(id); });
   }
 }
 

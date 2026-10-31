@@ -194,3 +194,12 @@
 .ia-fila-item { display: grid; grid-template-columns: auto 1fr; column-gap: 10px; row-gap: 2px; align-items: center; padding: 8px 10px; border-radius: 10px; background: rgba(255, 255, 255, 0.04); cursor: pointer; }
 .ia-fila-item > input { grid-row: span 3; }
 .ia-fila-nome { font-weight: 600; }
+
+/* Revisão dos atendimentos ("IA atendendo" sem resposta) */
+.ia-revisao-faixa { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 4px 0 12px; padding: 10px 12px; border-radius: 12px; background: rgba(255, 255, 255, 0.04); border: 1px solid var(--borda); }
+.ia-revisao-faixa > span { flex: 1 1 200px; }
+.ia-revisao-alerta { border-color: rgba(229, 99, 75, .4); background: rgba(229, 99, 75, .07); }
+.ia-revisao-item { display: grid; grid-template-columns: 1fr auto; column-gap: 10px; row-gap: 3px; align-items: center; padding: 8px 10px; border-radius: 10px; background: rgba(255, 255, 255, 0.04); }
+.ia-revisao-item > .pequeno { grid-column: 1 / -1; }
+.ia-revisao-item > .btn { grid-column: 2; justify-self: end; }
+.ia-revisao-msg { font-style: italic; opacity: .85; overflow-wrap: anywhere; }
