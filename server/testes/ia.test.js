@@ -394,6 +394,25 @@ test('contingência: zerar leads novos na mão libera quem esperava vaga', async
   assert.equal((await processar(b)).feito, 'enviada');
 });
 
+test('contingência: trava mudou (chave da meia-noite / limite) — quem esperava é reavaliado na hora, em ordem', async () => {
+  await preparar({ extra: { limite_novos_por_dia: 1 } });
+  const a = await chegou('5511933330016@s.whatsapp.net', 'oi');
+  const b = await chegou('5511933330017@s.whatsapp.net', 'oi');
+  const c = await chegou('5511933330018@s.whatsapp.net', 'oi');
+  assert.equal((await processar(a)).feito, 'enviada');
+  assert.equal((await processar(b)).feito, 'limite_novos');
+  assert.equal((await processar(c)).feito, 'limite_novos');
+  // A hora guardada foi calculada pela regra antiga (vaga só daqui a ~24 h)
+  assert.ok(new Date(conversa(b.id).proxima_em).getTime() > Date.now() + 3600e3);
+  salvarConfig({ limite_novos_por_dia: 3 });
+  assert.equal(protecao.reavaliarEspera(), 2);
+  const tb = new Date(conversa(b.id).proxima_em).getTime();
+  const tc = new Date(conversa(c.id).proxima_em).getTime();
+  assert.ok(tb < Date.now() + 10000 && tb < tc, 'volta para a fila agora e mantém a ordem');
+  vencer(b.id);
+  assert.equal((await processar(b)).feito, 'enviada');
+});
+
 test('contingência: meia-noite no fuso e vaga liberada à meia-noite', () => {
   // 31/10/2026 15:00 em São Paulo (UTC-3) → meia-noite foi 03:00 UTC e a próxima é 01/11 03:00 UTC
   const agora = Date.UTC(2026, 9, 31, 18, 0, 0);

@@ -71,7 +71,7 @@ function Conteudo({ user, aoAbrirConversa }) {
     try {
       const d = await api('/ia/config', { method: 'PUT', body: { ...cfg, ...extra } });
       setCfg(d.config);
-      setDados((x) => ({ ...x, config: d.config }));
+      setDados((x) => ({ ...x, config: d.config, ...(d.protecao ? { protecao: d.protecao } : {}) }));
       setAlterado(false);
       aviso(extra.ativo === undefined ? 'Configuração salva' : extra.ativo ? 'IA de primeiro contato ligada' : 'IA desligada', extra.ativo === false ? 'info' : 'ok');
     } catch (e) { aviso(e.message, 'erro'); } finally { setSalvando(false); }
@@ -408,7 +408,8 @@ function Conteudo({ user, aoAbrirConversa }) {
                 try {
                   // Salva só esta chave (não leva junto outras mudanças ainda não salvas da tela)
                   const r = await api('/ia/config', { method: 'PUT', body: { zerar_novos_meia_noite: ligado } });
-                  setDados((x) => ({ ...x, config: r.config }));
+                  // Config e contadores juntos: senão a tela mostra por um instante o número da regra antiga com o rótulo da nova
+                  setDados((x) => ({ ...x, config: r.config, ...(r.protecao ? { protecao: r.protecao } : {}) }));
                   setCfg((c) => ({ ...c, zerar_novos_meia_noite: r.config.zerar_novos_meia_noite }));
                   aviso(ligado ? 'O contador de leads novos vai zerar todo dia à meia-noite' : 'Contador de leads novos volta a ser das últimas 24 h', 'info');
                   api('/ia/config').then((x) => setDados(x)).catch(() => {});

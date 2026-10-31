@@ -12,7 +12,11 @@ import { tentativaDeComando, pedeHumano, validarSaida } from './seguranca.js';
 import { textoDoSistema, montarPedido } from './prompt.js';
 import { perguntarModelo, perguntarNoFormato, registrar, ErroIA } from './cliente.js';
 import { iniciarTarefa, estadoTarefa, dispensarTarefa, iniciarRelogioPlaybook, pararRelogioPlaybook } from './playbook.js';
-import { statusProtecao, retomarAgora, zerarLeadsNovos, bloqueioAgora } from './protecao.js';
+import { statusProtecao, retomarAgora, zerarLeadsNovos, bloqueioAgora, reavaliarEspera } from './protecao.js';
+
+// Campos da configuração que mudam quando uma conversa travada pode voltar a ser atendida
+const TRAVAS_CONFIG = ['ativo', 'modo', 'automatico_fora_horario', 'fuso', 'horario', 'zerar_novos_meia_noite', 'limite_novos_por_dia',
+  'limite_por_dia', 'limite_por_hora', 'descanso_ativo'];
 import {
   listarDiretrizes, obterDiretriz, criarDiretriz, atualizarDiretriz, apagarDiretriz, ordenarDiretrizes,
   versoesDaDiretriz, restaurarVersao, diretrizesAtivas, resumoDiretrizes,
@@ -166,7 +170,16 @@ export default {
     }));
 
     r.put('/config', exigirAdmin, rota((req, res) => {
-      res.json({ config: salvarConfig(req.body || {}) });
+      const antes = lerConfig();
+      const config = salvarConfig(req.body || {});
+      const depois = lerConfig();
+      // Mudou alguma trava (chave da meia-noite, limites, descanso, fuso, modo...): quem estava esperando com a hora
+      // calculada pela regra antiga é reavaliado agora, senão ficaria parado até aquela hora mesmo com vaga aberta
+      if (TRAVAS_CONFIG.some((k) => JSON.stringify(antes[k]) !== JSON.stringify(depois[k]))) {
+        reavaliarEspera();
+        emitir('ia', {});
+      }
+      res.json({ config, protecao: statusProtecao(depois) });
     }));
 
     // Cola a chave da API e confere com uma chamada mínima antes de guardar

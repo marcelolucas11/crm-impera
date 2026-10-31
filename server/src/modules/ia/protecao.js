@@ -11,7 +11,7 @@
 //
 // Nada é perdido quando uma trava segura a IA: a conversa só fica para depois (proxima_em) e é atendida quando liberar.
 // O estado fica em integration_state 'ia_protecao'.
-import { get, run } from '../../db.js';
+import { all, get, run } from '../../db.js';
 import { lerEstado, salvarEstado } from '../../estado.js';
 
 const ESTADO = 'ia_protecao';
@@ -132,12 +132,27 @@ export function retomarAgora() {
   salvarEstado(ESTADO, { descanso_ate: null, pausa_falhas_ate: null, falhas_envio: 0, enviadas_desde_descanso: 0 });
 }
 
+/**
+ * Chama de novo agora quem ficou para depois (proxima_em lá na frente) por causa de uma trava. Usado quando as travas
+ * mudam (zerar na mão, chave da meia-noite, limites alterados): a hora guardada foi calculada com a regra antiga e
+ * deixaria o lead esperando à toa. O motor confere todas as travas de novo e, se ainda estiver travado, reagenda.
+ * Mantém a ordem da fila (um segundo entre cada um). apenasNovos: só quem ainda não recebeu mensagem da IA.
+ */
+export function reavaliarEspera({ agoraMs = Date.now(), apenasNovos = false } = {}) {
+  const ids = all(
+    `SELECT id FROM ia_conversas WHERE status = 'ativa' AND proxima_em IS NOT NULL AND proxima_em > ?
+      ${apenasNovos ? 'AND mensagens_ia = 0' : ''} ORDER BY proxima_em, id`,
+    [iso(agoraMs + 60000)]
+  ).map((c) => c.id);
+  ids.forEach((id, ordem) => run('UPDATE ia_conversas SET proxima_em = ? WHERE id = ?', [iso(agoraMs + 5000 + ordem * 1000), id]));
+  return ids.length;
+}
+
 /** Zera na mão o contador de leads novos: a IA volta a abordar quem estava esperando vaga. */
 export function zerarLeadsNovos(agoraMs = Date.now()) {
   salvarEstado(ESTADO, { novos_zerado_em: iso(agoraMs) });
   // Quem ficou para depois por falta de vaga (ainda sem mensagem da IA) é chamado de novo agora; o motor confere as outras travas
-  run(`UPDATE ia_conversas SET proxima_em = ? WHERE status = 'ativa' AND mensagens_ia = 0 AND proxima_em IS NOT NULL AND proxima_em > ?`,
-    [iso(agoraMs + 5000), iso(agoraMs + 60000)]);
+  reavaliarEspera({ agoraMs, apenasNovos: true });
 }
 
 /** O que a tela mostra: pausas em andamento e quanto de cada limite já foi usado. */
