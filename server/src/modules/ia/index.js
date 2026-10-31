@@ -12,7 +12,7 @@ import { tentativaDeComando, pedeHumano, validarSaida } from './seguranca.js';
 import { textoDoSistema, montarPedido } from './prompt.js';
 import { perguntarModelo, perguntarNoFormato, registrar, ErroIA } from './cliente.js';
 import { iniciarTarefa, estadoTarefa, dispensarTarefa, iniciarRelogioPlaybook, pararRelogioPlaybook } from './playbook.js';
-import { statusProtecao, retomarAgora, zerarLeadsNovos } from './protecao.js';
+import { statusProtecao, retomarAgora, zerarLeadsNovos, bloqueioAgora } from './protecao.js';
 import {
   listarDiretrizes, obterDiretriz, criarDiretriz, atualizarDiretriz, apagarDiretriz, ordenarDiretrizes,
   versoesDaDiretriz, restaurarVersao, diretrizesAtivas, resumoDiretrizes,
@@ -20,7 +20,7 @@ import {
 import { emitir } from '../../tempoReal.js';
 import {
   aoReceberMensagem, aoMensagemHumana, aoReceberLeadFormulario, acharConversa, aprovarSugestao, descartarSugestao,
-  iniciarRelogio, pararRelogio, passarParaHumano, leadsPendentes, enfileirarPendentes,
+  iniciarRelogio, pararRelogio, passarParaHumano, leadsPendentes, enfileirarPendentes, iaJaFalou, emAtendimento,
 } from './motor.js';
 import { estadoRevisao, revisarAtendimentos, iniciarRevisao, pararRevisao } from './revisao.js';
 
@@ -84,6 +84,19 @@ function formularioDoSimulador(f) {
     return i > 0 ? { titulo: linha.slice(0, i).trim(), valor: linha.slice(i + 1).trim() } : null;
   }).filter((r) => r?.titulo && r.valor);
   return { situacao: f.situacao, reuniao: f.situacao === 'completo_com_reuniao' ? String(f.reuniao || 'amanhã às 10:00').slice(0, 80) : null, respostas };
+}
+
+// Para a lista "IA irá atender": quando a 1ª mensagem deve sair e o que está segurando
+function esperaDaConversa(cfg, c) {
+  const hora = (ms) => new Date(ms).toLocaleTimeString('pt-BR', { timeZone: cfg.fuso, hour: '2-digit', minute: '2-digit' });
+  if (!cfg.ativo) return 'IA desligada';
+  if (['fila', 'fila_whatsapp'].includes(c.origem) && !dentroDoHorario(cfg)) return 'Espera o horário comercial';
+  const automatico = cfg.modo === 'automatico' || (!dentroDoHorario(cfg) && cfg.automatico_fora_horario);
+  const trava = automatico ? bloqueioAgora(cfg, c) : null;
+  if (trava) return `${trava.motivo} · libera ~${hora(trava.ate)}`;
+  if (c.proxima_em) return new Date(c.proxima_em).getTime() <= Date.now() ? 'Na fila: é a próxima a ser chamada' : `Na fila · ~${hora(new Date(c.proxima_em).getTime())}`;
+  if (c.origem === 'manual') return 'Ligada à mão: responde quando o lead escrever';
+  return 'Sem horário marcado — clique em Revisar agora';
 }
 
 const avisarDiretrizes = () => emitir('ia', { diretrizes: true });
@@ -298,20 +311,37 @@ export default {
     }));
 
     // ------------------------------------------------------------ conversas
+    // "ativa" se divide em duas na tela: "IA irá atender" (a IA ainda não mandou nada) e "IA atendendo" (já mandou a 1ª)
     r.get('/conversas', rota((req, res) => {
       const status = typeof req.query.status === 'string' ? req.query.status : null;
+      const filtros = {
+        ira_atender: "c.status = 'ativa' AND c.mensagens_ia = 0",
+        ativa: "c.status = 'ativa'",
+      };
+      const where = !status ? "c.status <> 'ignorada'" : filtros[status] || 'c.status = ?';
       const lista = all(
         `SELECT c.id, c.chave, c.lead_id, c.phone, c.jid, c.origem, c.status, c.motivo, c.resumo, c.mensagens_ia, c.iniciada_em, c.atualizada_em,
-                l.name AS lead_nome, COALESCE(wc.name, wc.push_name) AS contato_nome,
+                c.proxima_em, l.name AS lead_nome, COALESCE(wc.name, wc.push_name) AS contato_nome,
                 (SELECT count(*) FROM ia_sugestoes s WHERE s.conversa_id = c.id AND s.status = 'pendente') AS sugestoes_pendentes
            FROM ia_conversas c
            LEFT JOIN leads l ON l.id = c.lead_id
            LEFT JOIN wa_contacts wc ON wc.jid = c.jid
-          WHERE ${status ? 'c.status = ?' : "c.status <> 'ignorada'"}
+          WHERE ${where}
           ORDER BY c.atualizada_em DESC LIMIT 200`,
-        status ? [status] : []
+        !status || filtros[status] ? [] : [status]
       );
-      res.json({ conversas: lista });
+      const cfg = lerConfig();
+      const atendendoAgora = new Set(emAtendimento().map((a) => a.id));
+      const conversas = [];
+      for (const c of lista) {
+        if (c.status !== 'ativa') { conversas.push({ ...c, fase: c.status }); continue; }
+        const falou = iaJaFalou(c);
+        const fase = falou ? 'ativa' : 'ira_atender';
+        if (status === 'ativa' && !falou) continue;
+        if (status === 'ira_atender' && falou) continue;
+        conversas.push({ ...c, fase, atendendo_agora: atendendoAgora.has(c.id), espera: fase === 'ira_atender' && !atendendoAgora.has(c.id) ? esperaDaConversa(cfg, c) : null });
+      }
+      res.json({ conversas });
     }));
 
     r.get('/conversa', rota(async (req, res) => {

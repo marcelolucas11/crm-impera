@@ -27,6 +27,19 @@ import { perguntarModelo, lerJsonDaResposta, registrar, ErroIA, perguntarNoForma
 import { bloqueioAgora, depoisDeEnviar, falhaDeEnvio } from './protecao.js';
 
 // Dependências do WhatsApp (trocadas nos testes)
+// Prazo máximo de cada chamada ao WhatsApp: uma chamada que nunca responde (socket meio caído) segurava o atendimento
+// para sempre e, com "um lead por vez", a fila inteira parava sem ninguém perceber.
+export const PRAZO_ENVIO_MS = 90 * 1000;
+const PRAZO_DIGITANDO_MS = 10 * 1000;
+
+function comPrazo(promessa, ms, mensagem) {
+  let relogioPrazo;
+  const prazo = new Promise((_, rejeitar) => {
+    relogioPrazo = setTimeout(() => rejeitar(new ErroIA(mensagem, { temporario: true })), ms);
+  });
+  return Promise.race([promessa, prazo]).finally(() => clearTimeout(relogioPrazo));
+}
+
 const deps = {
   async enviar(numeroId, destino, dados) {
     const { enviar } = await import('../whatsapp/envio.js');
@@ -47,7 +60,11 @@ const deps = {
   },
   esperar: (ms) => new Promise((r) => setTimeout(r, ms)),
   aleatorio: Math.random,
+  prazoEnvioMs: PRAZO_ENVIO_MS,
+  prazoDigitandoMs: PRAZO_DIGITANDO_MS,
 };
+const enviarComPrazo = (...a) => comPrazo(deps.enviar(...a), deps.prazoEnvioMs, 'O WhatsApp não respondeu ao envio a tempo');
+const digitandoComPrazo = (...a) => comPrazo(deps.digitando(...a), deps.prazoDigitandoMs, 'O WhatsApp não respondeu ao "digitando…"');
 export function definirDependencias(novas) {
   Object.assign(deps, novas);
 }
@@ -87,6 +104,21 @@ export function teveContatoHumano(contato, desde = null) {
   const f = filtro(contato);
   const depois = desde ? ' AND m.timestamp >= ?' : '';
   return Boolean(get(`SELECT 1 AS ok FROM wa_messages m WHERE ${f.where} AND ${EH_HUMANA}${depois} LIMIT 1`, desde ? [...f.params, desde] : f.params));
+}
+
+/**
+ * A IA já mandou alguma mensagem para este contato? (contador da conversa ou mensagem gravada com origem "ia" — a
+ * segunda cobre um envio que saiu mas cujo contador não chegou a ser somado, ex.: o servidor caiu no meio).
+ * Enquanto a IA nunca falou, a conversa está em "IA irá atender"; depois da 1ª mensagem, "IA atendendo".
+ */
+export function iaJaFalou(conversa, contato = contatoDaConversa(conversa)) {
+  if (conversa.mensagens_ia > 0) return true;
+  const f = filtro(contato);
+  return Boolean(get(
+    `SELECT 1 AS ok FROM wa_messages m WHERE ${f.where} AND m.from_me = 1 AND m.deleted_at IS NULL
+       AND json_valid(m.extra) AND json_extract(m.extra, '$.origem') = 'ia' LIMIT 1`,
+    f.params
+  ));
 }
 
 function mensagemMaisAntiga(contato) {
@@ -151,8 +183,6 @@ export function motivoParaNaoAtuar(cfg, contato, { leadId } = {}) {
 
 const daquiA = (ms) => new Date(Date.now() + ms).toISOString();
 
-// Conversas em que a IA manda a primeira mensagem sem o lead ter escrito
-const ORIGENS_PROATIVAS = ['yayforms', 'fila'];
 // Conversas que entraram pela fila (leads que chegaram antes de a IA ligar): 'fila' = nunca escreveu, 'fila_whatsapp' = escreveu e ninguém respondeu
 const DA_FILA = ['fila', 'fila_whatsapp'];
 
@@ -348,18 +378,18 @@ export async function enviarComoPessoa(conversa, mensagens, { userId = null, sim
     if (i > 0) {
       // Entre um balão e outro: "digitando…" pelo intervalo configurado (2 s por padrão), como uma pessoa
       if (!userId && get('SELECT status FROM ia_conversas WHERE id = ?', [conversa.id])?.status !== 'ativa') break;
-      if (jidPresenca && intervalo) await deps.digitando(numeroId, jidPresenca, 'composing').catch(() => {});
+      if (jidPresenca && intervalo) await digitandoComPrazo(numeroId, jidPresenca, 'composing').catch(() => {});
       if (intervalo) await deps.esperar(intervalo);
       if (!userId && get('SELECT status FROM ia_conversas WHERE id = ?', [conversa.id])?.status !== 'ativa') break;
     } else if (simularDigitacao) {
       await deps.esperar(1500 + Math.round(deps.aleatorio() * 2500));
       // Alguém da equipe assumiu enquanto a IA "lia": não envia mais nada
       if (!userId && get('SELECT status FROM ia_conversas WHERE id = ?', [conversa.id])?.status !== 'ativa') break;
-      if (jidPresenca) await deps.digitando(numeroId, jidPresenca, 'composing').catch(() => {});
+      if (jidPresenca) await digitandoComPrazo(numeroId, jidPresenca, 'composing').catch(() => {});
       await deps.esperar(Math.min(1200 + texto.length * 45, 12000) + Math.round(deps.aleatorio() * 1500));
       if (!userId && get('SELECT status FROM ia_conversas WHERE id = ?', [conversa.id])?.status !== 'ativa') break;
     }
-    await deps.enviar(numeroId, destino, { texto, automatico: !userId, origem: 'ia', semPrevia: true, userId });
+    await enviarComPrazo(numeroId, destino, { texto, automatico: !userId, origem: 'ia', semPrevia: true, userId });
     enviadas++;
     registrar(conversa.id, 'enviada', texto.slice(0, 200));
   }
@@ -415,8 +445,13 @@ export async function processarConversa(id) {
 
   const historico = historicoDaConversa(contato);
   const novas = historico.filter((m) => !m.from_me && m.id > conversa.ultima_lida_id);
-  const primeiroContato = !historico.some((m) => m.from_me);
-  if (!novas.length && !(ORIGENS_PROATIVAS.includes(conversa.origem) && primeiroContato)) return { feito: 'sem_novidade' };
+  // Ligada à mão: a equipe já pode ter falado, então "primeiro contato" é não ter nenhuma mensagem nossa.
+  // Nas outras origens, a IA abre a conversa enquanto ela mesma nunca falou — mesmo que a saudação automática dos
+  // Disparos tenha saído antes (antes, essa saudação fazia a IA achar que já tinha falado e a conversa ficava parada
+  // em "IA atendendo" sem nunca receber mensagem).
+  const iaNuncaFalou = !iaJaFalou(conversa, contato);
+  const primeiroContato = conversa.origem === 'manual' ? !historico.some((m) => m.from_me) : iaNuncaFalou;
+  if (!novas.length && !(conversa.origem !== 'manual' && iaNuncaFalou)) return { feito: 'sem_novidade' };
 
   const foraDoHorario = !dentroDoHorario(cfg);
 

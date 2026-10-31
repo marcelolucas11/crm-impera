@@ -15,7 +15,9 @@ import RevisaoAtendimento from './RevisaoAtendimento.jsx';
 import './ia.css';
 
 const DIAS = [[1, 'Segunda'], [2, 'Terça'], [3, 'Quarta'], [4, 'Quinta'], [5, 'Sexta'], [6, 'Sábado'], [0, 'Domingo']];
+// "ativa" aparece em duas fases: a IA ainda não mandou nada (irá atender) ou já mandou a 1ª mensagem (atendendo)
 const STATUS = {
+  ira_atender: ['IA irá atender', 'espera'],
   ativa: ['IA atendendo', 'ok'],
   aguardando_humano: ['Aguardando você', 'aviso'],
   humano: ['Equipe assumiu', 'neutro'],
@@ -523,14 +525,16 @@ function ConversasDaIa({ conversas, filtro, setFiltro, aoAbrir, admin }) {
         <table className="tabela">
           <tbody>
             {conversas.map((c) => {
-              const [rotulo, tipo] = STATUS[c.status] || [c.status, 'neutro'];
+              const fase = c.fase || c.status;
+              const [rotulo, tipo] = STATUS[fase] || [fase, 'neutro'];
               return (
                 <tr key={c.id}>
                   <td>
                     <b>{c.lead_nome || c.contato_nome || (c.phone ? formatarTelefone(c.phone) : 'Contato')}</b>
-                    <span className="suave pequeno"> · {c.origem === 'yayforms' ? 'formulário' : c.origem === 'manual' ? 'ligada à mão' : 'WhatsApp'}</span>
+                    <span className="suave pequeno"> · {c.origem === 'yayforms' ? 'formulário' : c.origem === 'manual' ? 'ligada à mão' : c.origem === 'fila' || c.origem === 'fila_whatsapp' ? 'fila' : 'WhatsApp'}</span>
                     {c.resumo && <div className="suave pequeno">{c.resumo}</div>}
                     {c.status !== 'ativa' && c.motivo && <div className="pequeno ia-motivo">{c.motivo}</div>}
+                    {fase === 'ira_atender' && (c.atendendo_agora || c.espera) && <div className="pequeno ia-espera">{c.atendendo_agora ? 'Mandando a 1ª mensagem agora…' : c.espera}</div>}
                   </td>
                   <td><span className={`ia-status ia-status-${tipo}`}>{rotulo}</span>{c.sugestoes_pendentes > 0 && <span className="ia-etiqueta">sugestão pendente</span>}</td>
                   <td className="pequeno suave">{c.mensagens_ia} msg · {tempoDesde(c.atualizada_em)}</td>

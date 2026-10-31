@@ -30,6 +30,8 @@
 .ia-status-ok { color: var(--led-verde, #34d17b); background: rgba(52, 209, 123, .1); border-color: rgba(52, 209, 123, .3); }
 .ia-status-aviso { color: var(--led-ambar, #f2a53a); background: rgba(242, 165, 58, .1); border-color: rgba(242, 165, 58, .35); }
 .ia-status-neutro { color: var(--suave); background: rgba(255, 255, 255, .04); border-color: var(--borda); }
+.ia-status-espera { color: #6fb6ff; background: rgba(111, 182, 255, .1); border-color: rgba(111, 182, 255, .35); }
+.ia-espera { color: #8fc4ff; }
 .ia-status-erro { color: var(--alerta, #e5634b); background: rgba(229, 99, 75, .1); border-color: rgba(229, 99, 75, .35); }
 .ia-etiqueta { display: inline-block; margin-left: 6px; font-size: 11px; color: var(--ouro); border: 1px solid rgba(224, 190, 108, .35); border-radius: 999px; padding: 2px 8px; }
 .ia-motivo { color: var(--suave); font-style: italic; }

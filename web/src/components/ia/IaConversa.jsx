@@ -46,7 +46,8 @@ export default function IaConversa({ chave }) {
       <div className="ia-faixa-topo">
         <span className="ia-faixa-icone"><Bot size={16} /></span>
         <div className="ia-faixa-texto">
-          {c.status === 'ativa' && <><b>IA fazendo o primeiro contato</b> <span className="suave">· {c.mensagens_ia} mensagem(ns) · se você escrever, ela para sozinha</span></>}
+          {c.status === 'ativa' && !c.mensagens_ia && <><b>IA irá fazer o primeiro contato</b> <span className="suave">· ainda não mandou nada · se você escrever antes, ela não entra</span></>}
+          {c.status === 'ativa' && c.mensagens_ia > 0 && <><b>IA atendendo</b> <span className="suave">· {c.mensagens_ia} mensagem(ns) · se você escrever, ela para sozinha</span></>}
           {c.status === 'aguardando_humano' && <><b>A IA passou este lead para você</b> <span className="suave">· {c.motivo} · {tempoDesde(c.atualizada_em)}</span></>}
           {c.status === 'humano' && <span className="suave">IA desligada nesta conversa: a equipe assumiu.</span>}
           {c.status === 'pausada' && <span className="suave">IA pausada nesta conversa.</span>}

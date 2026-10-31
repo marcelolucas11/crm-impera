@@ -16,6 +16,12 @@ const revisao = await import('../src/modules/ia/revisao.js');
 const SEMPRE = Object.fromEntries([0, 1, 2, 3, 4, 5, 6].map((d) => [d, { inicio: '00:00', fim: '23:59' }]));
 let enviadas = [];
 
+const enviarFalso = async (numeroId, destino, dados) => {
+  enviadas.push({ destino, ...dados });
+  const jid = destino.jid || get('SELECT jid FROM wa_contacts WHERE lead_id = ?', [destino.leadId])?.jid || 'x@s.whatsapp.net';
+  run(`INSERT INTO wa_messages (instance_id, lead_id, chat_jid, wa_id, from_me, type, body, timestamp, extra)
+       VALUES (1, ?, ?, ?, 1, 'texto', ?, ?, ?)`, [destino.leadId || null, jid, `IA${Math.random()}`, dados.texto, new Date().toISOString(), JSON.stringify({ origem: dados.origem })]);
+};
 motor.definirDependencias({
   esperar: async () => {},
   aleatorio: () => 0,
@@ -45,6 +51,7 @@ async function preparar(extra = {}) {
   run("INSERT INTO wa_instances (id, name) VALUES (1, 'Comercial')");
   salvarConfig({ ativo: true, modo: 'automatico', horario: SEMPRE, automatico_fora_horario: true, espera_agrupar_seg: 3, intervalo_leads_min_seg: 0, intervalo_leads_max_seg: 0, ...extra });
   protecao.zerarProtecao();
+  motor.definirDependencias({ enviar: enviarFalso, prazoEnvioMs: 90000 });
   enviadas = [];
 }
 
@@ -144,4 +151,86 @@ test('IA desligada: a revisão não mexe em nada', async () => {
   salvarConfig({ ativo: false });
   const r = await revisao.revisarAtendimentos();
   assert.equal(r.retomadas, 0);
+});
+
+// ------------------------------------------------------------------ 0.18.0: "IA irá atender" e fila travada
+
+test('saudação automática dos Disparos não faz a IA achar que já falou: conta como "irá atender" e a 1ª mensagem sai', async () => {
+  await preparar();
+  const jid = '5511900000010@s.whatsapp.net';
+  run('INSERT INTO wa_contacts (jid, phone, push_name) VALUES (?, ?, ?)', [jid, '5511900000010', 'Ana']);
+  msg(jid, 'Olá! Recebemos seu cadastro.', { deMim: true, extra: JSON.stringify({ origem: 'disparo' }), segundosAtras: 120 });
+  const id = Number(run("INSERT INTO ia_conversas (chave, phone, jid, origem, status) VALUES ('t:5511900000010', '5511900000010', ?, 'yayforms', 'ativa')", [jid]).lastInsertRowid);
+
+  const antes = revisao.estadoRevisao();
+  assert.equal(antes.ira_atender, 1);
+  assert.equal(antes.pendencias[0].primeira_mensagem, true);
+  assert.equal(antes.pendencias[0].situacao, 'parada');
+
+  assert.equal((await revisao.revisarAtendimentos()).retomadas, 1);
+  assert.equal((await motor.processarConversa(id)).feito, 'enviada');
+  assert.equal(enviadas.length, 1);
+  const depois = revisao.estadoRevisao();
+  assert.equal(depois.ira_atender, 0);
+  assert.equal(depois.atendendo, 1);
+  assert.equal(depois.pendencias.length, 0);
+});
+
+test('lead que só escreveu pelo WhatsApp e a IA nunca respondeu: a IA abre a conversa mesmo sem mensagem nova', async () => {
+  await preparar();
+  const jid = '5511900000011@s.whatsapp.net';
+  run('INSERT INTO wa_contacts (jid, phone, push_name) VALUES (?, ?, ?)', [jid, '5511900000011', 'Rui']);
+  const ultima = msg(jid, 'oi', { segundosAtras: 600 });
+  // Ponteiro já passou da mensagem (ex.: leitura sem resposta antes de um reinício)
+  const id = Number(run("INSERT INTO ia_conversas (chave, phone, jid, origem, status, ultima_lida_id) VALUES ('t:5511900000011', '5511900000011', ?, 'whatsapp', 'ativa', ?)", [jid, ultima]).lastInsertRowid);
+  assert.equal((await motor.processarConversa(id)).feito, 'enviada');
+});
+
+test('atendimento preso numa conversa "em dia" é solto e a fila volta a andar', async () => {
+  await preparar({ um_por_vez: true });
+  const presa = await conversaAtendida('5511900000012@s.whatsapp.net'); // em dia (a última mensagem é da IA)
+  // Simula um envio que nunca respondeu há 11 min: com "um lead por vez", nada mais anda
+  const voltar = Date.now;
+  Date.now = () => voltar() - 11 * 60000;
+  motor.definirDependencias({ enviar: () => new Promise(() => {}), prazoEnvioMs: 300 });
+  run('UPDATE ia_conversas SET proxima_em = ? WHERE id = ?', [new Date(voltar() - 20 * 60000).toISOString(), presa.id]);
+  msg(presa.jid, 'e aí?');
+  await motor.verificarPendentes();
+  Date.now = voltar;
+  assert.equal(motor.emAtendimento().length, 1);
+  // A conversa presa fica "em dia" de propósito: a IA leu a msg e o ponteiro avançou, mas a mensagem que faltava é do lead
+  const r = await revisao.revisarAtendimentos();
+  assert.equal(r.soltas, 1);
+  assert.equal(motor.emAtendimento().filter((a) => a.id === presa.id && voltar() - a.desde > 10 * 60000).length, 0);
+  await new Promise((r) => setTimeout(r, 400)); // deixa o envio preso cair no prazo antes do próximo teste
+});
+
+test('conversa na fila com a hora vencida e ninguém atendendo é destravada', async () => {
+  await preparar();
+  const id = Number(run("INSERT INTO ia_conversas (chave, phone, origem, status, proxima_em) VALUES ('t:5511900000013', '5511900000013', 'fila', 'ativa', ?)",
+    [new Date(Date.now() - 30 * 60000).toISOString()]).lastInsertRowid);
+  assert.equal(revisao.estadoRevisao().pendencias[0].situacao, 'atrasada');
+  const r = await revisao.revisarAtendimentos();
+  assert.equal(r.destravadas, 1);
+  assert.ok(new Date(get('SELECT proxima_em FROM ia_conversas WHERE id = ?', [id]).proxima_em).getTime() > Date.now() - 5000);
+});
+
+test('envio que nunca responde vira erro temporário depois do prazo (não segura o atendimento)', async () => {
+  await preparar();
+  motor.definirDependencias({ enviar: () => new Promise(() => {}), prazoEnvioMs: 50 });
+  const id = Number(run("INSERT INTO ia_conversas (chave, phone, origem, status) VALUES ('t:5511900000014', '5511900000014', 'yayforms', 'ativa')").lastInsertRowid);
+  assert.equal((await motor.processarConversa(id)).feito, 'tentar_de_novo');
+  assert.ok(get('SELECT proxima_em FROM ia_conversas WHERE id = ?', [id]).proxima_em);
+});
+
+test('na revisão, quem a equipe já respondeu sai da IA mesmo estando na fila (agendada)', async () => {
+  await preparar();
+  const jid = '5511900000015@s.whatsapp.net';
+  run('INSERT INTO wa_contacts (jid, phone, push_name) VALUES (?, ?, ?)', [jid, '5511900000015', 'Léo']);
+  const id = Number(run("INSERT INTO ia_conversas (chave, phone, jid, origem, status, proxima_em, ativada_em) VALUES ('t:5511900000015', '5511900000015', ?, 'fila', 'ativa', ?, ?)",
+    [jid, new Date(Date.now() + 3600000).toISOString(), new Date(Date.now() - 60000).toISOString()]).lastInsertRowid);
+  msg(jid, 'Oi Léo, aqui é o Marcelo', { deMim: true });
+  const r = await revisao.revisarAtendimentos();
+  assert.equal(r.equipe_assumiu, 1);
+  assert.equal(get('SELECT status FROM ia_conversas WHERE id = ?', [id]).status, 'humano');
 });
