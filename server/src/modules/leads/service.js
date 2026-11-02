@@ -12,6 +12,8 @@ export const BASE_LEADS = `
     l.last_contact_at, l.first_contact_at, l.stage_changed_at, l.created_at, l.updated_at, l.form_started_at,
     l.waiting_since, l.waiting_note, wu.name AS waiting_by_name,
     l.closing_since, l.closing_note, cu.name AS closing_by_name,
+    l.ia_temperatura, l.ia_resumo, l.ia_objecao, l.ia_avaliado_em,
+    (SELECT 1 FROM ia_conversas ic WHERE ic.lead_id = l.id AND ic.status = 'aguardando_humano' LIMIT 1) AS ia_aguardando,
     json_extract(l.extra, '$.formulario') AS form_name,
     json_extract(l.extra, '$.respostas') AS form_answers,
     json_extract(l.extra, '$.parcial') AS form_partial,
@@ -55,6 +57,7 @@ export function mapearLead(row, { comExtra = false } = {}) {
   const lead = {
     ...resto,
     followup_overdue: Boolean(row.followup_overdue),
+    ia_aguardando: Boolean(row.ia_aguardando),
     last_msg_from_me: row.last_msg_from_me == null ? null : Boolean(row.last_msg_from_me),
     sem_resposta: semResposta(row),
     form_partial: Boolean(row.form_partial),

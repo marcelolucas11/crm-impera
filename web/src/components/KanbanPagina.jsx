@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../api.js';
 import { useEvento } from '../tempoReal.js';
-import { SlidersHorizontal, Eye, Plus, Columns3, BellRing, ArrowDownWideNarrow, SquareCheckBig } from 'lucide-react';
+import { SlidersHorizontal, Eye, Plus, Columns3, BellRing, ArrowDownWideNarrow, SquareCheckBig, Bot } from 'lucide-react';
 import Kanban, { ORDENS } from './Kanban.jsx';
 import FundoLogo3D from './FundoLogo3D.jsx';
 import CamposVisiveis from './CamposVisiveis.jsx';
@@ -115,6 +115,8 @@ export default function KanbanPagina({ user, stages, users, carregarEtapas, aoMu
     }, espera);
   });
   useEffect(() => () => clearTimeout(agendada.current), []);
+  // O organizador por IA moveu leads (ou alguém desfez): recarrega o kanban
+  useEvento('organizador', (d) => { if (d?.varredura || d?.movidos) carregarLeads(); });
 
   const visiveis = useMemo(() => aplicarFiltros(leads, filtros, user), [leads, filtros, user]);
   const atrasados = useMemo(() => leads.filter((l) => l.followup_overdue).length, [leads]);
@@ -122,6 +124,7 @@ export default function KanbanPagina({ user, stages, users, carregarEtapas, aoMu
   const nuncaContatados = useMemo(() => leads.filter((l) => !l.first_contact_at).length, [leads]);
   const fechando = useMemo(() => leads.filter((l) => l.closing_since).length, [leads]);
   const semResposta = useMemo(() => leads.filter((l) => l.sem_resposta).length, [leads]);
+  const iaChamou = useMemo(() => leads.filter((l) => l.ia_aguardando).length, [leads]);
   const qtdFiltros = contarFiltros(filtros);
 
   // Quantos leads de cada responsável (para a lista do chip "Responsável")
@@ -246,6 +249,10 @@ export default function KanbanPagina({ user, stages, users, carregarEtapas, aoMu
           detalheVazio="Usa o último número que falou com o lead" titulo="WhatsApp que manda mensagem pelo cartão do lead" />
         <button className={`chip chip-led chip-notif ${filtros.semResposta ? 'ativo' : ''}`} onClick={() => alternar('semResposta')} title="Leads que mandaram mensagem e ainda não foram respondidos">
           <BellRing size={13} strokeWidth={2.2} /> {semResposta} sem resposta
+        </button>
+        <button className={`chip chip-led chip-ia ${filtros.iaChamou ? 'ativo' : ''}`} onClick={() => alternar('iaChamou')}
+          title="Conversas em que a IA passou o atendimento para você e está aguardando um humano responder o lead">
+          <Bot size={13} strokeWidth={2.2} /> {iaChamou} IA chamou você
         </button>
         <button className={`chip chip-led chip-ambar ${filtros.aguardando ? 'ativo' : ''}`} onClick={() => alternar('aguardando')} title="Leads esperando a sua resposta">
           <i className="led led-ambar" /> {aguardando} aguardando resposta

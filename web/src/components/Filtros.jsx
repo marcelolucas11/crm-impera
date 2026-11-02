@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { MessageCircle, CalendarDays, CircleDashed, BellRing } from 'lucide-react';
+import { MessageCircle, CalendarDays, CircleDashed, BellRing, Bot } from 'lucide-react';
 
 export const FILTROS_VAZIOS = {
   comNome: false,
@@ -18,6 +18,7 @@ export const FILTROS_VAZIOS = {
   agendou: false,
   semAgendamento: false,
   nuncaContatado: false,
+  iaChamou: false,
   formIncompleto: false,
   formCompleto: false,
   periodo: 'todos',
@@ -39,7 +40,7 @@ const PERIODOS = [
 
 export function contarFiltros(f) {
   let n = 0;
-  for (const k of ['comNome', 'comTelefone', 'comEmail', 'semNome', 'atrasados', 'aguardando', 'fechando', 'mensagensNovas', 'semResposta', 'comReuniao', 'agendou', 'semAgendamento', 'nuncaContatado', 'formIncompleto', 'formCompleto']) if (f[k]) n++;
+  for (const k of ['comNome', 'comTelefone', 'comEmail', 'semNome', 'atrasados', 'aguardando', 'fechando', 'mensagensNovas', 'semResposta', 'comReuniao', 'agendou', 'semAgendamento', 'nuncaContatado', 'iaChamou', 'formIncompleto', 'formCompleto']) if (f[k]) n++;
   if (f.origens.length) n++;
   if (f.formulario) n++;
   if (f.responsavel !== 'todos') n++;
@@ -71,6 +72,7 @@ export function aplicarFiltros(leads, f, user) {
     if (f.agendou && !(l.meetings_active > 0)) return false;
     if (f.semAgendamento && !(l.source === 'yayforms' && !l.form_partial && !(l.meetings_active > 0))) return false;
     if (f.nuncaContatado && l.first_contact_at) return false;
+    if (f.iaChamou && !l.ia_aguardando) return false;
     if (f.formIncompleto && !l.form_partial) return false;
     if (f.formCompleto && (l.source !== 'yayforms' || l.form_partial)) return false;
     if (limiteData && new Date(l.created_at).getTime() < limiteData) return false;
@@ -112,6 +114,7 @@ export default function PainelFiltros({ filtros, setFiltros, leads, users, total
         <Marcar marcado={filtros.fechando} aoMudar={muda('fechando')}><i className="led led-verde" /> Aguardando para fechar</Marcar>
         <Marcar marcado={filtros.atrasados} aoMudar={muda('atrasados')}><i className="led led-vermelho" /> Follow-up atrasado</Marcar>
         <Marcar marcado={filtros.nuncaContatado} aoMudar={muda('nuncaContatado')}><i className="led led-azul" /> Nunca contatado</Marcar>
+        <Marcar marcado={filtros.iaChamou} aoMudar={muda('iaChamou')}><Bot size={13} /> IA chamou você</Marcar>
         <Marcar marcado={filtros.mensagensNovas} aoMudar={muda('mensagensNovas')}><MessageCircle size={14} /> Mensagem nova</Marcar>
         <Marcar marcado={filtros.semResposta} aoMudar={muda('semResposta')}><BellRing size={14} /> Mensagem sem resposta</Marcar>
         <Marcar marcado={filtros.comReuniao} aoMudar={muda('comReuniao')}><CalendarDays size={14} /> Reunião marcada</Marcar>

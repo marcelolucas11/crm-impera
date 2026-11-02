@@ -15,7 +15,9 @@ test('banco da versão 0.5: as migrações novas rodam sem perder nada', async (
   console.log = () => {};
   const { MIGRACOES } = await import('./ajuda.js');
   try { aplicarMigracoes(MIGRACOES); } finally { console.log = log; }
-  for (const [t, n] of Object.entries(antes)) assert.equal(contar(t), n, `tabela ${t} perdeu linhas`);
+  // Nenhuma tabela perde linhas (a 014 acrescenta a etapa "Aguardando proposta")
+  for (const [t, n] of Object.entries(antes)) assert.equal(contar(t), t === 'stages' ? n + 1 : n, `tabela ${t} perdeu linhas`);
+  assert.ok(db.get("SELECT 1 AS ok FROM stages WHERE name = 'Aguardando proposta' AND role = 'aguardando_proposta'"));
   assert.ok(db.get("SELECT 1 AS ok FROM schema_migrations WHERE name = '006_whatsapp_web.sql'"));
   assert.ok(db.get("SELECT 1 AS ok FROM schema_migrations WHERE name = '007_aguardando_fechar.sql'"));
   // 0.7: marcador "aguardando para fechar" começa vazio e aparece na consulta dos leads

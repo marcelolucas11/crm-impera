@@ -102,11 +102,15 @@ export default function EditorEtapas({ stages, aoMudar, onFechar }) {
                 value={s.role || ''}
                 disabled={s.kind !== 'open'}
                 onChange={(e) => aplicar(`/stages/${s.id}`, { method: 'PATCH', body: { role: e.target.value || null } })}
-                title="Recebe leads automaticamente"
+                title="O que esta etapa significa para as automações (entrada de leads, Calendly e organizador por IA)"
               >
                 <option value="">Sem automação</option>
                 <option value="entrada">Leads novos entram aqui</option>
-                <option value="reuniao">Reuniões do Calendly vêm para cá</option>
+                <option value="contato">IA: lead já contactado</option>
+                <option value="qualificado">IA: lead qualificado</option>
+                <option value="reuniao">Reunião agendada (Calendly e IA)</option>
+                <option value="aguardando_proposta">IA: reunião feita, aguardando proposta</option>
+                <option value="proposta">IA: proposta enviada</option>
               </select>
               <span className="suave pequeno total-etapa">{s.total} {s.total === 1 ? 'lead' : 'leads'}</span>
               <button className="btn btn-pequeno btn-perigo-leve" onClick={() => { setApagando(s); setDestino(''); }}>Apagar</button>

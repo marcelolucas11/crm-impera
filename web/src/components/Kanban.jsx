@@ -1,6 +1,6 @@
 import { memo, useState, useEffect, useRef, useMemo } from 'react';
 import { formatarTelefone, tempoDesde, dataCurta, dataHora } from '../utils.js';
-import { CalendarDays, MessageCircle, CircleDashed, BellRing, X, Check, Minus, UserX } from 'lucide-react';
+import { CalendarDays, MessageCircle, CircleDashed, BellRing, X, Check, Minus, UserX, Bot, Thermometer } from 'lucide-react';
 import Avatar from './Avatar.jsx';
 import { FotoUsuario } from './FotoUsuario.jsx';
 import MenuFlutuante, { OpcaoMenu, TituloMenu } from './MenuFlutuante.jsx';
@@ -246,6 +246,7 @@ const Cartao = memo(function Cartao({ lead, onAbrir, onLimparNotificacao, oculto
         {lead.source === 'yayforms' && !lead.form_partial && !(lead.meetings_active > 0) && (
           <span className="tag tag-sem-agenda" title="Completou o formulário e ainda não agendou reunião no Calendly">Não agendou</span>
         )}
+        {lead.ia_temperatura != null && <SeloIa lead={lead} />}
         {lead.unread_count > 0 && <span className="tag tag-mensagens"><MessageCircle size={11} strokeWidth={2} /> {lead.unread_count} {lead.unread_count === 1 ? 'nova' : 'novas'}</span>}
       </div>
       <div className="cartao-rodape">
@@ -265,3 +266,19 @@ const Cartao = memo(function Cartao({ lead, onAbrir, onLimparNotificacao, oculto
     </article>
   );
 });
+
+// Selo do organizador por IA: temperatura do lead (0 a 100) com o resumo e a objeção no balão
+function SeloIa({ lead }) {
+  const t = lead.ia_temperatura;
+  const faixa = t >= 70 ? 'quente' : t >= 40 ? 'morno' : 'frio';
+  const dica = [
+    `Temperatura ${t}/100 (lida pela IA)`,
+    lead.ia_resumo,
+    lead.ia_objecao && lead.ia_objecao.toLowerCase() !== 'nenhuma' ? `Objeção: ${lead.ia_objecao}` : null,
+  ].filter(Boolean).join('\n');
+  return (
+    <span className={`tag tag-ia tag-ia-${faixa}`} title={dica}>
+      <Bot size={11} strokeWidth={2.2} /> IA <Thermometer size={11} strokeWidth={2.2} /> {t}
+    </span>
+  );
+}

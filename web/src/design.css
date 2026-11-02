@@ -585,3 +585,10 @@ input[type='checkbox'], input[type='radio'], input[type='range'], input[type='co
 @media (prefers-reduced-motion: reduce) {
   .menu-flutuante, .barra-selecao { animation: none; }
 }
+
+/* Organizador por IA: chip "IA chamou você" e selo de temperatura no cartão */
+.chip-ia.ativo { color: #c9a8ff; border-color: rgba(168, 128, 255, .55); background: linear-gradient(180deg, rgba(168, 128, 255, .18), rgba(168, 128, 255, .05)); }
+.tag-ia { display: inline-flex; align-items: center; gap: 3px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.tag-ia-quente { color: #ff9b6b; border-color: rgba(255, 128, 80, .45); background: rgba(255, 128, 80, .08); }
+.tag-ia-morno { color: #f2c26b; border-color: rgba(242, 194, 107, .4); background: rgba(242, 194, 107, .06); }
+.tag-ia-frio { color: #8cc4ff; border-color: rgba(61, 155, 255, .35); background: rgba(61, 155, 255, .06); }

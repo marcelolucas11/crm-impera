@@ -12,6 +12,7 @@ import '../disparos/disparos.css';
 import DiretrizesIa from './DiretrizesIa.jsx';
 import FilaPendentes from './FilaPendentes.jsx';
 import RevisaoAtendimento from './RevisaoAtendimento.jsx';
+import OrganizadorKanban from './OrganizadorKanban.jsx';
 import './ia.css';
 
 const DIAS = [[1, 'Segunda'], [2, 'Terça'], [3, 'Quarta'], [4, 'Quinta'], [5, 'Sexta'], [6, 'Sábado'], [0, 'Domingo']];
@@ -50,6 +51,9 @@ function Conteudo({ user, aoAbrirConversa }) {
   const tarefaTratada = useRef(null);
   const [conversas, setConversas] = useState([]);
   const [filtro, setFiltro] = useState('');
+  // Aba da tela: IA de primeiro contato ou Organizador do kanban (fica salva no navegador)
+  const [aba, setAbaEstado] = useState(() => { try { return localStorage.getItem('crm.iaAba') === 'organizador' ? 'organizador' : 'contato'; } catch { return 'contato'; } });
+  const setAba = (a) => { setAbaEstado(a); try { localStorage.setItem('crm.iaAba', a); } catch { /* sem armazenamento */ } };
 
   const carregar = useCallback(async () => {
     try {
@@ -169,7 +173,14 @@ function Conteudo({ user, aoAbrirConversa }) {
 
   return (
     <div className="pagina pagina-larga dp-pagina ia-pagina">
-      <div className="cabecalho-pagina"><h1>IA de primeiro contato</h1></div>
+      <div className="cabecalho-pagina ia-cabecalho">
+        <h1>IA</h1>
+        <div className="seletor-ordem ia-abas" role="tablist" aria-label="Telas da IA">
+          <button type="button" role="tab" aria-selected={aba === 'contato'} className={aba === 'contato' ? 'ativo' : ''} onClick={() => setAba('contato')}>Primeiro contato</button>
+          <button type="button" role="tab" aria-selected={aba === 'organizador'} className={aba === 'organizador' ? 'ativo' : ''} onClick={() => setAba('organizador')}>Organizador do kanban</button>
+        </div>
+      </div>
+      {aba === 'organizador' ? <OrganizadorKanban admin={admin} /> : (
       <div className="dp-aba">
         <section className={`dp-mestre ${cfg.ativo ? 'ligada' : ''}`}>
           <div className="dp-mestre-icone"><Bot size={22} /></div>
@@ -505,6 +516,7 @@ function Conteudo({ user, aoAbrirConversa }) {
           </div>
         )}
       </div>
+      )}
     </div>
   );
 }
