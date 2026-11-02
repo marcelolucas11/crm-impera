@@ -136,3 +136,43 @@ test('a avaliação do organizador passa a receber o engajamento', async () => {
   assert.match(enviado.messages[0].content, /Engajamento no WhatsApp: o lead mandou 1 mensagem/);
   assert.match(enviado.system[0].text, /régua de TEMPERATURA/);
 });
+
+test('lead sem conversa ganha termômetro pelo formulário e pelo Calendly', async () => {
+  await preparar();
+  const id = await leadDoForm('Florisvaldo', { respostas: [['Tem experiência no nicho?', 'Mais de 3 anos'], ['Aceita o investimento mínimo?', 'Sim']] });
+  run("INSERT INTO calendly_events (lead_id, uri, start_time, status) VALUES (?, 'cal-1', ?, 'active')", [id, new Date(Date.now() + 86400000).toISOString()]);
+  let enviado = null;
+  definirChamadaFalsa(async (corpo) => { enviado = corpo; return { texto: '{"criterios":[],"temperatura":72,"resumo":"Bom perfil"}', uso: { input_tokens: 10, output_tokens: 5 } }; });
+  const { lerConfig } = await import('../src/modules/organizador/config.js');
+  assert.equal(av.temDadosParaLer(id), true);
+  const r = await av.avaliarLead(id, { cfg: lerConfig() });
+  assert.equal(r.resultado.temperatura, 72);
+  assert.equal(get('SELECT ia_temperatura FROM leads WHERE id = ?', [id]).ia_temperatura, 72);
+  const txt = enviado.messages[0].content;
+  assert.match(txt, /Tem experiência no nicho\?: Mais de 3 anos/);
+  assert.match(txt, /Reuniões no Calendly/);
+  assert.match(txt, /ainda não há conversa/);
+});
+
+test('lead sem conversa, sem formulário e sem Calendly continua sem leitura (custo zero)', async () => {
+  await preparar();
+  const id = await criarLeadDireto({ nome: 'Avulso', telefone: '5511977776666' });
+  let chamou = false;
+  definirChamadaFalsa(async () => { chamou = true; return { texto: '{}', uso: {} }; });
+  const { lerConfig } = await import('../src/modules/organizador/config.js');
+  const r = await av.avaliarLead(id, { cfg: lerConfig() });
+  assert.equal(r.resultado, null);
+  assert.equal(chamou, false);
+});
+
+test('varredura: formulário novo marca o lead para leitura mesmo sem mensagem', async () => {
+  await preparar();
+  const cfgMod = await import('../src/modules/organizador/config.js');
+  const motor = await import('../src/modules/organizador/motor.js');
+  const { registrarEvento } = await import('../src/events.js');
+  cfgMod.salvarConfig({ ativo: true }, { maxMsgId: motor.maxMsgId(), maxEventoId: motor.maxEventoId() });
+  const id = await leadDoForm('Genésio', { respostas: [['Quer começar quando?', 'Imediatamente']] });
+  registrarEvento({ leadId: id, type: 'form_submitted', data: {} });
+  motor.marcarPendentes(cfgMod.lerConfig());
+  assert.ok(get('SELECT ia_pendente_desde FROM leads WHERE id = ?', [id]).ia_pendente_desde);
+});

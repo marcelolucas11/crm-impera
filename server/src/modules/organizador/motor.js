@@ -10,7 +10,7 @@ import { emitir } from '../../tempoReal.js';
 import { meiaNoiteNoFuso } from '../ia/protecao.js';
 import { lerConfig, salvarInterno, fusoDoDia } from './config.js';
 import { sinaisFixos, marcosAlcancados, decidirDestino, moverLead, etapasAbertas } from './etapas.js';
-import { avaliarLead } from './avaliacao.js';
+import { avaliarLead, temDadosParaLer } from './avaliacao.js';
 
 const MIN = 60000;
 let relogio = null;
@@ -20,6 +20,8 @@ let tarefa = null; // "Organizar tudo"
 // Mensagem que mexe na leitura da IA: qualquer uma, menos as da própria IA e da saudação automática
 const RELEVANTE_PARA_IA = `NOT (m.from_me = 1 AND COALESCE(CASE WHEN json_valid(m.extra) THEN json_extract(m.extra, '$.origem') END, '') IN ('ia', 'disparo'))`;
 
+const EVENTOS_QUE_PEDEM_LEITURA = ['form_submitted', 'form_partial', 'form_completed', 'form_resubmitted', 'meeting_scheduled', 'meeting_rescheduled', 'meeting_canceled'];
+export const maxEventoId = () => get('SELECT COALESCE(max(id), 0) AS n FROM lead_events')?.n || 0;
 export const maxMsgId = () => get('SELECT COALESCE(max(id), 0) AS n FROM wa_messages')?.n || 0;
 
 export function gastoHoje(agoraMs = Date.now()) {
@@ -50,8 +52,18 @@ export function marcarPendentes(cfg = lerConfig()) {
     if (m.relevante) run('UPDATE leads SET ia_pendente_desde = COALESCE(ia_pendente_desde, ?) WHERE id = ?', [agora, m.lead_id]);
     else soRegras.add(m.lead_id);
   }
+  // Formulário preenchido/atualizado e reunião marcada, remarcada ou cancelada no Calendly também pedem nova leitura
+  // (é assim que o lead que ainda não conversou ganha o termômetro)
+  const desdeEv = cfg.cursor_evento_id ?? maxEventoId();
+  const tetoEv = maxEventoId();
+  const eventos = all(
+    `SELECT DISTINCT e.lead_id FROM lead_events e JOIN leads l ON l.id = e.lead_id JOIN stages s ON s.id = l.stage_id
+      WHERE e.id > ? AND e.id <= ? AND s.kind = 'open' AND e.type IN (${EVENTOS_QUE_PEDEM_LEITURA.map(() => '?').join(', ')})`,
+    [desdeEv, tetoEv, ...EVENTOS_QUE_PEDEM_LEITURA]
+  );
+  for (const e of eventos) run('UPDATE leads SET ia_pendente_desde = COALESCE(ia_pendente_desde, ?) WHERE id = ?', [agora, e.lead_id]);
   // Mensagens de grupos e de quem não é lead também avançam o cursor (não precisam ser lidas de novo)
-  if (teto > desde) salvarInterno({ cursor_msg_id: teto });
+  if (teto > desde || tetoEv !== cfg.cursor_evento_id) salvarInterno({ cursor_msg_id: Math.max(teto, desde), cursor_evento_id: tetoEv });
   return { soRegras };
 }
 
@@ -138,7 +150,6 @@ export function leadsDoPeriodo(dias) {
   );
 }
 
-const temConversa = (leadId) => Boolean(get("SELECT 1 AS ok FROM wa_messages WHERE lead_id = ? AND type <> 'chamada' AND chat_jid NOT LIKE '%@g.us' LIMIT 1", [leadId]));
 
 export function estadoTarefa() {
   if (!tarefa) return null;
@@ -167,7 +178,7 @@ export function iniciarOrganizacao({ dias, limiteUsd, userId = null }) {
       try {
         let ia = null;
         let ultimaId = 0;
-        if (temConversa(l.id)) {
+        if (temDadosParaLer(l.id)) {
           const r = await avaliarLead(l.id, { cfg, modo: 'organizar' });
           ia = r.resultado;
           ultimaId = r.ultimaId;

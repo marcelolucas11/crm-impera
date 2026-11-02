@@ -4,7 +4,9 @@ CRM da agência: leads do Yay! Forms caindo direto num kanban, alerta de follow-
 Roda direto no Mac, a partir do SSD externo, sem Docker e sem instalar nada no sistema.
 A mesma pasta funciona depois na VPS da Contabo.
 
-**Versão atual: 0.20.0** — o número fica no arquivo `VERSAO` e é o que aparece em **Equipe e integrações → Atualização do CRM**.
+**Versão atual: 0.20.1** — o número fica no arquivo `VERSAO` e é o que aparece em **Equipe e integrações → Atualização do CRM**.
+
+**Versão 0.20.1:** O organizador agora dá **termômetro também para leads que ainda não conversaram**: a IA avalia o que o lead marcou no formulário (parcial ou completo e cada resposta) e se agendou reunião no Calendly. Formulário novo ou atualizado e reunião marcada, remarcada ou cancelada colocam o lead na fila da próxima varredura. O "Organizar tudo" também lê esses leads. Lead sem conversa, sem formulário e sem Calendly continua sem leitura (custo zero).
 
 **Versão 0.20.0:** **Criar com IA** nos critérios do Organizador do kanban. Botão em cada critério (inclusive "Lead qualificado"): você escolhe o **modelo Claude** que analisa (padrão: o mesmo do playbook) e o período (padrão 60 dias), escreve o que pesa para você — no "Lead qualificado" já vem preenchido com o funil **anúncio → Yay! Forms → Calendly → WhatsApp** e o perfil do lead muito qualificado — e a IA lê as conversas reais, o **catálogo das perguntas e respostas do formulário**, quem agendou no Calendly, quanto cada lead responde no WhatsApp e quem virou cliente ou se perdeu. Ela escreve o prompt citando as perguntas exatas do seu formulário, com regra de decisão, desqualificadores, como tratar lead parcial e uma **régua de temperatura que sobe com o engajamento**, mais as notas do que separou os leads que avançaram dos perdidos. Mostra o custo estimado antes; tudo vai anonimizado; nada muda até **Usar este prompt** + **Salvar organizador**. A leitura de cada lead pelo organizador agora recebe também o **engajamento no WhatsApp** (mensagens do lead, em quantos dias, se a última é dele, há quanto tempo respondeu) e segue a régua de temperatura do critério.
 

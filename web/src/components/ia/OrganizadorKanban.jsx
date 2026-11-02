@@ -380,7 +380,7 @@ function OrganizarTudo({ dados, admin, diasPadrao, aoMudar }) {
       {(!t || ['cancelada', 'erro'].includes(t.estado)) && (
         <>
           <p className="suave pequeno">
-            A IA lê os leads em andamento dos últimos dias — antigos e novos, inclusive os que você moveu — e mostra uma <b>prévia</b> de para onde cada um iria.
+            A IA lê os leads em andamento dos últimos dias — antigos e novos, inclusive os que você moveu e os que ainda não conversaram (pelo formulário e pelo Calendly) — e mostra uma <b>prévia</b> de para onde cada um iria.
             Nada é movido antes de você aplicar. Depois disso a varredura volta a olhar só as conversas novas.
           </p>
           {t?.estado === 'erro' && <p className="org-alerta"><AlertTriangle size={14} /> {t.erro}</p>}
@@ -395,7 +395,7 @@ function OrganizarTudo({ dados, admin, diasPadrao, aoMudar }) {
           </div>
           {estimativa && (
             <p className="suave pequeno">
-              {estimativa.total} lead(s) em andamento no período, {estimativa.com_conversa} com conversa para a IA ler ·
+              {estimativa.total} lead(s) em andamento no período, {estimativa.com_conversa} com conversa, formulário ou Calendly para a IA ler ·
               estimativa {usd(estimativa.custo_estimado)} ({usd(estimativa.custo_por_lead)} por lead).
             </p>
           )}

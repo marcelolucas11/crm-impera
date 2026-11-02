@@ -9,10 +9,11 @@ import { meiaNoiteNoFuso } from '../ia/protecao.js';
 import { lerConfig, salvarConfig, custoDaChamada, fusoDoDia, MODELOS } from './config.js';
 import { etapasAbertas, PAPEIS, desfazerMovimento } from './etapas.js';
 import {
-  varrer, gastoHoje, maxMsgId, iniciarOrganizacao, aplicarOrganizacao, cancelarOrganizacao, estadoTarefa, leadsDoPeriodo,
+  varrer, gastoHoje, maxMsgId, maxEventoId, iniciarOrganizacao, aplicarOrganizacao, cancelarOrganizacao, estadoTarefa, leadsDoPeriodo,
   iniciarRelogio, pararRelogio,
 } from './motor.js';
 import { emitir } from '../../tempoReal.js';
+import { temDadosParaLer } from './avaliacao.js';
 import { iniciarGeracao, estadoTarefa as estadoGeracao, dispensarGeracao, estimar as estimarGeracao, ORIENTACAO_QUALIFICADO_PADRAO } from './gerador.js';
 import { MODELO_PLAYBOOK_PADRAO } from '../ia/config.js';
 
@@ -67,7 +68,7 @@ function estado() {
 function estimar(dias) {
   const cfg = lerConfig();
   const leads = leadsDoPeriodo(dias);
-  const comConversa = leads.filter((l) => get("SELECT 1 AS ok FROM wa_messages WHERE lead_id = ? AND type <> 'chamada' LIMIT 1", [l.id])).length;
+  const comConversa = leads.filter((l) => temDadosParaLer(l.id)).length;
   const media = get(
     `SELECT avg(tokens_entrada + tokens_cache_leitura + tokens_cache_escrita) AS e, avg(tokens_saida) AS s FROM
        (SELECT * FROM organizador_uso ORDER BY id DESC LIMIT 200)`
@@ -85,7 +86,7 @@ export default {
     r.get('/', rota((req, res) => res.json(estado())));
 
     r.put('/config', exigirAdmin, rota((req, res) => {
-      salvarConfig(req.body || {}, { maxMsgId: maxMsgId() });
+      salvarConfig(req.body || {}, { maxMsgId: maxMsgId(), maxEventoId: maxEventoId() });
       emitir('organizador', { config: true });
       res.json(estado());
     }));

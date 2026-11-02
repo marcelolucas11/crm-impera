@@ -55,6 +55,7 @@ export const PADRAO = {
   // Controle interno da varredura
   inicio_msg_id: 0,
   cursor_msg_id: 0,
+  cursor_evento_id: null,
   ultima_varredura: null,
 };
 
@@ -102,7 +103,7 @@ function validarCriterios(lista, atuais) {
   return saida;
 }
 
-export function salvarConfig(entrada = {}, { maxMsgId = 0 } = {}) {
+export function salvarConfig(entrada = {}, { maxMsgId = 0, maxEventoId = 0 } = {}) {
   const atual = lerConfig();
   const v = (campo) => (entrada[campo] === undefined ? atual[campo] : entrada[campo]);
   const modelo = String(v('modelo') || PADRAO.modelo);
@@ -121,6 +122,7 @@ export function salvarConfig(entrada = {}, { maxMsgId = 0 } = {}) {
   if (novo.ativo && !atual.ativo) {
     novo.inicio_msg_id = maxMsgId;
     novo.cursor_msg_id = maxMsgId;
+    novo.cursor_evento_id = maxEventoId;
   }
   salvarEstado(ESTADO, novo);
   return lerConfig();
