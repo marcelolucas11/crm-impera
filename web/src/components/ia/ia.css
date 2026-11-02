@@ -257,3 +257,14 @@
 .org-criterio-topo .org-criterio-titulo { flex: 1 1 200px; width: auto; }
 .org-criterio-topo select { flex: 0 1 240px; width: auto; }
 .org-organizar .btn-pequeno { align-self: flex-start; width: auto; }
+
+/* Criar prompt com IA */
+.org-btn-gerar { width: auto; flex: 0 0 auto; }
+.org-gerador { display: flex; flex-direction: column; gap: 12px; padding: 16px 20px 20px; }
+.org-gerador label { display: flex; flex-direction: column; gap: 6px; }
+.org-gerador-texto { font-size: 13px; line-height: 1.5; min-height: 280px; }
+.org-gerador-notas { font-size: 12.5px; color: var(--suave); padding: 10px 12px; border-radius: 10px; border: 1px solid var(--borda); background: rgba(0, 0, 0, .18); }
+.org-gerador-notas b { color: var(--texto); }
+.org-gerador-notas ul { margin: 6px 0 0; padding-left: 18px; display: flex; flex-direction: column; gap: 3px; }
+.org-progresso-indef span { width: 35% !important; animation: org-indef 1.4s ease-in-out infinite; }
+@keyframes org-indef { 0% { transform: translateX(-100%); } 100% { transform: translateX(300%); } }

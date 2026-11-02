@@ -2,7 +2,8 @@
 // Varredura a cada X minutos (só conversas novas, com limite de gasto por dia), critérios editáveis com a etapa de destino,
 // "Organizar tudo" com prévia antes de aplicar e o registro das movimentações com botão de desfazer.
 import { useCallback, useEffect, useState } from 'react';
-import { Columns3, Save, Plus, Trash2, Play, Undo2, Sparkles, Thermometer, ArrowRight, AlertTriangle, X } from 'lucide-react';
+import { Columns3, Save, Plus, Trash2, Play, Undo2, Sparkles, Thermometer, ArrowRight, AlertTriangle, X, Wand2 } from 'lucide-react';
+import Modal from '../Modal.jsx';
 import { api } from '../../api.js';
 import { useEvento } from '../../tempoReal.js';
 import { tempoDesde } from '../../utils.js';
@@ -133,7 +134,7 @@ export default function OrganizadorKanban({ admin }) {
             </div>
           </section>
 
-          <Criterios cfg={cfg} etapas={dados.etapas} admin={admin} mudar={mudar} />
+          <Criterios cfg={cfg} etapas={dados.etapas} admin={admin} mudar={mudar} modelos={dados.modelos} gerador={dados.gerador} />
 
           {admin && alterado && (
             <div className="org-salvar">
@@ -154,8 +155,10 @@ export default function OrganizadorKanban({ admin }) {
   );
 }
 
-function Criterios({ cfg, etapas, admin, mudar }) {
+function Criterios({ cfg, etapas, admin, mudar, modelos, gerador }) {
   const criterios = cfg.criterios;
+  const [gerando, setGerando] = useState(null); // índice do critério com a janela "Criar com IA" aberta
+  const rodando = gerador?.tarefa?.status === 'rodando' ? gerador.tarefa : null;
   const atualizar = (i, campos) => mudar({ criterios: criterios.map((c, j) => (j === i ? { ...c, ...campos } : c)) });
   const remover = (i) => mudar({ criterios: criterios.filter((_, j) => j !== i) });
   const novo = () => mudar({ criterios: [...criterios, { id: `c${Date.now().toString(36)}`, titulo: '', prompt: '', etapa_id: '', ativo: true, fixo: false }] });
@@ -184,6 +187,11 @@ function Criterios({ cfg, etapas, admin, mudar }) {
                     {etapas.map((s) => <option key={s.id} value={s.id}>{s.nome}</option>)}
                   </select>
                 )}
+              {admin && (
+                <button type="button" className="btn btn-pequeno org-btn-gerar" onClick={() => setGerando(i)} title="A IA lê as conversas e as respostas do formulário e escreve este prompt">
+                  <Wand2 size={13} /> {rodando?.criterio_id === c.id ? 'Criando…' : 'Criar com IA'}
+                </button>
+              )}
               <Interruptor ligado={c.ativo !== false} disabled={!admin} aoMudar={(ativo) => atualizar(i, { ativo })} />
               {!c.fixo && admin && <button type="button" className="btn btn-pequeno btn-perigo-leve" onClick={() => remover(i)} title="Apagar critério"><Trash2 size={13} /></button>}
             </div>
@@ -198,7 +206,133 @@ function Criterios({ cfg, etapas, admin, mudar }) {
           </div>
         ))}
       </div>
+      {gerando !== null && criterios[gerando] && (
+        <GeradorPrompt
+          criterio={criterios[gerando]}
+          modelos={modelos}
+          gerador={gerador}
+          aoFechar={() => setGerando(null)}
+          aoUsar={(prompt) => { atualizar(gerando, { prompt }); setGerando(null); }}
+        />
+      )}
     </section>
+  );
+}
+
+// Janela "Criar com IA": escolhe o modelo e o período, escreve o que pesa para você e a IA monta o prompt do critério
+// a partir das conversas reais e das variáveis do formulário. O resultado só entra no critério ao clicar em "Usar este prompt".
+function GeradorPrompt({ criterio, modelos, gerador, aoFechar, aoUsar }) {
+  const aviso = useAviso();
+  const fixo = criterio.id === 'qualificado';
+  const [modelo, setModelo] = useState(gerador?.modelo_padrao || 'claude-opus-5-5');
+  const [dias, setDias] = useState(60);
+  const [orientacao, setOrientacao] = useState(fixo ? gerador?.orientacao_qualificado || '' : '');
+  const [estimativa, setEstimativa] = useState(null);
+  const [tarefa, setTarefa] = useState(gerador?.tarefa || { status: 'parada' });
+  const [texto, setTexto] = useState('');
+  const [ocupado, setOcupado] = useState(false);
+  const minha = !tarefa.criterio_id || tarefa.criterio_id === criterio.id;
+  const rodando = tarefa.status === 'rodando';
+
+  const consultar = useCallback(async () => {
+    try { setTarefa((await api('/organizador/gerar-prompt')).tarefa); } catch { /* tenta de novo no próximo ciclo */ }
+  }, []);
+  useEvento('organizador', consultar);
+  useEffect(() => {
+    if (!rodando) return undefined;
+    const id = setInterval(consultar, 3000);
+    return () => clearInterval(id);
+  }, [rodando, consultar]);
+  useEffect(() => { if (tarefa.status === 'concluida' && minha) setTexto(tarefa.resultado?.prompt || ''); }, [tarefa.status, tarefa.terminada_em]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (rodando || tarefa.status === 'concluida') return undefined;
+    setEstimativa(null);
+    const id = setTimeout(() => api(`/organizador/gerar-prompt/estimativa?dias=${dias}&modelo=${modelo}`).then(setEstimativa).catch(() => setEstimativa(null)), 400);
+    return () => clearTimeout(id);
+  }, [dias, modelo, rodando, tarefa.status]);
+
+  const iniciar = async () => {
+    setOcupado(true);
+    try {
+      const r = await api('/organizador/gerar-prompt', {
+        method: 'POST',
+        body: { criterio_id: criterio.id, criterio: { titulo: criterio.titulo, prompt: criterio.prompt, etapa_id: criterio.etapa_id }, orientacao, dias: Number(dias), modelo },
+      });
+      setTarefa(r.tarefa);
+    } catch (e) { aviso(e.message, 'erro'); } finally { setOcupado(false); }
+  };
+  const dispensar = async () => {
+    try { setTarefa((await api('/organizador/gerar-prompt', { method: 'DELETE' })).tarefa); } catch { /* já limpou */ }
+  };
+  const usar = async () => { aoUsar(texto); aviso('Prompt colocado no critério. Clique em "Salvar organizador" para valer.'); await dispensar(); };
+
+  const r = tarefa.resultado;
+  return (
+    <Modal titulo={`Criar com IA — ${fixo ? 'Lead qualificado' : criterio.titulo || 'critério'}`} onFechar={aoFechar} largo>
+      <div className="org-gerador">
+        {(tarefa.status === 'parada' || tarefa.status === 'erro' || (!minha && !rodando)) && (
+          <>
+            <p className="suave pequeno">
+              A IA lê as conversas reais dos leads do formulário, as perguntas e respostas do <b>Yay! Forms</b>, quem agendou pelo <b>Calendly</b>,
+              quanto cada lead responde no WhatsApp e quem virou cliente ou se perdeu. Com isso escreve o prompt usando as variáveis exatas do seu formulário.
+              Nada muda até você clicar em <b>Usar este prompt</b> e salvar.
+            </p>
+            {tarefa.status === 'erro' && minha && <p className="org-alerta"><AlertTriangle size={14} /> {tarefa.erro}</p>}
+            <div className="ia-campos-2">
+              <label>Modelo que analisa
+                <select value={modelo} onChange={(e) => setModelo(e.target.value)}>
+                  {modelos.map((m) => <option key={m.id} value={m.id}>{rotuloModelo(m)}</option>)}
+                </select>
+              </label>
+              <label>Conversas dos últimos (dias)
+                <input type="number" min="7" max="365" value={dias} onChange={(e) => setDias(e.target.value)} />
+              </label>
+            </div>
+            <label>O que pesa para você {fixo ? '(já preenchido com o que você me disse — ajuste à vontade)' : ''}
+              <textarea rows={6} maxLength={3000} value={orientacao} onChange={(e) => setOrientacao(e.target.value)}
+                placeholder="Ex.: conta quando o lead pediu a proposta por escrito ou perguntou o valor do contrato…" />
+            </label>
+            <p className="suave pequeno">
+              {estimativa
+                ? <>{estimativa.leads} lead(s) do formulário no período · {estimativa.conversas} conversa(s) para ler · {estimativa.perguntas} pergunta(s) do formulário · custo estimado <b>{usd(estimativa.custo_estimado)}</b></>
+                : 'Calculando o que há para ler…'}
+            </p>
+            <div className="org-salvar">
+              <button type="button" className="btn" onClick={aoFechar}>Cancelar</button>
+              <button type="button" className="btn btn-ouro" disabled={ocupado || !estimativa?.leads} onClick={iniciar}><Sparkles size={14} /> Ler conversas e criar prompt</button>
+            </div>
+          </>
+        )}
+
+        {rodando && (
+          <>
+            <p>{minha ? `Lendo as conversas dos últimos ${tarefa.dias} dias com ${tarefa.modelo}…` : 'A IA está criando o prompt de outro critério. Aguarde terminar.'}</p>
+            <div className="org-progresso org-progresso-indef"><span /></div>
+            <p className="suave pequeno">Pode levar alguns minutos. Dá para fechar esta janela: o trabalho continua e o resultado aparece quando você abrir de novo.</p>
+          </>
+        )}
+
+        {tarefa.status === 'concluida' && minha && r && (
+          <>
+            <p className="suave pequeno">
+              {r.modelo} leu {r.conversas} conversa(s) de {r.leads} lead(s) e {r.perguntas.length} pergunta(s) do formulário · custo {usd(r.custo)}. Revise e edite se quiser.
+            </p>
+            <textarea className="org-gerador-texto" rows={16} maxLength={4000} value={texto} onChange={(e) => setTexto(e.target.value)} />
+            {r.notas?.length > 0 && (
+              <div className="org-gerador-notas">
+                <b>O que a IA encontrou</b>
+                <ul>{r.notas.map((n, i) => <li key={i}>{n}</li>)}</ul>
+              </div>
+            )}
+            <div className="org-salvar">
+              <button type="button" className="btn" onClick={dispensar}>Descartar e refazer</button>
+              <button type="button" className="btn btn-ouro" disabled={!texto.trim()} onClick={usar}>Usar este prompt</button>
+            </div>
+          </>
+        )}
+      </div>
+    </Modal>
   );
 }
 

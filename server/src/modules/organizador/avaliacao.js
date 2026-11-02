@@ -57,6 +57,40 @@ export function conversaEmTexto(leadId, fuso = fusoDoDia()) {
   return { texto: linhas.reverse().join('\n'), ultimaId: msgs.reduce((mx, m) => Math.max(mx, m.id), 0), quantidade: linhas.length };
 }
 
+/**
+ * Quanto o lead conversa no WhatsApp (sem IA, custo zero): mensagens dele, em quantos dias diferentes, mensagens da
+ * equipe/Alice, se a última mensagem é dele e quando respondeu pela última vez. Mensagens dos Disparos não contam.
+ */
+export function engajamentoDoLead(leadId) {
+  const filtro = "lead_id = ? AND type <> 'chamada' AND deleted_at IS NULL AND chat_jid NOT LIKE '%@g.us'";
+  const disparo = "COALESCE(CASE WHEN json_valid(extra) THEN json_extract(extra, '$.origem') END, '') = 'disparo'";
+  const r = get(
+    `SELECT sum(CASE WHEN from_me = 0 THEN 1 ELSE 0 END) AS msgs_lead,
+            count(DISTINCT CASE WHEN from_me = 0 THEN substr(timestamp, 1, 10) END) AS dias_lead,
+            sum(CASE WHEN from_me = 1 AND NOT (${disparo}) THEN 1 ELSE 0 END) AS msgs_equipe,
+            max(CASE WHEN from_me = 0 THEN timestamp END) AS ultima_lead,
+            count(*) AS msgs_total
+       FROM wa_messages WHERE ${filtro}`, [leadId]
+  ) || {};
+  const ultima = get(`SELECT from_me FROM wa_messages WHERE ${filtro} AND NOT (from_me = 1 AND ${disparo}) ORDER BY timestamp DESC, id DESC LIMIT 1`, [leadId]);
+  return {
+    msgs_lead: r.msgs_lead || 0,
+    dias_lead: r.dias_lead || 0,
+    msgs_equipe: r.msgs_equipe || 0,
+    msgs_total: r.msgs_total || 0,
+    ultima_lead: r.ultima_lead || null,
+    respondeu_ultima: ultima ? ultima.from_me === 0 : false,
+  };
+}
+
+export function textoDoEngajamento(e) {
+  if (!e.msgs_total) return 'Engajamento no WhatsApp: ainda não há conversa.';
+  const horas = e.ultima_lead ? (Date.now() - Date.parse(e.ultima_lead)) / 3600000 : null;
+  const ha = horas === null ? 'nunca respondeu' : horas < 2 ? 'respondeu há pouco' : horas < 36 ? `respondeu pela última vez há ${Math.round(horas)} h` : `respondeu pela última vez há ${Math.round(horas / 24)} dias`;
+  return `Engajamento no WhatsApp: o lead mandou ${e.msgs_lead} mensagem(ns) em ${e.dias_lead} dia(s) diferente(s); a equipe/Alice mandou ${e.msgs_equipe}; ` +
+    `${e.respondeu_ultima ? 'a última mensagem é do lead' : 'a última mensagem é da equipe/Alice'}; ${ha}.`;
+}
+
 function textoDoSistema(criterios) {
   const ativos = criterios.filter((c) => c.ativo !== false);
   return [
@@ -71,7 +105,7 @@ function textoDoSistema(criterios) {
     '- "reuniao_agendada": ficou combinada uma reunião/ligação/videochamada com dia e hora (fora ou dentro do Calendly).',
     '- "reuniao_realizada": a reunião já aconteceu (ex.: "como falamos na call", "conforme conversamos na reunião", combinaram e o horário já passou e a conversa continuou depois).',
     '- "proposta_escrita": a EQUIPE mandou por escrito uma proposta com valores, escopo ou condições do serviço (não vale só dizer "vou mandar a proposta").',
-    '- "temperatura": 0 a 100, o quanto o lead está perto de fechar (0 = frio/sumiu, 100 = pronto para fechar).',
+    '- "temperatura": 0 a 100, o quanto o lead está perto de fechar (0 = frio/sumiu, 100 = pronto para fechar). Se um critério trouxer uma régua de TEMPERATURA, use essa régua.',
     '- "resumo": no máximo 2 frases sobre a situação do lead.',
     '- "objecao": a principal objeção em poucas palavras (preço, tempo, confiança, já tem agência, sem verba...) ou "nenhuma".',
     '',
@@ -101,6 +135,7 @@ function textoDoLead(lead, conversa, fuso) {
     const evs = all('SELECT start_time, status FROM calendly_events WHERE lead_id = ? ORDER BY start_time', [lead.id]);
     if (evs.length) partes.push(`Reuniões no Calendly: ${evs.map((e) => `${quando(e.start_time, fuso)} (${e.status === 'active' ? 'ativa' : 'cancelada'})`).join('; ')}`);
   } catch { /* sem Calendly */ }
+  partes.push(textoDoEngajamento(engajamentoDoLead(lead.id)));
   partes.push(`<conversa>\n${conversa.texto || '(sem mensagens)'}\n</conversa>`);
   return partes.join('\n\n');
 }

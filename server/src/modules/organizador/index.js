@@ -13,6 +13,8 @@ import {
   iniciarRelogio, pararRelogio,
 } from './motor.js';
 import { emitir } from '../../tempoReal.js';
+import { iniciarGeracao, estadoTarefa as estadoGeracao, dispensarGeracao, estimar as estimarGeracao, ORIENTACAO_QUALIFICADO_PADRAO } from './gerador.js';
+import { MODELO_PLAYBOOK_PADRAO } from '../ia/config.js';
 
 const rota = (fn) => async (req, res) => {
   try {
@@ -56,6 +58,7 @@ function estado() {
       ultima_varredura: cfg.ultima_varredura,
     },
     tarefa: estadoTarefa(),
+    gerador: { tarefa: estadoGeracao(), modelo_padrao: MODELO_PLAYBOOK_PADRAO, orientacao_qualificado: ORIENTACAO_QUALIFICADO_PADRAO },
     movimentos: movimentos(),
   };
 }
@@ -127,6 +130,21 @@ export default {
       emitir('organizador', { varredura: true });
       res.json({ ok: true, movimentos: movimentos() });
     }));
+
+    // Criar o prompt de um critério com IA: lê as conversas e as variáveis do formulário e escreve o prompt (não salva sozinho)
+    r.get('/gerar-prompt/estimativa', exigirAdmin, rota((req, res) => {
+      const dias = Math.min(365, Math.max(7, Math.round(Number(req.query.dias) || 60)));
+      const modelo = MODELOS.some((m) => m.id === req.query.modelo) ? req.query.modelo : MODELO_PLAYBOOK_PADRAO;
+      res.json(estimarGeracao({ dias, modelo }));
+    }));
+    r.post('/gerar-prompt', exigirAdmin, rota((req, res) => {
+      const b = req.body || {};
+      const criterioId = String(b.criterio_id || 'qualificado').slice(0, 40);
+      const tela = b.criterio && typeof b.criterio === 'object' ? { titulo: b.criterio.titulo, prompt: b.criterio.prompt, etapa_id: b.criterio.etapa_id } : null;
+      res.json({ tarefa: iniciarGeracao({ criterioId, orientacao: b.orientacao, dias: b.dias, modelo: b.modelo, criterioTela: tela }) });
+    }));
+    r.get('/gerar-prompt', rota((req, res) => res.json({ tarefa: estadoGeracao() })));
+    r.delete('/gerar-prompt', exigirAdmin, rota((req, res) => res.json({ tarefa: dispensarGeracao() })));
 
     app.use('/api/organizador', r);
   },
