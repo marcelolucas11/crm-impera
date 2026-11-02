@@ -7,6 +7,7 @@ import FormulariosYay from './FormulariosYay.jsx';
 import SegredosYay from './SegredosYay.jsx';
 import Atualizacao from './Atualizacao.jsx';
 import { FotoUsuario, CampoFoto, prepararFoto } from './FotoUsuario.jsx';
+import { TextoSecreto } from './Segredo.jsx';
 
 const NOVO_VAZIO = { name: '', email: '', senha: '', role: 'member', foto: '' };
 
@@ -141,7 +142,7 @@ export default function Equipe({ user, aoMudarUsuarios }) {
           <h2>Yay! Forms</h2>
           <p className="suave">Cole esta URL em <b>Integrar → Webhooks → Add webhook</b> no formulário e escolha o formato <b>V2</b>.</p>
           <div className="copiar">
-            <code>{urlWebhook}</code>
+            <TextoSecreto valor={urlWebhook} codigo className="segredo-largo" />
             <button className="btn btn-pequeno" onClick={() => navigator.clipboard?.writeText(urlWebhook).then(() => setMsg('URL copiada.'))}>Copiar</button>
           </div>
           {!yay?.url && (

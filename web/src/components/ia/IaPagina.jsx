@@ -14,6 +14,7 @@ import FilaPendentes from './FilaPendentes.jsx';
 import RevisaoAtendimento from './RevisaoAtendimento.jsx';
 import OrganizadorKanban from './OrganizadorKanban.jsx';
 import './ia.css';
+import { TextoSecreto, CampoSecreto } from '../Segredo.jsx';
 
 const DIAS = [[1, 'Segunda'], [2, 'Terça'], [3, 'Quarta'], [4, 'Quinta'], [5, 'Sexta'], [6, 'Sábado'], [0, 'Domingo']];
 // "ativa" aparece em duas fases: a IA ainda não mandou nada (irá atender) ou já mandou a 1ª mensagem (atendendo)
@@ -242,17 +243,17 @@ function Conteudo({ user, aoAbrirConversa }) {
                 <h2><KeyRound size={16} /> Chave da API da Anthropic</h2>
                 {cfg.chave_configurada ? (
                   <div className="ia-linha">
-                    <span>Chave {cfg.chave_final} {cfg.chave_origem === 'env' ? <span className="suave pequeno">(do arquivo .env)</span> : null}</span>
+                    <span>Chave <TextoSecreto valor={cfg.chave_final} /> {cfg.chave_origem === 'env' ? <span className="suave pequeno">(do arquivo .env)</span> : null}</span>
                     {cfg.chave_origem === 'painel' && <button type="button" className="btn btn-pequeno btn-perigo-leve" onClick={removerChave}><Trash2 size={13} /> Remover</button>}
                   </div>
                 ) : <p className="suave pequeno">Crie uma chave em console.anthropic.com (API keys) e cole aqui. Ela fica guardada só no servidor do CRM.</p>}
                 <div className="ia-linha">
-                  <input type="password" autoComplete="off" placeholder="sk-ant-..." value={chave} onChange={(e) => setChave(e.target.value)} />
+                  <CampoSecreto placeholder="sk-ant-..." value={chave} onChange={(e) => setChave(e.target.value)} />
                   <button type="button" className="btn" disabled={!chave.trim() || salvando} onClick={salvarChave}>{cfg.chave_configurada ? 'Trocar' : 'Salvar'}</button>
                 </div>
                 <label>ID do workspace (só se a Anthropic pedir)
                   <div className="ia-linha">
-                    <input placeholder="wrkspc_..." value={workspace ?? cfg.workspace_id ?? ''} onChange={(e) => setWorkspace(e.target.value)} />
+                    <CampoSecreto placeholder="wrkspc_..." value={workspace ?? cfg.workspace_id ?? ''} onChange={(e) => setWorkspace(e.target.value)} />
                     <button type="button" className="btn" disabled={salvando || workspace === null || (!chave.trim() && !cfg.chave_configurada)} onClick={salvarChave}>Salvar e testar</button>
                   </div>
                   <span className="suave pequeno">No Console: Settings → Workspaces → copie o ID do workspace onde estão os créditos.</span>

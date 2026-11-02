@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '../api.js';
 import { dataHora } from '../utils.js';
+import { TextoSecreto, CampoSecreto } from './Segredo.jsx';
 
 // Cada webhook criado no Yay! Forms tem o seu próprio "Secret". Aqui ficam todos: o CRM aceita o webhook
 // se a assinatura bater com qualquer um deles.
@@ -55,7 +56,7 @@ export default function SegredosYay({ aoMensagem, aoErro, aoMudar }) {
             {segredos.map((s) => (
               <tr key={s.id}>
                 <td>{s.nome}</td>
-                <td className="suave pequeno"><code>{s.final}</code></td>
+                <td className="suave pequeno"><TextoSecreto valor={s.final} codigo /></td>
                 <td>{s.criado_em ? dataHora(s.criado_em) : '—'}</td>
                 <td>{s.fixo ? '—' : s.ultimo_uso ? dataHora(s.ultimo_uso) : 'Nunca'}</td>
                 <td>{!s.fixo && <button className="btn btn-pequeno" onClick={() => remover(s)}>Remover</button>}</td>
@@ -67,12 +68,10 @@ export default function SegredosYay({ aoMensagem, aoErro, aoMudar }) {
 
       <form onSubmit={adicionar} className="form-linha">
         <input placeholder="Nome (ex.: Formulário rifas)" value={nome} onChange={(e) => setNome(e.target.value)} maxLength={80} />
-        <input
+        <CampoSecreto
           placeholder="Cole o Secret do Yay! Forms"
           value={segredo}
           onChange={(e) => setSegredo(e.target.value)}
-          autoComplete="off"
-          spellCheck={false}
           required
         />
         <button className="btn" disabled={salvando || !segredo.trim()}>Guardar segredo</button>

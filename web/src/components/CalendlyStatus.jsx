@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '../api.js';
 import { dataHora, tempoDesde } from '../utils.js';
+import { TextoSecreto, CampoSecreto } from './Segredo.jsx';
 
 export default function CalendlyStatus({ aoMensagem, aoErro }) {
   const [st, setSt] = useState(null);
@@ -64,13 +65,10 @@ export default function CalendlyStatus({ aoMensagem, aoErro }) {
   const formularioToken = (
     <form onSubmit={conectar} className="form-token">
       <label>Token pessoal do Calendly
-        <input
-          type="password"
+        <CampoSecreto
           value={token}
           onChange={(e) => setToken(e.target.value)}
           placeholder="Cole aqui o token"
-          autoComplete="off"
-          spellCheck={false}
           disabled={conectando}
         />
       </label>
@@ -102,7 +100,7 @@ export default function CalendlyStatus({ aoMensagem, aoErro }) {
           </p>
           <dl className="dados-integracao">
             <div><dt>Conta</dt><dd>{st.conta ? `${st.conta.nome} (${st.conta.email})` : '—'}</dd></div>
-            <div><dt>Token</dt><dd>{st.token_final}{st.origem_token === 'env' ? ' · definido no arquivo .env do servidor' : ' · colado no CRM'}</dd></div>
+            <div><dt>Token</dt><dd><TextoSecreto valor={st.token_final} />{st.origem_token === 'env' ? ' · definido no arquivo .env do servidor' : ' · colado no CRM'}</dd></div>
             <div><dt>Última sincronização</dt><dd>{st.ultima_sincronizacao ? `${tempoDesde(st.ultima_sincronizacao)} (${dataHora(st.ultima_sincronizacao)})` : 'ainda não rodou'}</dd></div>
             <div><dt>Reuniões futuras</dt><dd>{st.reunioes_futuras}</dd></div>
           </dl>

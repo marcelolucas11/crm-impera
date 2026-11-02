@@ -4,7 +4,9 @@ CRM da agência: leads do Yay! Forms caindo direto num kanban, alerta de follow-
 Roda direto no Mac, a partir do SSD externo, sem Docker e sem instalar nada no sistema.
 A mesma pasta funciona depois na VPS da Contabo.
 
-**Versão atual: 0.20.1** — o número fica no arquivo `VERSAO` e é o que aparece em **Equipe e integrações → Atualização do CRM**.
+**Versão atual: 0.20.2** — o número fica no arquivo `VERSAO` e é o que aparece em **Equipe e integrações → Atualização do CRM**.
+
+**Versão 0.20.2:** Chaves, tokens, IDs e URLs secretas ficam **cobertos (••••)** em toda a tela de configurações — chave da Anthropic, ID do workspace, token do Calendly, URL do webhook e segredos do Yay! Forms — para não vazarem em gravação ou compartilhamento de tela. O ícone de olho revela por 15 segundos e volta a cobrir sozinho; o botão Copiar funciona sem revelar.
 
 **Versão 0.20.1:** O organizador agora dá **termômetro também para leads que ainda não conversaram**: a IA avalia o que o lead marcou no formulário (parcial ou completo e cada resposta) e se agendou reunião no Calendly. Formulário novo ou atualizado e reunião marcada, remarcada ou cancelada colocam o lead na fila da próxima varredura. O "Organizar tudo" também lê esses leads. Lead sem conversa, sem formulário e sem Calendly continua sem leitura (custo zero).
 
