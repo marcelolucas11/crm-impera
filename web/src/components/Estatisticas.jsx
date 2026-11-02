@@ -1,8 +1,15 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api } from '../api.js';
+import { useT } from '../i18n/index.jsx';
+import Periodo from './estatisticas/Periodo.jsx';
+import EntradaLeads from './estatisticas/EntradaLeads.jsx';
+import MapaDiaHora from './estatisticas/MapaDiaHora.jsx';
+import FunilVendas from './estatisticas/FunilVendas.jsx';
+import Utms from './estatisticas/Utms.jsx';
+import { janelaDoPeriodo, lerPref, salvarPref } from './estatisticas/util.js';
+import './estatisticas/estatisticas.css';
 
-const PERIODOS = [7, 30, 90];
-const ORIGENS = { yayforms: 'Yay! Forms', whatsapp: 'WhatsApp', calendly: 'Calendly', manual: 'Manual' };
+const ORIGENS = { yayforms: 'Yay! Forms', whatsapp: 'WhatsApp', manual: 'Manual' };
 const nf = new Intl.NumberFormat('pt-BR');
 const num = (v) => (v === null || v === undefined ? '—' : nf.format(v));
 const pct = (v) => (v === null || v === undefined ? '—' : `${nf.format(v)}%`);
@@ -14,13 +21,6 @@ function duracao(min) {
   if (h < 24) return `${h} h${min % 60 >= 1 ? ` ${Math.round(min % 60)} min` : ''}`;
   const d = Math.floor(h / 24);
   return `${d} d${h % 24 ? ` ${h % 24} h` : ''}`;
-}
-
-function topoBonito(max) {
-  if (max <= 4) return 4;
-  const ordem = 10 ** Math.floor(Math.log10(max));
-  for (const m of [1, 2, 2.5, 5, 10]) if (m * ordem >= max) return m * ordem;
-  return 10 * ordem;
 }
 
 function Indicador({ rotulo, valor, detalhe, variacao, bomQuandoSobe = true, destaque = false }) {
@@ -39,70 +39,6 @@ function Indicador({ rotulo, valor, detalhe, variacao, bomQuandoSobe = true, des
       <span className="indicador-rotulo">{rotulo}</span>
       <span className="indicador-valor">{valor}</span>
       <span className="indicador-detalhe">{delta}{delta && detalhe ? ' ' : ''}{detalhe}</span>
-    </div>
-  );
-}
-
-// Colunas empilhadas por dia: respondidos (cor 1) + ainda sem resposta (cor 2)
-function EntradasPorDia({ dados }) {
-  const [foco, setFoco] = useState(null);
-  const max = topoBonito(Math.max(1, ...dados.map((d) => d.entradas)));
-  const fmtDia = (iso) => {
-    const [, m, d] = iso.split('-');
-    return `${d}/${m}`;
-  };
-  const marcasX = dados.length <= 10 ? dados.map((_, i) => i) : [0, Math.floor(dados.length / 2), dados.length - 1];
-
-  return (
-    <div className="grafico">
-      <div className="legenda">
-        <span><i className="chave-cor" style={{ background: 'var(--serie-1)' }} />Respondidos</span>
-        <span><i className="chave-cor" style={{ background: 'var(--serie-2)' }} />Ainda sem resposta</span>
-      </div>
-      <div className="area-colunas">
-        <div className="eixo-y">
-          {[max, max / 2, 0].map((v) => <span key={v}>{nf.format(v)}</span>)}
-        </div>
-        <div className="colunas" onMouseLeave={() => setFoco(null)}>
-          <div className="grade-h" style={{ bottom: '50%' }} />
-          <div className="grade-h" style={{ bottom: '100%' }} />
-          {dados.map((d, i) => {
-            const semResposta = d.entradas - d.respondidos;
-            return (
-              <div key={d.dia} className="coluna-dia" onMouseEnter={() => setFoco(i)} onFocus={() => setFoco(i)} tabIndex={0}>
-                <div className="pilha" style={{ height: `${(d.entradas / max) * 100}%` }}>
-                  {semResposta > 0 && <div className="seg seg-2" style={{ flexGrow: semResposta }} />}
-                  {d.respondidos > 0 && <div className="seg seg-1" style={{ flexGrow: d.respondidos }} />}
-                </div>
-                {foco === i && (
-                  <div className={`dica ${i > dados.length * 0.7 ? 'dica-esq' : ''}`}>
-                    <b>{fmtDia(d.dia)}</b>
-                    <span>{num(d.entradas)} {d.entradas === 1 ? 'lead' : 'leads'}</span>
-                    <span><i className="chave-cor" style={{ background: 'var(--serie-1)' }} />{num(d.respondidos)} respondidos</span>
-                    <span><i className="chave-cor" style={{ background: 'var(--serie-2)' }} />{num(semResposta)} sem resposta</span>
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      </div>
-      <div className="eixo-x">
-        {marcasX.map((i) => (
-          <span key={i} style={{ left: `${((i + 0.5) / dados.length) * 100}%` }}>{fmtDia(dados[i].dia)}</span>
-        ))}
-      </div>
-      <details className="tabela-dados">
-        <summary>Ver em tabela</summary>
-        <table className="tabela">
-          <thead><tr><th>Dia</th><th>Leads</th><th>Respondidos</th><th>Sem resposta</th></tr></thead>
-          <tbody>
-            {[...dados].reverse().map((d) => (
-              <tr key={d.dia}><td>{fmtDia(d.dia)}</td><td>{d.entradas}</td><td>{d.respondidos}</td><td>{d.entradas - d.respondidos}</td></tr>
-            ))}
-          </tbody>
-        </table>
-      </details>
     </div>
   );
 }
@@ -130,16 +66,20 @@ function Barras({ itens, vazio = 'Sem dados no período.' }) {
 }
 
 export default function Estatisticas({ setErro }) {
-  const [dias, setDias] = useState(30);
+  const t = useT();
+  const [periodo, setPeriodoEstado] = useState(() => lerPref('periodo', { tipo: '30' }));
   const [e, setE] = useState(null);
+  const setPeriodo = (p) => { setPeriodoEstado(p); salvarPref('periodo', p); };
 
   const carregar = useCallback(async () => {
     try {
-      setE(await api(`/estatisticas?dias=${dias}&fuso=${-new Date().getTimezoneOffset()}`));
+      const { inicio, fim } = janelaDoPeriodo(periodo);
+      const q = new URLSearchParams({ inicio: inicio.toISOString(), fim: fim.toISOString(), fuso: String(-new Date().getTimezoneOffset()) });
+      setE(await api(`/estatisticas?${q}`));
     } catch (err) {
       setErro(err.message);
     }
-  }, [dias, setErro]);
+  }, [periodo, setErro]);
 
   useEffect(() => {
     carregar();
@@ -168,22 +108,20 @@ export default function Estatisticas({ setErro }) {
 
   if (!e) return <div className="pagina"><div className="carregando" /></div>;
   const { entrada, agora, resultados, funil_forms: funil } = e;
+  const inicioMs = Date.parse(e.periodo.desde);
+  const fimMs = Date.parse(e.periodo.ate);
 
   return (
     <div className="pagina pagina-larga estatisticas">
       <div className="cabecalho-pagina">
         <h1>Estatísticas</h1>
-        <div className="seletor-periodo" role="group" aria-label="Período">
-          {PERIODOS.map((p) => (
-            <button key={p} className={`chip ${dias === p ? 'ativo' : ''}`} onClick={() => setDias(p)}>Últimos {p} dias</button>
-          ))}
-        </div>
+        <Periodo valor={periodo} onChange={setPeriodo} />
       </div>
 
       <section>
         <h2 className="titulo-secao">Entrada e resposta</h2>
         <div className="indicadores">
-          <Indicador destaque rotulo="Leads novos" valor={num(entrada.novos)} variacao={entrada.variacao} detalhe={`vs ${num(entrada.anteriores)} nos ${dias} dias anteriores`} />
+          <Indicador destaque rotulo="Leads novos" valor={num(entrada.novos)} variacao={entrada.variacao} detalhe={t('estatisticas.vsAnterior', { n: num(entrada.anteriores) })} />
           <Indicador rotulo="Taxa de resposta" valor={pct(entrada.taxa_resposta)} detalhe={`${num(entrada.respondidos)} de ${num(entrada.novos)} já contatados`} />
           <Indicador rotulo="Tempo até a 1ª resposta" valor={duracao(entrada.tempo_resposta_mediana_min)} detalhe={entrada.tempo_resposta_media_min !== null ? `mediana · média ${duracao(entrada.tempo_resposta_media_min)}` : 'mediana'} />
           <Indicador rotulo="Respondidos em até 1 hora" valor={pct(entrada.taxa_resposta_1h)} detalhe={`${num(entrada.respondidos_em_1h)} leads`} />
@@ -223,10 +161,10 @@ export default function Estatisticas({ setErro }) {
       </section>
 
       <div className="graficos">
-        <section className="cartao-secao grafico-largo">
-          <h2>Entrada de leads por dia</h2>
-          <EntradasPorDia dados={e.por_dia} />
-        </section>
+        <FunilVendas leads={e.leads || []} etapas={e.por_etapa} />
+        <EntradaLeads porDia={e.por_dia} leads={e.leads || []} inicioMs={inicioMs} fimMs={fimMs} />
+        <MapaDiaHora leads={e.leads || []} inicioMs={inicioMs} fimMs={fimMs} />
+        <Utms leads={e.leads || []} etapas={e.por_etapa} chaves={e.chaves_utm || []} />
         <section className="cartao-secao">
           <h2>Leads novos por origem</h2>
           <Barras itens={origens} />

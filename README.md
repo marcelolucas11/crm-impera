@@ -4,7 +4,9 @@ CRM da agência: leads do Yay! Forms caindo direto num kanban, alerta de follow-
 Roda direto no Mac, a partir do SSD externo, sem Docker e sem instalar nada no sistema.
 A mesma pasta funciona depois na VPS da Contabo.
 
-**Versão atual: 0.21.0** — o número fica no arquivo `VERSAO` e é o que aparece em **Equipe e integrações → Atualização do CRM**.
+**Versão atual: 0.22.0** — o número fica no arquivo `VERSAO` e é o que aparece em **Equipe e integrações → Atualização do CRM**.
+
+**Versão 0.22.0:** Estatísticas renovadas. **Período**: Hoje, Ontem, Últimos 3, 7, 30 e 90 dias e **Personalizado** (de/até). **Funil de vendas**: quantos leads do período chegaram em cada coluna do kanban (usa o histórico, então lead que avançou e depois foi perdido conta até onde chegou), com % do início, % que seguiu para a etapa seguinte, quantos estão parados em cada etapa agora e a maior queda; em **Configurar funil** você marca as colunas, muda a ordem e escolhe início e fim. **UTMs**: campanha → conjunto → anúncio (clique na linha para abrir), escolha uma ou mais colunas do kanban e veja quantos leads de cada estrutura **estão agora** ou **já passaram** por elas, com taxa, barra visual e a estrutura de melhor taxa destacada (padrão do Meta: utm_campaign, utm_medium, utm_content — dá para trocar na engrenagem). **Entrada de leads** ganhou o botão **Por hora** (cada hora do período, com o nome e a hora de cada lead e os horários de pico) e o novo mapa **Dia da semana × hora**. Calendly saiu de "Leads novos por origem" (é onde o lead do formulário marca a reunião, não uma origem). As escolhas de período, funil e UTMs ficam salvas no navegador de cada pessoa.
 
 **Versão 0.21.0:** Novo seletor de idioma do CRM (**PT-BR / ES / EN**), no menu do avatar e na tela de login. Cada pessoa escolhe o seu, e fica salvo no navegador. Nesta versão já estão traduzidos o login, as abas do topo e o menu do avatar; o resto das telas continua em português e será traduzido em lote quando o CRM estiver completo.
 
@@ -251,7 +253,8 @@ telefone, a conversa é ligada a ele.
 
 **Estatísticas** — leads novos (com comparação ao período anterior), taxa de resposta, tempo até a primeira resposta, respondidos
 em até 1 hora, follow-up em dia, aguardando resposta, nunca contatados, fechados, reuniões, mensagens, entrada por dia, por origem,
-por formulário, leads por etapa e desempenho por responsável. Períodos de 7, 30 e 90 dias.
+por formulário, leads por etapa e desempenho por responsável; funil de vendas configurável, UTMs (campanha, conjunto e anúncio ×
+colunas do kanban), entrada por hora e mapa dia da semana × hora. Períodos: hoje, ontem, 3, 7, 30, 90 dias ou personalizado.
 
 ## WhatsApp (QR code, vários números)
 

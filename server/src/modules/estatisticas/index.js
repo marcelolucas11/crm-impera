@@ -1,10 +1,10 @@
-// Módulo de estatísticas: entrada de leads, respostas, tempo de resposta, follow-up, funil e equipe
+// Módulo de estatísticas: entrada de leads, respostas, tempo de resposta, follow-up, funil, UTMs e equipe
 import { get, all } from '../../db.js';
 import { config } from '../../config.js';
 import { exigirLogin } from '../auth/middleware.js';
 
-const PERIODOS = new Set([7, 30, 90]);
 const DIA_MS = 86400000;
+const MAX_DIAS = 400;
 
 function mediana(valores) {
   if (!valores.length) return null;
@@ -15,26 +15,50 @@ function mediana(valores) {
 
 const pct = (parte, total) => (total ? Math.round((parte / total) * 1000) / 10 : null);
 
-export function calcularEstatisticas({ dias = 30, fusoMin = 0 } = {}) {
+function lerJsonSeguro(texto) {
+  if (!texto) return {};
+  try { return JSON.parse(texto) || {}; } catch { return {}; }
+}
+
+// Janela [inicioMs, fimMs). Sem início/fim explícitos, vale "últimos N dias" a partir de agora.
+function janela({ dias, inicio, fim }) {
   const agoraMs = Date.now();
-  const desde = new Date(agoraMs - dias * DIA_MS).toISOString();
-  const anterior = new Date(agoraMs - 2 * dias * DIA_MS).toISOString();
+  const i = Date.parse(inicio);
+  const f = Date.parse(fim);
+  if (Number.isFinite(i) && Number.isFinite(f) && f > i) {
+    const fimMs = Math.min(f, agoraMs + DIA_MS);
+    const inicioMs = Math.max(i, fimMs - MAX_DIAS * DIA_MS);
+    return { inicioMs, fimMs };
+  }
+  const d = Math.max(1, Math.min(MAX_DIAS, Number(dias) || 30));
+  // fim um pouco à frente: o lead criado neste mesmo milissegundo ainda entra
+  return { inicioMs: agoraMs - d * DIA_MS, fimMs: agoraMs + 1000 };
+}
+
+export function calcularEstatisticas({ dias = 30, inicio, fim, fusoMin = 0 } = {}) {
+  const { inicioMs, fimMs } = janela({ dias, inicio, fim });
+  const duracaoMs = fimMs - inicioMs;
+  const desde = new Date(inicioMs).toISOString();
+  const ate = new Date(fimMs).toISOString();
+  const anterior = new Date(inicioMs - duracaoMs).toISOString();
   const fuso = `${fusoMin >= 0 ? '+' : ''}${Math.trunc(fusoMin)} minutes`;
   const horas = config.followupHours;
   const atrasoSql = `(julianday('now') - julianday(COALESCE(l.last_contact_at, l.created_at))) * 24 > ?`;
+  const noPeriodo = 'created_at >= ? AND created_at < ?';
+  const p = [desde, ate];
 
   // --- Entrada e resposta ---
-  const novos = get('SELECT count(*) n FROM leads WHERE created_at >= ?', [desde]).n;
-  const novosAntes = get('SELECT count(*) n FROM leads WHERE created_at >= ? AND created_at < ?', [anterior, desde]).n;
-  const respondidos = get('SELECT count(*) n FROM leads WHERE created_at >= ? AND first_contact_at IS NOT NULL', [desde]).n;
+  const novos = get(`SELECT count(*) n FROM leads WHERE ${noPeriodo}`, p).n;
+  const novosAntes = get(`SELECT count(*) n FROM leads WHERE ${noPeriodo}`, [anterior, desde]).n;
+  const respondidos = get(`SELECT count(*) n FROM leads WHERE ${noPeriodo} AND first_contact_at IS NOT NULL`, p).n;
   const respondidosAntes = get(
-    'SELECT count(*) n FROM leads WHERE created_at >= ? AND created_at < ? AND first_contact_at IS NOT NULL',
+    `SELECT count(*) n FROM leads WHERE ${noPeriodo} AND first_contact_at IS NOT NULL`,
     [anterior, desde]
   ).n;
   const tempos = all(
     `SELECT max(0, (julianday(first_contact_at) - julianday(created_at)) * 1440) AS minutos
-       FROM leads WHERE created_at >= ? AND first_contact_at IS NOT NULL`,
-    [desde]
+       FROM leads WHERE ${noPeriodo} AND first_contact_at IS NOT NULL`,
+    p
   ).map((r) => r.minutos);
   const em1h = tempos.filter((m) => m <= 60).length;
 
@@ -46,11 +70,17 @@ export function calcularEstatisticas({ dias = 30, fusoMin = 0 } = {}) {
 
   // --- Resultados no período ---
   const resultado = (kind) =>
-    get('SELECT count(*) n FROM leads l JOIN stages s ON s.id = l.stage_id WHERE s.kind = ? AND l.stage_changed_at >= ?', [kind, desde]).n;
+    get(
+      'SELECT count(*) n FROM leads l JOIN stages s ON s.id = l.stage_id WHERE s.kind = ? AND l.stage_changed_at >= ? AND l.stage_changed_at < ?',
+      [kind, desde, ate]
+    ).n;
   const ganhos = resultado('won');
   const perdidos = resultado('lost');
-  const reunioes = get("SELECT count(*) n, sum(status = 'canceled') canceladas FROM calendly_events WHERE created_at >= ?", [desde]);
-  const mensagens = get('SELECT sum(from_me = 0) recebidas, sum(from_me = 1) enviadas FROM wa_messages WHERE timestamp >= ?', [desde]);
+  const reunioes = get(`SELECT count(*) n, sum(status = 'canceled') canceladas FROM calendly_events WHERE ${noPeriodo}`, p);
+  const mensagens = get(
+    'SELECT sum(from_me = 0) recebidas, sum(from_me = 1) enviadas FROM wa_messages WHERE timestamp >= ? AND timestamp < ?',
+    p
+  );
 
   // --- Funil do formulário: iniciaram → completaram → agendaram (Calendly) ---
   // Só leads que vieram do Yay! Forms e entraram no período. "Agendou" = tem ao menos uma reunião ativa (passada ou futura).
@@ -64,40 +94,45 @@ export function calcularEstatisticas({ dias = 30, fusoMin = 0 } = {}) {
        FROM (
          SELECT COALESCE(json_extract(l.extra, '$.parcial'), 0) = 0 AS completo,
                 EXISTS (SELECT 1 FROM calendly_events c WHERE c.lead_id = l.id AND c.status = 'active') AS agendou
-           FROM leads l WHERE l.source = 'yayforms' AND l.created_at >= ?
+           FROM leads l WHERE l.source = 'yayforms' AND l.created_at >= ? AND l.created_at < ?
        )`,
-    [desde]
+    p
   );
   const nf = (v) => v || 0;
 
-  // --- Por dia (no fuso de quem está vendo) ---
-  const inicioSerie = new Date(agoraMs - (dias - 1) * DIA_MS);
+  // --- Por dia (no fuso de quem está vendo), do primeiro ao último dia da janela ---
+  const diaLocal = (ms) => new Date(ms + fusoMin * 60000).toISOString().slice(0, 10);
   const porDiaBanco = new Map(
     all(
       `SELECT date(created_at, ?) AS dia, count(*) AS entradas, sum(first_contact_at IS NOT NULL) AS respondidos
-         FROM leads WHERE created_at >= ? GROUP BY dia`,
-      [fuso, new Date(agoraMs - (dias + 1) * DIA_MS).toISOString()]
+         FROM leads WHERE ${noPeriodo} GROUP BY dia`,
+      [fuso, ...p]
     ).map((r) => [r.dia, r])
   );
   const porDia = [];
-  for (let i = 0; i < dias; i++) {
-    const local = new Date(inicioSerie.getTime() + i * DIA_MS + fusoMin * 60000);
-    const dia = local.toISOString().slice(0, 10);
+  const ultimoDia = diaLocal(fimMs - 1);
+  for (let dia = diaLocal(inicioMs), guarda = 0; dia <= ultimoDia && guarda <= MAX_DIAS + 1; guarda++) {
     const r = porDiaBanco.get(dia);
     porDia.push({ dia, entradas: r?.entradas || 0, respondidos: r?.respondidos || 0 });
+    dia = new Date(Date.parse(`${dia}T00:00:00Z`) + DIA_MS).toISOString().slice(0, 10);
   }
 
-  // --- Por origem, formulário, etapa e responsável ---
-  const porOrigem = all('SELECT source AS origem, count(*) AS total FROM leads WHERE created_at >= ? GROUP BY source ORDER BY total DESC', [desde]);
+  // --- Por origem (Calendly não é origem: é onde o lead do formulário marca a reunião), formulário, etapa e responsável ---
+  const porOrigem = all(
+    `SELECT source AS origem, count(*) AS total FROM leads WHERE ${noPeriodo} AND source <> 'calendly' GROUP BY source ORDER BY total DESC`,
+    p
+  );
   const porFormulario = all(
-    `SELECT json_extract(extra, '$.formulario') AS formulario, count(*) AS total,
-            sum(first_contact_at IS NOT NULL) AS respondidos
-       FROM leads WHERE created_at >= ? AND json_extract(extra, '$.formulario') IS NOT NULL
+    `SELECT COALESCE(json_extract(extra, '$.formulario'), 'Formulário ' || json_extract(extra, '$.form_id')) AS formulario,
+            count(*) AS total, sum(first_contact_at IS NOT NULL) AS respondidos
+       FROM leads
+      WHERE ${noPeriodo} AND source <> 'calendly'
+        AND COALESCE(json_extract(extra, '$.formulario'), json_extract(extra, '$.form_id')) IS NOT NULL
       GROUP BY formulario ORDER BY total DESC LIMIT 8`,
-    [desde]
+    p
   );
   const porEtapa = all(
-    `SELECT s.id, s.name AS nome, s.color AS cor, s.kind AS tipo, count(l.id) AS total
+    `SELECT s.id, s.name AS nome, s.color AS cor, s.kind AS tipo, s.position AS posicao, count(l.id) AS total
        FROM stages s LEFT JOIN leads l ON l.stage_id = s.id
       GROUP BY s.id ORDER BY s.position, s.id`
   );
@@ -106,15 +141,56 @@ export function calcularEstatisticas({ dias = 30, fusoMin = 0 } = {}) {
             sum(s.kind = 'open') AS abertos,
             sum(s.kind = 'open' AND ${atrasoSql}) AS atrasados,
             sum(s.kind = 'open' AND l.waiting_since IS NOT NULL) AS aguardando,
-            sum(l.created_at >= ? AND l.first_contact_at IS NOT NULL) AS respondidos_periodo,
-            sum(s.kind = 'won' AND l.stage_changed_at >= ?) AS ganhos_periodo
+            sum(l.created_at >= ? AND l.created_at < ? AND l.first_contact_at IS NOT NULL) AS respondidos_periodo,
+            sum(s.kind = 'won' AND l.stage_changed_at >= ? AND l.stage_changed_at < ?) AS ganhos_periodo
        FROM leads l JOIN stages s ON s.id = l.stage_id LEFT JOIN users u ON u.id = l.owner_id
       GROUP BY l.owner_id ORDER BY abertos DESC`,
-    [horas, desde, desde]
+    [horas, desde, ate, desde, ate]
   );
 
+  // --- Leads do período, um a um: base do funil, das UTMs, da entrada por hora e do mapa dia × hora ---
+  // Etapas pelas quais o lead já passou vêm do histórico (stage_changed guarda o nome da etapa de destino).
+  const idPorNome = new Map(porEtapa.map((s) => [String(s.nome).trim().toLowerCase(), s.id]));
+  const passou = new Map();
+  for (const h of all(
+    `SELECT e.lead_id, json_extract(e.data, '$.para') AS para
+       FROM lead_events e JOIN leads l ON l.id = e.lead_id
+      WHERE e.type = 'stage_changed' AND l.created_at >= ? AND l.created_at < ?`,
+    p
+  )) {
+    const id = idPorNome.get(String(h.para || '').trim().toLowerCase());
+    if (!id) continue;
+    if (!passou.has(h.lead_id)) passou.set(h.lead_id, new Set());
+    passou.get(h.lead_id).add(id);
+  }
+  const chavesUtm = new Set();
+  const leadsPeriodo = all(
+    `SELECT id, name, created_at, stage_id, source, first_contact_at IS NOT NULL AS respondido,
+            json_extract(extra, '$.utm') AS utm
+       FROM leads WHERE ${noPeriodo} ORDER BY created_at`,
+    p
+  ).map((l) => {
+    const utm = {};
+    for (const [k, v] of Object.entries(lerJsonSeguro(l.utm))) {
+      if (v === null || v === undefined || v === '' || typeof v === 'object') continue;
+      const chave = String(k).toLowerCase();
+      utm[chave] = String(v).slice(0, 200);
+      chavesUtm.add(chave);
+    }
+    return {
+      id: l.id,
+      n: l.name || null,
+      c: l.created_at,
+      s: l.stage_id,
+      p: [...(passou.get(l.id) || [])],
+      r: l.respondido ? 1 : 0,
+      o: l.source,
+      u: utm,
+    };
+  });
+
   return {
-    periodo: { dias, desde },
+    periodo: { dias: Math.round(duracaoMs / DIA_MS), desde, ate },
     followup_horas: horas,
     entrada: {
       novos,
@@ -160,6 +236,8 @@ export function calcularEstatisticas({ dias = 30, fusoMin = 0 } = {}) {
     por_formulario: porFormulario,
     por_etapa: porEtapa,
     por_responsavel: porResponsavel,
+    leads: leadsPeriodo,
+    chaves_utm: [...chavesUtm].sort(),
   };
 }
 
@@ -167,9 +245,8 @@ export default {
   name: 'estatisticas',
   register(app) {
     app.get('/api/estatisticas', exigirLogin, (req, res) => {
-      const dias = PERIODOS.has(Number(req.query.dias)) ? Number(req.query.dias) : 30;
       const fusoMin = Math.max(-840, Math.min(840, Number(req.query.fuso) || 0));
-      res.json(calcularEstatisticas({ dias, fusoMin }));
+      res.json(calcularEstatisticas({ dias: req.query.dias, inicio: req.query.inicio, fim: req.query.fim, fusoMin }));
     });
   },
 };
