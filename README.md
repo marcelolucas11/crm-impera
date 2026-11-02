@@ -4,7 +4,9 @@ CRM da agência: leads do Yay! Forms caindo direto num kanban, alerta de follow-
 Roda direto no Mac, a partir do SSD externo, sem Docker e sem instalar nada no sistema.
 A mesma pasta funciona depois na VPS da Contabo.
 
-**Versão atual: 0.20.3** — o número fica no arquivo `VERSAO` e é o que aparece em **Equipe e integrações → Atualização do CRM**.
+**Versão atual: 0.21.0** — o número fica no arquivo `VERSAO` e é o que aparece em **Equipe e integrações → Atualização do CRM**.
+
+**Versão 0.21.0:** Novo seletor de idioma do CRM (**PT-BR / ES / EN**), no menu do avatar e na tela de login. Cada pessoa escolhe o seu, e fica salvo no navegador. Nesta versão já estão traduzidos o login, as abas do topo e o menu do avatar; o resto das telas continua em português e será traduzido em lote quando o CRM estiver completo.
 
 **Versão 0.20.3:** Trocar foto, remover foto e trocar senha saíram do menu do avatar e foram para **Equipe e integrações → Minha conta** (primeira seção da aba). Quem não é administrador entra pelo item **Minha conta** do menu do avatar e vê só essa seção.
 

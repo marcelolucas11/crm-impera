@@ -2,8 +2,11 @@ import { useState } from 'react';
 import { api } from '../api.js';
 import logo from '../assets/logo-impera.png';
 import FundoLogo3D from './FundoLogo3D.jsx';
+import { useT } from '../i18n/index.jsx';
+import SeletorIdioma from './SeletorIdioma.jsx';
 
 export default function Login({ aoEntrar }) {
+  const t = useT();
   const [email, setEmail] = useState('');
   const [senha, setSenha] = useState('');
   const [erro, setErro] = useState('');
@@ -30,18 +33,19 @@ export default function Login({ aoEntrar }) {
         <div className="login-marca">
           <img className="login-logo" src={logo} alt="" />
           <div className="marca marca-grande">IMPERA <span>CRM</span></div>
-          <p className="login-sub">Acesso da equipe</p>
+          <p className="login-sub">{t('login.sub')}</p>
         </div>
         <label>
-          E-mail
+          {t('login.email')}
           <input type="email" autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)} required autoFocus />
         </label>
         <label>
-          Senha
+          {t('login.senha')}
           <input type="password" autoComplete="current-password" value={senha} onChange={(e) => setSenha(e.target.value)} required />
         </label>
         {erro && <div className="erro">{erro}</div>}
-        <button className="btn btn-ouro" disabled={enviando}>{enviando ? 'Entrando…' : 'Entrar'}</button>
+        <button className="btn btn-ouro" disabled={enviando}>{enviando ? t('login.entrando') : t('login.entrar')}</button>
+        <SeletorIdioma compacto />
       </form>
     </div>
   );

@@ -2,17 +2,14 @@ import { useState } from 'react';
 import { FotoUsuario } from './FotoUsuario.jsx';
 import logo from '../assets/logo-impera.png';
 import { Users, UserRound, LogOut } from 'lucide-react';
+import { useT } from '../i18n/index.jsx';
+import SeletorIdioma from './SeletorIdioma.jsx';
 
-const ABAS = [
-  { id: 'kanban', rotulo: 'Kanban' },
-  { id: 'whatsapp', rotulo: 'WhatsApp' },
-  { id: 'disparos', rotulo: 'Disparos' },
-  { id: 'ia', rotulo: 'IA' },
-  { id: 'estatisticas', rotulo: 'Estatísticas' },
-];
+const ABAS = ['kanban', 'whatsapp', 'disparos', 'ia', 'estatisticas'];
 
 export default function Topo({ user, pagina, setPagina, resumo, sair }) {
   const [menu, setMenu] = useState(false);
+  const t = useT();
 
   const contador = (id) => {
     if (id === 'whatsapp' && resumo?.conversas_nao_lidas) return resumo.conversas_nao_lidas;
@@ -27,8 +24,8 @@ export default function Topo({ user, pagina, setPagina, resumo, sair }) {
         <div className="marca">IMPERA <span>CRM</span></div>
       </div>
 
-      <nav className="abas" aria-label="Telas do CRM">
-        {ABAS.map((a) => (
+      <nav className="abas" aria-label={t('topo.navegacao')}>
+        {ABAS.map((id) => ({ id, rotulo: t(`topo.aba.${id}`) })).map((a) => (
           <button
             key={a.id}
             className={`aba ${pagina === a.id ? 'ativa' : ''}`}
@@ -37,7 +34,7 @@ export default function Topo({ user, pagina, setPagina, resumo, sair }) {
           >
             {a.rotulo}
             {contador(a.id) > 0 && (
-              <span className={`aba-contador ${a.id === 'kanban' ? 'aviso' : ''}`} title={a.id === 'kanban' ? 'Leads aguardando sua resposta' : 'Conversas com mensagens novas'}>
+              <span className={`aba-contador ${a.id === 'kanban' ? 'aviso' : ''}`} title={a.id === 'kanban' ? t('topo.aguardando') : t('topo.naoLidas')}>
                 {contador(a.id)}
               </span>
             )}
@@ -54,9 +51,10 @@ export default function Topo({ user, pagina, setPagina, resumo, sair }) {
             <div className="menu-nome">{user.name}<small>{user.email}</small></div>
             {/* Foto e senha ficam na aba Equipe e integrações (seção "Minha conta"); quem não é admin vê só essa seção */}
             <button onClick={() => { setMenu(false); setPagina('equipe'); }}>
-              {user.role === 'admin' ? <><Users size={15} /> Equipe e integrações</> : <><UserRound size={15} /> Minha conta</>}
+              {user.role === 'admin' ? <><Users size={15} /> {t('topo.equipe')}</> : <><UserRound size={15} /> {t('topo.minhaConta')}</>}
             </button>
-            <button onClick={sair}><LogOut size={15} /> Sair</button>
+            <button onClick={sair}><LogOut size={15} /> {t('topo.sair')}</button>
+            <SeletorIdioma />
           </div>
         )}
       </div>

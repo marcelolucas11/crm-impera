@@ -12,11 +12,14 @@ import './whatsapp.css';
 import './design.css';
 import './liquid-glass.css';
 import App from './App.jsx';
+import { IdiomaProvider } from './i18n/index.jsx';
 import LiquidGlassFx from './components/LiquidGlassFx.jsx';
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
-    <LiquidGlassFx />
-    <App />
+    <IdiomaProvider>
+      <LiquidGlassFx />
+      <App />
+    </IdiomaProvider>
   </StrictMode>
 );
