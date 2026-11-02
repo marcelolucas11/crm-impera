@@ -4,7 +4,9 @@ CRM da agência: leads do Yay! Forms caindo direto num kanban, alerta de follow-
 Roda direto no Mac, a partir do SSD externo, sem Docker e sem instalar nada no sistema.
 A mesma pasta funciona depois na VPS da Contabo.
 
-**Versão atual: 0.20.2** — o número fica no arquivo `VERSAO` e é o que aparece em **Equipe e integrações → Atualização do CRM**.
+**Versão atual: 0.20.3** — o número fica no arquivo `VERSAO` e é o que aparece em **Equipe e integrações → Atualização do CRM**.
+
+**Versão 0.20.3:** Trocar foto, remover foto e trocar senha saíram do menu do avatar e foram para **Equipe e integrações → Minha conta** (primeira seção da aba). Quem não é administrador entra pelo item **Minha conta** do menu do avatar e vê só essa seção.
 
 **Versão 0.20.2:** Chaves, tokens, IDs e URLs secretas ficam **cobertos (••••)** em toda a tela de configurações — chave da Anthropic, ID do workspace, token do Calendly, URL do webhook e segredos do Yay! Forms — para não vazarem em gravação ou compartilhamento de tela. O ícone de olho revela por 15 segundos e volta a cobrir sozinho; o botão Copiar funciona sem revelar.
 

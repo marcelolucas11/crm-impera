@@ -75,19 +75,19 @@ function Sistema({ user, aoMudarUser, aoSair }) {
   const comum = { user, stages, users, horas: resumo?.horas || 24, carregarEtapas, aoMudarAlgo: carregarResumo, setErro };
   // Público criado no kanban → abre Disparos com ele já escolhido
   const usarPublico = (lista) => { setPedidoDisparo(lista); setPagina('disparos'); };
-  // Minha foto mudou (menu do avatar): atualiza o topo e a lista da equipe (fotos nos cartões)
+  // Minha foto mudou (seção Minha conta): atualiza o topo e a lista da equipe (fotos nos cartões)
   const aoMudarMinhaFoto = (u) => { aoMudarUser({ ...user, foto: u.foto }); carregarUsuarios(); };
 
   return (
     <div className="app">
-      <Topo user={user} pagina={pagina} setPagina={setPagina} resumo={resumo} sair={sair} aoMudarFoto={aoMudarMinhaFoto} setErro={setErro} />
+      <Topo user={user} pagina={pagina} setPagina={setPagina} resumo={resumo} sair={sair} />
       {erro && <div className="faixa-erro" onClick={() => setErro('')}>{erro} <span>×</span></div>}
       {pagina === 'kanban' && <KanbanPagina {...comum} usarPublico={usarPublico} />}
       {pagina === 'whatsapp' && <WhatsAppPagina {...comum} />}
       {pagina === 'disparos' && <DisparosPagina pedidoLista={pedidoDisparo} aoConsumirPedido={() => setPedidoDisparo(null)} />}
       {pagina === 'ia' && <IaPagina user={user} aoAbrirConversa={abrirConversa} />}
       {pagina === 'estatisticas' && <Estatisticas {...comum} />}
-      {pagina === 'equipe' && <Equipe user={user} aoMudarUsuarios={(lista) => {
+      {pagina === 'equipe' && <Equipe user={user} aoMudarMinhaFoto={aoMudarMinhaFoto} aoMudarUsuarios={(lista) => {
         setUsers(lista);
         const eu = lista.find((u) => u.id === user.id);
         if (eu && eu.foto !== user.foto) aoMudarUser({ ...user, foto: eu.foto });

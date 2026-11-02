@@ -8,6 +8,8 @@ import SegredosYay from './SegredosYay.jsx';
 import Atualizacao from './Atualizacao.jsx';
 import { FotoUsuario, CampoFoto, prepararFoto } from './FotoUsuario.jsx';
 import { TextoSecreto } from './Segredo.jsx';
+import TrocarSenha from './TrocarSenha.jsx';
+import { Camera, Trash2, KeyRound } from 'lucide-react';
 
 const NOVO_VAZIO = { name: '', email: '', senha: '', role: 'member', foto: '' };
 
@@ -38,7 +40,50 @@ function FotoDaLinha({ u, executar, aoErro }) {
   );
 }
 
-export default function Equipe({ user, aoMudarUsuarios }) {
+// Minha conta: minha foto (aparece nos cartões dos leads de que sou responsável) e minha senha
+function MinhaConta({ user, aoMudarFoto, aoMensagem, aoErro }) {
+  const entrada = useRef(null);
+  const [trocandoSenha, setTrocandoSenha] = useState(false);
+  const escolher = async (e) => {
+    const arquivo = e.target.files?.[0];
+    e.target.value = '';
+    if (!arquivo) return;
+    aoErro(''); aoMensagem('');
+    try {
+      const foto = await prepararFoto(arquivo);
+      const d = await api(`/users/${user.id}/foto`, { method: 'PUT', body: { foto } });
+      aoMudarFoto?.(d.user);
+      aoMensagem('Sua foto foi atualizada.');
+    } catch (err) { aoErro(err.message); }
+  };
+  const remover = async () => {
+    aoErro(''); aoMensagem('');
+    try {
+      const d = await api(`/users/${user.id}/foto`, { method: 'DELETE' });
+      aoMudarFoto?.(d.user);
+      aoMensagem('Sua foto foi removida.');
+    } catch (err) { aoErro(err.message); }
+  };
+  return (
+    <section className="cartao-secao">
+      <h2>Minha conta</h2>
+      <div className="minha-conta">
+        <FotoUsuario usuario={user} tamanho={56} titulo="" />
+        <div className="minha-conta-nome">{user.name}<small>{user.email}</small></div>
+        <div className="acoes-linha">
+          <button className="btn btn-pequeno" onClick={() => entrada.current?.click()}><Camera size={14} /> {user.foto ? 'Trocar minha foto' : 'Adicionar minha foto'}</button>
+          {user.foto && <button className="btn btn-pequeno" onClick={remover}><Trash2 size={14} /> Remover minha foto</button>}
+          <button className="btn btn-pequeno" onClick={() => setTrocandoSenha(true)}><KeyRound size={14} /> Trocar minha senha</button>
+        </div>
+      </div>
+      <input ref={entrada} type="file" accept="image/jpeg,image/png,image/webp" hidden onChange={escolher} />
+      {trocandoSenha && <TrocarSenha onFechar={() => setTrocandoSenha(false)} />}
+    </section>
+  );
+}
+
+export default function Equipe({ user, aoMudarUsuarios, aoMudarMinhaFoto }) {
+  const admin = user?.role === 'admin';
   const [users, setUsers] = useState([]);
   const [novo, setNovo] = useState(NOVO_VAZIO);
   const [erro, setErro] = useState('');
@@ -47,6 +92,7 @@ export default function Equipe({ user, aoMudarUsuarios }) {
   const [eventos, setEventos] = useState([]);
 
   const carregar = useCallback(async () => {
+    if (!admin) return; // quem não é admin só vê "Minha conta"
     try {
       const [u, c, ev] = await Promise.all([api('/users'), api('/yayforms/config'), api('/yayforms/eventos')]);
       setUsers(u.users);
@@ -84,7 +130,10 @@ export default function Equipe({ user, aoMudarUsuarios }) {
         {erro && <div className="erro">{erro}</div>}
         {msg && <div className="sucesso">{msg}</div>}
 
-        {user?.role === 'admin' && <Atualizacao />}
+        <MinhaConta user={user} aoMudarFoto={(u) => { aoMudarMinhaFoto?.(u); carregar(); }} aoMensagem={setMsg} aoErro={setErro} />
+
+        {admin && <>
+        <Atualizacao />
 
         <section className="cartao-secao">
           <h2>Equipe</h2>
@@ -179,6 +228,7 @@ export default function Equipe({ user, aoMudarUsuarios }) {
             </table>
           )}
         </section>
+        </>}
       </div>
     </>
   );
