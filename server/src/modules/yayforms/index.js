@@ -12,6 +12,10 @@ import { idValido } from '../../util.js';
 import { lerEstado, salvarEstado } from '../../estado.js';
 import { aoReceberLeadYay } from '../disparos/servico.js';
 import { avisarGancho } from '../../ganchos.js';
+import {
+  opcoesDoParser, prepararCatalogo, conhecerFormulario, aplicarNomes, sincronizar, conectarComToken, removerToken,
+  montarStatus, infoFormulario, tokenYay, esquecerCache,
+} from './catalogo.js';
 
 function iguaisSeguro(a, b) {
   const ba = Buffer.from(String(a));
@@ -59,12 +63,7 @@ function marcarUso(segredoId) {
 }
 
 function lerDados(body) {
-  return interpretarPayload(body, {
-    campoNome: config.yayforms.fieldName,
-    campoTelefone: config.yayforms.fieldPhone,
-    campoEmail: config.yayforms.fieldEmail,
-    nomesFormularios: lerEstado('yayforms').nomes || {},
-  });
+  return interpretarPayload(body, opcoesDoParser());
 }
 
 function detalhesDe(dados) {
@@ -240,10 +239,26 @@ function preencherInicioDosAntigos() {
   }
 }
 
+let relogio = null;
+
 export default {
   name: 'yayforms',
+  // Ao ligar (inclusive logo depois de atualizar): troca códigos por nomes em todos os leads e no histórico já gravados,
+  // busca no Yay! Forms o que faltar e repete a busca a cada 6 h para formulários novos ou renomeados
+  start() {
+    setTimeout(() => prepararCatalogo(), 3000).unref();
+    relogio = setInterval(() => {
+      if (!tokenYay()) return;
+      sincronizar().then((r) => (r.sem_token ? null : aplicarNomes())).catch(() => {});
+    }, 6 * 60 * 60 * 1000);
+    relogio.unref();
+  },
+  stop() {
+    if (relogio) clearInterval(relogio);
+  },
   register(app) {
     preencherInicioDosAntigos();
+    esquecerCache();
     const r = Router();
 
     r.post('/:token', (req, res) => {
@@ -270,6 +285,9 @@ export default {
       try {
         const r = receber(eventoId, body);
         if (r.duplicado) return res.json({ ok: true, lead_id: r.leadId, duplicado: true });
+        // Formulário ou pergunta que o CRM ainda não conhece: busca o nome no Yay! Forms em segundo plano
+        // e, se o webhook trouxe o texto de uma pergunta que nos leads antigos estava só com o código, corrige os antigos
+        conhecerFormulario(body);
         saudar(r);
         console.log(`[yayforms] ${r.novo ? 'novo lead' : r.tipo === 'form_completed' ? 'terminou o formulário:' : 'lead existente atualizado'} #${r.leadId}`);
         res.json({ ok: true, lead_id: r.leadId, novo: r.novo, atualizado: Boolean(r.atualizado) });
@@ -318,7 +336,7 @@ export default {
           WHERE source = 'yayforms' AND json_extract(payload, '$.response.formId') IS NOT NULL
           GROUP BY form_id ORDER BY ultima DESC`
       );
-      res.json({ formularios: vistos.map((f) => ({ ...f, nome: nomes[f.form_id] || null })) });
+      res.json({ formularios: vistos.map((f) => ({ ...f, ...infoFormulario(f.form_id), nome: nomes[f.form_id] || null })) });
     });
 
     adm.put('/formularios/:formId', (req, res) => {
@@ -330,11 +348,14 @@ export default {
       tx(() => {
         salvarEstado('yayforms', { nomes });
         // Atualiza os leads que já vieram desse formulário
+        // Sem nome à mão, volta para o nome do Yay! Forms (aplicarNomes logo abaixo)
         run(
           `UPDATE leads SET extra = json_set(extra, '$.formulario', ?) WHERE json_extract(extra, '$.form_id') = ?`,
           [nome || null, formId]
         );
       });
+      esquecerCache();
+      aplicarNomes();
       res.json({ ok: true });
     });
 
@@ -379,6 +400,36 @@ export default {
       if (resto.length === lista.length) return res.status(404).json({ erro: 'Segredo não encontrado (os do .env só saem editando o .env).' });
       salvarEstado('yayforms', { segredos: resto });
       res.json({ ok: true });
+    });
+
+    // Token da API do Yay! Forms: só para buscar nomes de formulários e textos das perguntas
+    adm.get('/catalogo', (req, res) => res.json(montarStatus()));
+
+    adm.post('/token', async (req, res) => {
+      try {
+        await conectarComToken(req.body?.token);
+        const resumo = await sincronizar({ forcar: true });
+        const aplicados = aplicarNomes();
+        res.json({ ok: true, resumo, aplicados });
+      } catch (err) {
+        res.status(err.status === 400 || err.status === 502 ? err.status : 500).json({ erro: err.message });
+      }
+    });
+
+    adm.delete('/token', (req, res) => {
+      removerToken();
+      res.json({ ok: true });
+    });
+
+    // "Buscar nomes agora": consulta de novo todos os formulários e reaplica nos leads e no histórico
+    adm.post('/sincronizar', async (req, res) => {
+      if (!tokenYay()) return res.status(400).json({ erro: 'Cole o token da API do Yay! Forms primeiro.' });
+      try {
+        const resumo = await sincronizar({ forcar: true });
+        res.json({ ok: true, resumo, aplicados: aplicarNomes(), status: montarStatus() });
+      } catch (err) {
+        res.status(502).json({ erro: err.message });
+      }
     });
 
     app.use('/api/yayforms', adm);

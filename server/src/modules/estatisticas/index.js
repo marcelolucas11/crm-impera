@@ -2,6 +2,7 @@
 import { get, all } from '../../db.js';
 import { config } from '../../config.js';
 import { exigirLogin } from '../auth/middleware.js';
+import { rotuloFormulario } from '../yayforms/catalogo.js';
 
 const DIA_MS = 86400000;
 const MAX_DIAS = 400;
@@ -122,15 +123,16 @@ export function calcularEstatisticas({ dias = 30, inicio, fim, fusoMin = 0 } = {
     `SELECT source AS origem, count(*) AS total FROM leads WHERE ${noPeriodo} AND source <> 'calendly' GROUP BY source ORDER BY total DESC`,
     p
   );
+  // Agrupa pelo ID do formulário (o nome pode ter mudado) e mostra sempre o nome, nunca o código
   const porFormulario = all(
-    `SELECT COALESCE(json_extract(extra, '$.formulario'), 'Formulário ' || json_extract(extra, '$.form_id')) AS formulario,
+    `SELECT json_extract(extra, '$.form_id') AS form_id, max(json_extract(extra, '$.formulario')) AS nome,
             count(*) AS total, sum(first_contact_at IS NOT NULL) AS respondidos
        FROM leads
       WHERE ${noPeriodo} AND source <> 'calendly'
-        AND COALESCE(json_extract(extra, '$.formulario'), json_extract(extra, '$.form_id')) IS NOT NULL
-      GROUP BY formulario ORDER BY total DESC LIMIT 8`,
+        AND COALESCE(json_extract(extra, '$.form_id'), json_extract(extra, '$.formulario')) IS NOT NULL
+      GROUP BY COALESCE(json_extract(extra, '$.form_id'), json_extract(extra, '$.formulario')) ORDER BY total DESC LIMIT 8`,
     p
-  );
+  ).map(({ form_id, nome, ...r }) => ({ formulario: rotuloFormulario(form_id, nome), form_id, ...r }));
   const porEtapa = all(
     `SELECT s.id, s.name AS nome, s.color AS cor, s.kind AS tipo, s.position AS posicao, count(l.id) AS total
        FROM stages s LEFT JOIN leads l ON l.stage_id = s.id

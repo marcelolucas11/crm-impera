@@ -53,10 +53,12 @@ function Barras({ itens, vazio = 'Sem dados no período.' }) {
         <div key={i.chave} className="barra-linha" title={i.dica || `${i.rotulo}: ${num(i.valor)}`}>
           <span className="barra-rotulo">
             {i.cor && <i className="ponto" style={{ background: i.cor }} />}
-            {i.rotulo}
+            <span className="barra-rotulo-texto">{i.rotulo}</span>
           </span>
           <span className="barra-trilho">
-            <span className="barra" style={{ width: `${Math.max(i.valor ? 2 : 0, (i.valor / max) * 100)}%` }} />
+            <span className="barra-espaco">
+              <span className="barra" style={{ width: `${Math.max(i.valor ? 2 : 0, (i.valor / max) * 100)}%` }} />
+            </span>
             <span className="barra-valor">{num(i.valor)}{i.extra ? <small className="suave"> {i.extra}</small> : null}</span>
           </span>
         </div>

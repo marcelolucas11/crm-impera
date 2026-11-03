@@ -358,9 +358,12 @@ textarea { resize: vertical; }
 .tabela-dados table { margin-top: 8px; }
 .barras { display: flex; flex-direction: column; gap: 9px; }
 .barra-linha { display: grid; grid-template-columns: minmax(110px, 38%) 1fr; gap: 10px; align-items: center; font-size: 13px; }
-.barra-rotulo { display: inline-flex; align-items: center; gap: 7px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.barra-rotulo { display: flex; align-items: center; gap: 7px; min-width: 0; overflow: hidden; }
+.barra-rotulo-texto { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .barra-trilho { display: flex; align-items: center; gap: 8px; min-width: 0; }
-.barra { height: 14px; background: var(--serie-1); border-radius: 0 4px 4px 0; flex-shrink: 0; }
+/* A barra ocupa o espaço que sobra ao lado do número: nunca empurra o número para fora do cartão */
+.barra-espaco { flex: 1 1 auto; min-width: 0; display: flex; }
+.barra { height: 14px; background: var(--serie-1); border-radius: 0 4px 4px 0; flex-shrink: 0; max-width: 100%; }
 .barra-valor { white-space: nowrap; font-variant-numeric: tabular-nums; }
 
 /* Celular e telas estreitas */

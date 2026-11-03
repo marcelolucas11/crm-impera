@@ -2,13 +2,13 @@
 import { get, all, run, tx, agora } from '../../db.js';
 import { lerJson } from '../../events.js';
 import { lerEstado, salvarEstado } from '../../estado.js';
-import { config as configApp } from '../../config.js';
 import { ErroHttp, idValido, variantesTelefone } from '../../util.js';
 import { chaveTelefone, slug, VARIAVEIS_PADRAO } from './texto.js';
 import { validarBlocos, validarConfig } from './blocos.js';
 import { identificarTelefone } from './contatos.js';
 import { garantirWorker, acordar, estadoAoVivo } from './motor.js';
 import { interpretarPayload } from '../yayforms/parser.js';
+import { opcoesDoParser } from '../yayforms/catalogo.js';
 
 export const MAX_DESTINATARIOS = 5000;
 
@@ -511,12 +511,7 @@ export function inspecionarUltimoPayload() {
   const padroes = VARIAVEIS_PADRAO.map((v) => ({ variavel: v, padrao: true }));
   if (!ev) return { recebido_em: null, campos: [], padroes, bruto: null };
   const body = lerJson(ev.payload, {});
-  const dados = interpretarPayload(body, {
-    campoNome: configApp.yayforms.fieldName,
-    campoTelefone: configApp.yayforms.fieldPhone,
-    campoEmail: configApp.yayforms.fieldEmail,
-    nomesFormularios: lerEstado('yayforms').nomes || {},
-  });
+  const dados = interpretarPayload(body, opcoesDoParser());
   const campos = [];
   const usados = new Set(VARIAVEIS_PADRAO);
   for (const r of dados.respostas) {

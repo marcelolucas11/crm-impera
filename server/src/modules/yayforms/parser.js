@@ -40,7 +40,7 @@ function mapaDeTitulos(body) {
   return mapa;
 }
 
-function listaDeRespostas(body) {
+function listaDeRespostas(body, titulosConhecidos = {}) {
   const bruto =
     body.response?.answers ?? body.answers ?? body.data?.answers ?? body.data?.response?.answers ?? body.submission?.answers;
   if (!bruto) return [];
@@ -57,6 +57,8 @@ function listaDeRespostas(body) {
       const titulo =
         limparTitulo(paraTexto(obj.fieldTitle || obj.title || obj.question?.title || obj.field?.title || obj.label || obj.question_title)) ||
         def.titulo ||
+        // Texto da pergunta que o CRM já conhece (API do Yay! Forms ou outro webhook do mesmo formulário)
+        titulosConhecidos[id] ||
         id;
       const tipo = String(obj.type || obj.fieldType || obj.field?.type || obj.question?.type || def.tipo || '').toLowerCase();
       const valorBruto = obj.content ?? obj.value ?? obj.answer ?? obj.text;
@@ -171,7 +173,7 @@ export function extrairSituacao(body) {
 }
 
 export function interpretarPayload(body, opcoes = {}) {
-  const respostas = listaDeRespostas(body);
+  const respostas = listaDeRespostas(body, opcoes.titulosPerguntas || {});
   const porId = (id) => (id ? respostas.find((r) => r.id === id) : null);
 
   let email = normalizarEmail(porId(opcoes.campoEmail)?.valor);

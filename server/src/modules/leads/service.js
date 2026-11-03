@@ -4,6 +4,7 @@ import { config } from '../../config.js';
 import { registrarEvento, lerJson } from '../../events.js';
 import { variantesTelefone, ErroHttp } from '../../util.js';
 import { ligarConversasDoLead } from '../whatsapp/ligacao.js';
+import { rotuloFormulario, rotuloPergunta } from '../yayforms/catalogo.js';
 
 // 1º parâmetro (?) = horas de follow-up. Calcula a última atividade e se o lead está atrasado.
 export const BASE_LEADS = `
@@ -15,6 +16,7 @@ export const BASE_LEADS = `
     l.ia_temperatura, l.ia_resumo, l.ia_objecao, l.ia_avaliado_em,
     (SELECT 1 FROM ia_conversas ic WHERE ic.lead_id = l.id AND ic.status = 'aguardando_humano' LIMIT 1) AS ia_aguardando,
     json_extract(l.extra, '$.formulario') AS form_name,
+    json_extract(l.extra, '$.form_id') AS form_id,
     json_extract(l.extra, '$.respostas') AS form_answers,
     json_extract(l.extra, '$.parcial') AS form_partial,
     (SELECT m.timestamp FROM wa_messages m WHERE m.lead_id = l.id ORDER BY m.timestamp DESC LIMIT 1) AS last_msg_at,
@@ -54,16 +56,25 @@ export function mapearLead(row, { comExtra = false } = {}) {
   if (!row) return null;
   const { extra, form_answers, ...resto } = row;
   const respostas = lerJson(form_answers);
+  // Nunca mostra código do Yay! Forms: formulário e perguntas sem nome ganham um rótulo legível
+  const comRotulo = (lista) =>
+    Array.isArray(lista) ? lista.map((r) => (r && typeof r === 'object' ? { ...r, pergunta: rotuloPergunta(r.pergunta, r.id) } : r)) : lista;
   const lead = {
     ...resto,
+    form_name: row.form_id || row.form_name ? rotuloFormulario(row.form_id, row.form_name) : null,
     followup_overdue: Boolean(row.followup_overdue),
     ia_aguardando: Boolean(row.ia_aguardando),
     last_msg_from_me: row.last_msg_from_me == null ? null : Boolean(row.last_msg_from_me),
     sem_resposta: semResposta(row),
     form_partial: Boolean(row.form_partial),
-    respostas: Array.isArray(respostas) ? respostas.map((r) => ({ pergunta: r.pergunta, resposta: r.resposta })) : [],
+    respostas: Array.isArray(respostas) ? respostas.map((r) => ({ id: r.id || null, pergunta: rotuloPergunta(r.pergunta, r.id), resposta: r.resposta })) : [],
   };
-  if (comExtra) lead.extra = lerJson(extra);
+  if (comExtra) {
+    const e = lerJson(extra);
+    lead.extra = e && typeof e === 'object'
+      ? { ...e, ...(e.form_id || e.formulario ? { formulario: rotuloFormulario(e.form_id, e.formulario) } : {}), ...(e.respostas ? { respostas: comRotulo(e.respostas) } : {}) }
+      : e;
+  }
   return lead;
 }
 

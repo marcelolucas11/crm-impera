@@ -18,14 +18,15 @@ function lead(nome, { source = 'yayforms', etapa = novo.id, criado = new Date(),
   );
 }
 
-test('Calendly não aparece como origem e o formulário sem nome usa o ID', () => {
+test('Calendly não aparece como origem e o formulário sem nome nunca mostra o código', () => {
   lead('Form A', { utm: { utm_campaign: 'Camp 1', UTM_MEDIUM: 'Conj 1', utm_content: 'Ad 1' } });
   lead('Form B', { utm: { utm_campaign: 'Camp 1', utm_medium: 'Conj 2' } });
   lead('Pelo Calendly', { source: 'calendly' });
 
   const e = calcularEstatisticas({ dias: 7 });
   assert.deepEqual(e.por_origem.map((o) => o.origem), ['yayforms']);
-  assert.equal(e.por_formulario[0].formulario, 'Formulário abc');
+  assert.equal(e.por_formulario[0].formulario, 'Formulário sem nome');
+  assert.equal(e.por_formulario[0].form_id, 'abc');
   assert.equal(e.leads.length, 3, 'a lista de leads do período inclui todos, inclusive os do Calendly');
   assert.deepEqual(e.leads[0].u, { utm_campaign: 'Camp 1', utm_medium: 'Conj 1', utm_content: 'Ad 1' });
   assert.deepEqual(e.chaves_utm, ['utm_campaign', 'utm_content', 'utm_medium']);

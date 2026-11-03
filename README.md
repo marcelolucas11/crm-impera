@@ -4,7 +4,9 @@ CRM da agência: leads do Yay! Forms caindo direto num kanban, alerta de follow-
 Roda direto no Mac, a partir do SSD externo, sem Docker e sem instalar nada no sistema.
 A mesma pasta funciona depois na VPS da Contabo.
 
-**Versão atual: 0.22.0** — o número fica no arquivo `VERSAO` e é o que aparece em **Equipe e integrações → Atualização do CRM**.
+**Versão atual: 0.23.0** — o número fica no arquivo `VERSAO` e é o que aparece em **Equipe e integrações → Atualização do CRM**.
+
+**Versão 0.23.0:** Formulários e perguntas aparecem **sempre pelo nome**, nunca pelo código do Yay! Forms (`6a3063b9…`), em **Formulários que mais trazem leads**, no **filtro de formulário do kanban**, em **Campos** (perguntas do formulário), nos cartões, na ficha e no histórico. Em **Equipe e integrações → Yay! Forms → Nomes dos formulários e das perguntas**, cole o **token da API do Yay! Forms** (Perfil → Integrações → Gerar token da API): o CRM busca sozinho o nome de cada formulário e o texto de cada pergunta, e repete a busca a cada 6 h. **Leads antigos também são corrigidos:** ao ligar o CRM depois de atualizar, ele passa por todos os leads e pelo histórico já gravados e troca os códigos pelos nomes — mesmo sem token, as perguntas que apareceram com texto em algum webhook guardado já são corrigidas. Formulário apagado no Yay! Forms aparece como "Formulário apagado no Yay! Forms (criado em dd/mm/aaaa)" e, sem nome em lugar nenhum, "Formulário sem nome (criado em …)". O nome dado à mão no CRM continua valendo mais que o do Yay! Forms. Perguntas que você tinha ocultado em **Campos** continuam ocultas. Os nomes longos no ranking de formulários não vazam mais do quadro.
 
 **Versão 0.22.0:** Estatísticas renovadas. **Período**: Hoje, Ontem, Últimos 3, 7, 30 e 90 dias e **Personalizado** (de/até). **Funil de vendas**: quantos leads do período chegaram em cada coluna do kanban (usa o histórico, então lead que avançou e depois foi perdido conta até onde chegou), com % do início, % que seguiu para a etapa seguinte, quantos estão parados em cada etapa agora e a maior queda; em **Configurar funil** você marca as colunas, muda a ordem e escolhe início e fim. **UTMs**: campanha → conjunto → anúncio (clique na linha para abrir), escolha uma ou mais colunas do kanban e veja quantos leads de cada estrutura **estão agora** ou **já passaram** por elas, com taxa, barra visual e a estrutura de melhor taxa destacada (padrão do Meta: utm_campaign, utm_medium, utm_content — dá para trocar na engrenagem). **Entrada de leads** ganhou o botão **Por hora** (cada hora do período, com o nome e a hora de cada lead e os horários de pico) e o novo mapa **Dia da semana × hora**. Calendly saiu de "Leads novos por origem" (é onde o lead do formulário marca a reunião, não uma origem). As escolhas de período, funil e UTMs ficam salvas no navegador de cada pessoa.
 
@@ -197,6 +199,13 @@ a versão instalada — o número do arquivo `VERSAO` e o commit, com link para 
 Segredos dos webhooks**, cole o Secret de cada webhook (dá para guardar vários). O CRM aceita o webhook se a assinatura bater com
 qualquer um deles. Sem nenhum segredo cadastrado, aceita qualquer envio para a URL (que já tem um token secreto). Webhooks recusados
 por segredo errado ficam na lista como **Recusado** — depois de cadastrar o segredo, clique em **Reprocessar**.
+
+**Nomes dos formulários e das perguntas:** o webhook V2 manda só códigos. Em **Equipe e integrações → Yay! Forms →
+Nomes dos formulários e das perguntas**, cole o token da API do Yay! Forms (no Yay! Forms: seu nome no canto superior direito →
+**Perfil → Integrações → Gerar token da API**). O CRM confere o token, busca o nome de cada formulário e o texto de cada pergunta e
+aplica em todos os leads e no histórico, inclusive os antigos. A cada vez que o CRM liga (por exemplo, depois de uma atualização)
+ele refaz essa correção sozinho. Para usar outro nome no CRM, escreva na coluna **Nome no CRM** (vazio = nome do Yay! Forms).
+Também dá para pôr o token no `.env` como `YAYFORMS_API_TOKEN`.
 
 O CRM detecta nome, telefone e e-mail sozinho. Se errar em algum formulário, preencha no `.env` os IDs das perguntas
 (`YAYFORMS_CAMPO_NOME`, `YAYFORMS_CAMPO_TELEFONE`, `YAYFORMS_CAMPO_EMAIL`) e rode `./parar.sh && ./iniciar.sh`.
@@ -463,6 +472,7 @@ mostra a data da próxima reunião. Funciona em qualquer plano do Calendly e nã
 | `HOST` | `127.0.0.1` = só este Mac acessa; `0.0.0.0` = libera para a rede do escritório |
 | `PUBLIC_URL` | Endereço público do CRM, com o caminho se houver (ex.: `https://crm-impera.imperaservices.com/interno`) |
 | `BASE_PATH` | Caminho do CRM no domínio (ex.: `/interno`). Vazio = usa o caminho do `PUBLIC_URL`. A raiz continua funcionando. |
+| `YAYFORMS_API_TOKEN` | Opcional: token da API do Yay! Forms, só para buscar nomes de formulários e perguntas. Prefira colar pela tela |
 | `YAYFORMS_WEBHOOK_SECRET` | Opcional: um "Secret" fixo do Yay! Forms. Prefira cadastrar os segredos pela tela (aceita vários) |
 | `WHATSAPP_HISTORICO_DIAS` | Quantos dias de conversas antigas importar ao conectar um número (padrão 90; 0 = nenhum). Quem tinha o valor antigo gerado pelo instalador (30) passa para 90 sozinho na atualização (cópia do `.env` anterior em `.env.antes-0.6`) |
 | `WHATSAPP_GRUPOS` | `1` = conversas de grupo aparecem na tela de WhatsApp (padrão; grupos nunca viram lead); `0` = ignora grupos |

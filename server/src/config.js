@@ -81,6 +81,10 @@ export const config = {
     fieldName: process.env.YAYFORMS_CAMPO_NOME || '',
     fieldPhone: process.env.YAYFORMS_CAMPO_TELEFONE || '',
     fieldEmail: process.env.YAYFORMS_CAMPO_EMAIL || '',
+    // Token da API (Perfil → Integrações → Gerar token da API). Serve só para buscar os nomes dos formulários e das perguntas.
+    // Também pode ser colado na tela Equipe e integrações (o que for colado lá tem prioridade).
+    apiToken: process.env.YAYFORMS_API_TOKEN || '',
+    apiUrl: (process.env.YAYFORMS_API_URL || 'https://api.yayforms.com').replace(/\/+$/, ''),
   },
 };
 

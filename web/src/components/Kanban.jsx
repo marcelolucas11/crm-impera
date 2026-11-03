@@ -158,7 +158,8 @@ function Responsavel({ lead, users, onMudar }) {
 const Cartao = memo(function Cartao({ lead, onAbrir, onLimparNotificacao, oculto, users, onMudarResponsavel, modoSelecao, selecionado, onAlternarSelecao }) {
   const ver = (k) => !oculto.has(k);
   const titulo = lead.name || formatarTelefone(lead.phone) || lead.email || `Lead #${lead.id}`;
-  const respostas = (lead.respostas || []).filter((r) => r.pergunta && ver(`q:${r.pergunta}`) && String(r.resposta ?? '').trim());
+  // Quem ocultou uma pergunta quando ela ainda aparecia como código continua com ela oculta (q:<código>)
+  const respostas = (lead.respostas || []).filter((r) => r.pergunta && ver(`q:${r.pergunta}`) && (!r.id || ver(`q:${r.id}`)) && String(r.resposta ?? '').trim());
   return (
     <article
       className={`cartao ${lead.sem_resposta ? 'com-notif' : ''} ${lead.followup_overdue ? 'atrasado' : ''} ${lead.waiting_since ? 'aguardando' : ''} ${!lead.first_contact_at ? 'nunca' : ''} ${lead.closing_since ? 'fechando' : ''} ${modoSelecao ? 'em-selecao' : ''} ${selecionado ? 'selecionado' : ''}`}
