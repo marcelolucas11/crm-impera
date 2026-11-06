@@ -131,6 +131,7 @@ function encolherBloco(b) {
   return b;
 }
 
+const SEM_REPETIR = new Set(['thinking', 'redacted_thinking']);
 const blocos = (content) => (typeof content === 'string' ? [{ type: 'text', text: content }] : content);
 
 /** Monta as mensagens da API a partir do que está guardado (os 2 últimos turnos inteiros; os antigos encolhidos) */
@@ -156,7 +157,14 @@ async function historicoParaApi(userId, conversaId, { ateId = null } = {}) {
     }
     const turno = lerJson(l.conteudo, null);
     if (!Array.isArray(turno) || !turno.length) { msgs.push({ role: 'assistant', content: [{ type: 'text', text: l.texto || '(sem resposta)' }] }); continue; }
-    for (const m of turno) msgs.push(recentes.has(l.id) ? m : { ...m, content: blocos(m.content).map(encolherBloco) });
+    for (const m of turno) {
+      // Pensamentos de turnos anteriores ficam de fora: a API só aceita um pensamento com o mesmo texto fixo e o mesmo
+      // começo de conversa de quando ele foi criado, e o texto fixo muda a cada turno (hora, diretrizes, memória).
+      let content = blocos(m.content).filter((b) => !SEM_REPETIR.has(b.type));
+      if (!recentes.has(l.id)) content = content.map(encolherBloco);
+      if (!content.length) content = [{ type: 'text', text: m.role === 'assistant' ? '(sem texto)' : '(vazio)' }];
+      msgs.push({ ...m, content });
+    }
   }
   // A conversa precisa começar com o usuário
   while (msgs.length && msgs[0].role !== 'user') msgs.shift();

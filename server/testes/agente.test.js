@@ -132,6 +132,23 @@ test('laço: histórico continua de onde parou e resultados antigos de ferrament
   await primeira.tarefa;
 });
 
+test('laço: pensamentos de turnos anteriores não voltam para a API; os do turno atual (entre ferramentas) voltam', async () => {
+  await zerar();
+  const u = usuario();
+  const pensar = (r) => ({ ...r, content: [{ type: 'thinking', thinking: 'hmm', signature: 'ASSINATURA' }, ...r.content] });
+  roteiro = [pensar(ferramenta('consultar_banco', { sql: 'select 1 as a' })), pensar(texto('primeira'))];
+  const c = motor.criarConversa(u);
+  await (await motor.enviarNoChat(u, c, { texto: 'um' })).tarefa;
+  // Dentro do mesmo turno, depois da ferramenta, o pensamento vai junto (a API exige)
+  assert.ok(pedidos[1].messages.flatMap((m) => (Array.isArray(m.content) ? m.content : [])).some((b) => b.type === 'thinking'));
+  roteiro = [texto('segunda')];
+  await (await motor.enviarNoChat(u, c, { texto: 'dois' })).tarefa;
+  const blocosEnviados = pedidos.at(-1).messages.flatMap((m) => (Array.isArray(m.content) ? m.content : []));
+  assert.ok(!blocosEnviados.some((b) => b.type === 'thinking' || b.type === 'redacted_thinking'), 'nenhum pensamento antigo no histórico');
+  assert.ok(blocosEnviados.some((b) => b.type === 'tool_use') && blocosEnviados.some((b) => b.type === 'tool_result'), 'o resto do turno continua');
+  assert.ok(pedidos.at(-1).messages.every((m) => m.content.length), 'nenhuma mensagem vazia');
+});
+
 test('segurança: consultar_banco nunca lê chaves, senhas nem sessões; só leitura', async () => {
   await zerar();
   const u = usuario();
