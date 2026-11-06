@@ -17,7 +17,7 @@ import {
   listarListas, membrosDaLista, criarLista, editarLista, apagarLista, adicionarMembros, removerMembros,
   listarBloqueio, bloquear, desbloquear, listarModelos, salvarModelo, apagarModelo,
   lerConfigYay, salvarConfigYay, campanhaYay, inspecionarUltimoPayload,
-} from './servico.js';
+ listarRascunhos, descartarRascunho } from './servico.js';
 
 const ABRE_NA_TELA = /^(image\/(jpeg|png|webp|gif)|audio\/|video\/|application\/pdf)/i;
 
@@ -94,6 +94,9 @@ export default {
 
     // ------------------------------------------------------------ campanhas e fila
     r.get('/campanhas', (req, res) => res.json({ campanhas: listarCampanhas() }));
+    // Rascunhos deixados pela assistente (Agente Alice): abrem no Disparo personalizado para revisar e dar play
+    r.get('/rascunhos', (req, res) => res.json({ rascunhos: listarRascunhos() }));
+    r.post('/rascunhos/:id/descartar', (req, res) => { descartarRascunho(idValido(req.params.id)); res.json({ ok: true }); });
     r.get('/campanhas/:id', (req, res) => {
       res.json(detalheCampanha(idValido(req.params.id), {
         status: req.query.status ? String(req.query.status) : null,

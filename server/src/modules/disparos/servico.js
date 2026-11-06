@@ -71,7 +71,7 @@ function numeroValido(numeroId, { obrigatorio = true } = {}) {
   return id;
 }
 
-export function criarCampanha({ nome, numero_id, blocos, config, destinatarios, tipo = 'campanha' }, userId) {
+export function criarCampanha({ nome, numero_id, blocos, config, destinatarios, tipo = 'campanha', rascunho_id = null }, userId) {
   const fluxo = validarBlocos(blocos);
   const cfg = validarConfig(config);
   const numeroId = numeroValido(numero_id);
@@ -88,6 +88,8 @@ export function criarCampanha({ nome, numero_id, blocos, config, destinatarios, 
     for (const item of itens) {
       run('INSERT INTO disparo_fila (campanha_id, phone, lead_id, nome) VALUES (?, ?, ?, ?)', [cid, item.phone, item.lead_id, item.nome]);
     }
+    // Disparo que nasceu de um rascunho da assistente: o rascunho sai da lista (fica guardado como "usado")
+    if (idValido(rascunho_id)) run("UPDATE disparo_campanhas SET status = 'usado', finished_at = ? WHERE id = ? AND status = 'rascunho'", [agora(), idValido(rascunho_id)]);
     return cid;
   });
   garantirWorker(id);
@@ -136,6 +138,7 @@ const BASE_CAMPANHAS = `SELECT c.*, i.name AS numero_nome, u.name AS criado_por_
 export function listarCampanhas({ limite = 60 } = {}) {
   const linhas = all(
     `${BASE_CAMPANHAS}
+      WHERE c.status NOT IN ('rascunho', 'usado')
       ORDER BY CASE c.status WHEN 'executando' THEN 0 WHEN 'pausada' THEN 1 ELSE 2 END,
                CASE WHEN c.tipo = 'yayforms' THEN 0 ELSE 1 END, c.id DESC LIMIT ?`,
     [limite]
@@ -531,4 +534,23 @@ export function inspecionarUltimoPayload() {
     padroes,
     bruto: body,
   };
+}
+
+// ------------------------------------------------------------------ rascunhos (criados pela assistente, com aprovação)
+
+/** Rascunhos de disparo que a assistente deixou para revisar: abrem no "Disparo personalizado" */
+export function listarRascunhos() {
+  return all(
+    `SELECT c.id, c.nome, c.numero_id, c.blocos, c.config, c.created_at, u.name AS criado_por_nome FROM disparo_campanhas c
+       LEFT JOIN users u ON u.id = c.criado_por WHERE c.status = 'rascunho' ORDER BY c.id DESC LIMIT 30`
+  ).map((c) => {
+    const cfg = lerJson(c.config);
+    const { rascunho = {}, ...configuracao } = cfg;
+    return { id: c.id, nome: c.nome, numero_id: c.numero_id, blocos: lerJson(c.blocos, []), config: configuracao, listas: rascunho.listas || [], contatos: rascunho.contatos || [], criado_por_nome: c.criado_por_nome, created_at: c.created_at };
+  });
+}
+
+/** Descartar um rascunho (o usuário decide; fica guardado como "usado") */
+export function descartarRascunho(id) {
+  if (!run("UPDATE disparo_campanhas SET status = 'usado', finished_at = ? WHERE id = ? AND status = 'rascunho'", [agora(), id]).changes) throw new ErroHttp(404, 'Rascunho não encontrado');
 }

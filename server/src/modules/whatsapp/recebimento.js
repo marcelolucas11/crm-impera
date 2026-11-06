@@ -376,7 +376,7 @@ export async function gravarMensagem(id, sock, lib, msg, modo) {
     if (!resultado.fromMe && modo === 'ao_vivo') {
       avisarGancho('whatsapp:recebida', { instanciaId: id, chatJid: resultado.chat, leadId: resultado.leadId, phone: resultado.telefone, linhaId: resultado.linhaId, tipo: resultado.tipo });
     } else if (resultado.fromMe && modo !== 'historico') {
-      avisarGancho('whatsapp:humana', { jid: resultado.chat, leadId: resultado.leadId });
+      avisarGancho('whatsapp:humana', { jid: resultado.chat, leadId: resultado.leadId, instanciaId: id, linhaId: resultado.linhaId, tipo: resultado.tipo, celular: true });
     }
   }
   return resultado?.linhaId || null;

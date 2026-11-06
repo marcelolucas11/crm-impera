@@ -13,6 +13,8 @@ import DiretrizesIa from './DiretrizesIa.jsx';
 import FilaPendentes from './FilaPendentes.jsx';
 import RevisaoAtendimento from './RevisaoAtendimento.jsx';
 import OrganizadorKanban from './OrganizadorKanban.jsx';
+import AgentePagina from './agente/AgentePagina.jsx';
+import { useT } from '../../i18n/index.jsx';
 import './ia.css';
 import { TextoSecreto, CampoSecreto } from '../Segredo.jsx';
 
@@ -53,7 +55,11 @@ function Conteudo({ user, aoAbrirConversa }) {
   const [conversas, setConversas] = useState([]);
   const [filtro, setFiltro] = useState('');
   // Aba da tela: IA de primeiro contato ou Organizador do kanban (fica salva no navegador)
-  const [aba, setAbaEstado] = useState(() => { try { return localStorage.getItem('crm.iaAba') === 'organizador' ? 'organizador' : 'contato'; } catch { return 'contato'; } });
+  const t = useT();
+  const [aba, setAbaEstado] = useState(() => { try { const a = localStorage.getItem('crm.iaAba'); return ['organizador', 'agente'].includes(a) ? a : 'contato'; } catch { return 'contato'; } });
+  // Nome da assistente pessoal (cada usuário pode renomear a sua)
+  const [nomeAgente, setNomeAgente] = useState(() => { try { return localStorage.getItem('crm.agente.nome') || 'Alice'; } catch { return 'Alice'; } });
+  const mudarNomeAgente = useCallback((n) => { if (!n) return; setNomeAgente(n); try { localStorage.setItem('crm.agente.nome', n); } catch { /* sem armazenamento */ } }, []);
   const setAba = (a) => { setAbaEstado(a); try { localStorage.setItem('crm.iaAba', a); } catch { /* sem armazenamento */ } };
 
   const carregar = useCallback(async () => {
@@ -179,9 +185,10 @@ function Conteudo({ user, aoAbrirConversa }) {
         <div className="seletor-ordem ia-abas" role="tablist" aria-label="Telas da IA">
           <button type="button" role="tab" aria-selected={aba === 'contato'} className={aba === 'contato' ? 'ativo' : ''} onClick={() => setAba('contato')}>Primeiro contato</button>
           <button type="button" role="tab" aria-selected={aba === 'organizador'} className={aba === 'organizador' ? 'ativo' : ''} onClick={() => setAba('organizador')}>Organizador do kanban</button>
+          <button type="button" role="tab" aria-selected={aba === 'agente'} className={aba === 'agente' ? 'ativo' : ''} onClick={() => setAba('agente')}>{t('ia.aba.agente', { nome: nomeAgente })}</button>
         </div>
       </div>
-      {aba === 'organizador' ? <OrganizadorKanban admin={admin} /> : (
+      {aba === 'agente' ? <AgentePagina user={user} aoAbrirConversa={aoAbrirConversa} aoMudarNome={mudarNomeAgente} /> : aba === 'organizador' ? <OrganizadorKanban admin={admin} /> : (
       <div className="dp-aba">
         <section className={`dp-mestre ${cfg.ativo ? 'ligada' : ''}`}>
           <div className="dp-mestre-icone"><Bot size={22} /></div>

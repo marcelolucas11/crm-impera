@@ -378,3 +378,11 @@
 @media (max-width: 520px) {
   .topo .aba { padding: 7px 4px; font-size: 12.5px; }
 }
+
+/* Rascunhos deixados pela assistente (Agente) */
+.dp-rascunhos { border-color: rgba(224, 190, 108, .45) !important; }
+.dp-rascunhos h2 { display: inline-flex; align-items: center; gap: 8px; }
+.dp-rascunhos ul { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.dp-rascunhos li { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; padding: 8px 10px; border-radius: 10px; border: 1px solid var(--borda); background: rgba(0, 0, 0, .18); }
+.dp-rascunhos li.ativo { border-color: rgba(224, 190, 108, .5); background: rgba(224, 190, 108, .07); }
+.dp-rascunho-botoes { display: inline-flex; gap: 6px; }

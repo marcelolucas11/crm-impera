@@ -13,6 +13,7 @@
 // pelo tempo de uma pessoa, respeita o limite de mensagens por hora e só fala com quem chegou agora.
 // Contingência (protecao.js): um lead por vez, intervalo aleatório entre leads, pausas de descanso, limites de 24 h e
 // freio quando o envio falha várias vezes seguidas.
+import { donoDoTelefone } from '../agente/config.js';
 import { get, all, run, agora } from '../../db.js';
 import { registrarEvento } from '../../events.js';
 import { emitir } from '../../tempoReal.js';
@@ -192,6 +193,8 @@ export function aoReceberMensagem({ instanciaId, chatJid, leadId = null, phone =
   if (!cfg.ativo || grupo || !chatJid) return null;
   if (cfg.numero_ids.length && !cfg.numero_ids.includes(Number(instanciaId))) return null;
   const tel = phone || get('SELECT phone FROM wa_contacts WHERE jid = ?', [chatJid])?.phone || null;
+  // Número pessoal de um usuário falando com a assistente dele (Agente Alice): não é lead
+  if (tel && donoDoTelefone(tel)?.cfg.whatsapp_ativo) return null;
   let conversa = acharConversa({ leadId, phone: tel, jid: chatJid });
   if (!conversa) {
     const contato = { leadId, phone: tel, jid: chatJid, jids: jidsDoContato({ leadId, phone: tel, jid: chatJid }) };

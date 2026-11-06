@@ -4,7 +4,9 @@ CRM da agência: leads do Yay! Forms caindo direto num kanban, alerta de follow-
 Roda direto no Mac, a partir do SSD externo, sem Docker e sem instalar nada no sistema.
 A mesma pasta funciona depois na VPS da Contabo.
 
-**Versão atual: 0.23.0** — o número fica no arquivo `VERSAO` e é o que aparece em **Equipe e integrações → Atualização do CRM**.
+**Versão atual: 0.24.0** — o número fica no arquivo `VERSAO` e é o que aparece em **Equipe e integrações → Atualização do CRM**.
+
+**Versão 0.24.0:** Nova aba **IA → Agente Alice**: uma assistente pessoal para cada usuário do CRM (cada um renomeia a sua). **Chat** com conversas salvas, seletor de modelo Claude em cada mensagem, anexos (print, PDF, áudio, Word, Excel, PowerPoint), ditado por voz e fontes clicáveis que abrem a conversa ou o lead. Ela lê o CRM inteiro ao vivo: conversas e **grupos** do WhatsApp (com participantes), kanban, respostas do Yay! Forms, Calendly, disparos, estatísticas e consultas de leitura no banco (nunca chaves, senhas nem sessões). **Ações com aprovação:** enviar mensagem, mover lead, trocar responsável ou anotar, criar público, criar **disparo como rascunho** (abre em Disparos → Disparo personalizado para você revisar e dar play), criar modelo de disparo, critério do Organizador, memória e agendado — tudo vira um cartão com Aprovar/Editar/Recusar, e mover lead, responsável e nota têm Desfazer. **Cérebro** no molde do playbook: **Entender o CRM** lê tudo e escreve o Contexto do CRM (com o mapa de grupos → clientes), com versões e atualização automática; **Diretrizes** e **Memória** próprias. **Agendados:** "Melhorar prompt" transforma o seu pedido no prompt executado e pergunta o que faltar antes de publicar; uma vez, diário, dias úteis, dias da semana, mensal ou a cada N horas, com fuso, modelo e teto por execução; resultado na aba, no "mensagem para mim" do número do CRM, em outro número ou num grupo — com o WhatsApp desconectado a tarefa para e fica como "não enviada". **Conversar pelo WhatsApp:** dos seus números pessoais (ou do "mensagem para mim"), com "SIM 12" para aprovar. **Tetos de gasto por dia** separados para chat e agendados. **Transcrição de áudio na própria VPS** (Whisper, sem chave): instala pelo botão em Agente → Ajustes e passa a valer para o CRM todo (a IA de primeiro contato e o Organizador também leem o que foi falado).
 
 **Versão 0.23.0:** Formulários e perguntas aparecem **sempre pelo nome**, nunca pelo código do Yay! Forms (`6a3063b9…`), em **Formulários que mais trazem leads**, no **filtro de formulário do kanban**, em **Campos** (perguntas do formulário), nos cartões, na ficha e no histórico. Em **Equipe e integrações → Yay! Forms → Nomes dos formulários e das perguntas**, cole o **token da API do Yay! Forms** (Perfil → Integrações → Gerar token da API): o CRM busca sozinho o nome de cada formulário e o texto de cada pergunta, e repete a busca a cada 6 h. **Leads antigos também são corrigidos:** ao ligar o CRM depois de atualizar, ele passa por todos os leads e pelo histórico já gravados e troca os códigos pelos nomes — mesmo sem token, as perguntas que apareceram com texto em algum webhook guardado já são corrigidas. Formulário apagado no Yay! Forms aparece como "Formulário apagado no Yay! Forms (criado em dd/mm/aaaa)" e, sem nome em lugar nenhum, "Formulário sem nome (criado em …)". O nome dado à mão no CRM continua valendo mais que o do Yay! Forms. Perguntas que você tinha ocultado em **Campos** continuam ocultas. Os nomes longos no ranking de formulários não vazam mais do quadro.
 
@@ -454,6 +456,47 @@ se está falando com um robô, ela nunca nega.
 > ⚠️ Mesmo cuidado dos Disparos: o WhatsApp por QR code não é oficial. A IA só fala com quem chegou agora, espera o lead terminar de
 > digitar e respeita um limite de mensagens por hora (30, ajustável).
 
+## Agente Alice (assistente pessoal)
+
+Aba **IA → Agente Alice**. Cada usuário do CRM tem a sua assistente, com nome, conversas, cérebro, agendados e tetos de gasto próprios
+(em **Ajustes** dá para trocar o nome). Usa a mesma chave da Anthropic da IA de primeiro contato.
+
+**O que ela lê (livre):** conversas e grupos do WhatsApp (com quem disse o quê, participantes e telefones), leads do kanban com
+filtros (etapa, respostas do Yay! Forms, reunião no Calendly, proposta enviada — PDF "Proposta comercial…" —, follow-up atrasado,
+temperatura), ficha do lead, reuniões, formulários, estatísticas, disparos e qualquer consulta de **leitura** no banco. As tabelas e
+colunas sigilosas (chaves de API, senhas, sessões) são recusadas antes de rodar, e cada consulta roda num processo separado que é
+encerrado se passar de 8 s. Imagens e PDFs ela vê direto; Word, Excel e PowerPoint viram texto; áudios passam pela transcrição.
+
+**O que ela faz (com aprovação):** enviar mensagem, mover lead, trocar responsável ou anotar, criar público, criar disparo **como
+rascunho**, modelo de disparo, critério do Organizador (só administradores), guardar memória e criar agendado. Cada proposta vira um
+cartão no chat e em **Ações**: **Aprovar** (dá para editar o texto antes), **Recusar** e, quando dá, **Desfazer**. Nada é apagado. O
+rascunho de disparo aparece no topo de **Disparos → Disparo personalizado**: **Abrir no editor**, revisar e disparar.
+
+**Cérebro:** **Entender o CRM** lê os últimos N dias (60 por padrão) com o modelo da leitura (padrão Opus) e escreve o **Contexto do
+CRM** — negócio, como o CRM funciona, funil Yay! Forms → Calendly → WhatsApp, **mapa de grupos → clientes**, números, equipe, como você
+trabalha e onde achar cada coisa. É editável, guarda versões e pode se atualizar sozinho a cada N dias. **Diretrizes** (mesma tela das da
+IA de primeiro contato, só suas) e **Memória** (fatos curtos; ela sugere, você aprova) entram em toda conversa.
+
+**Agendados:** escreva o pedido do seu jeito e use **Melhorar prompt**: ela escreve o prompt que será executado e pergunta o que faltar
+(horário, fuso, destino, quais grupos). Frequência: uma vez, todo dia, dias úteis, dias da semana, mensal ou a cada N horas, com fuso
+próprio. Destino: só na aba, "mensagem para mim" do número do CRM, outro telefone ou um grupo. Se o número que envia estiver
+desconectado, a execução **para** (nem chama a IA) e fica como "não enviada", com aviso no CRM. API instável: tenta mais 2 vezes, com
+5 min entre elas. **Rodar agora** testa sem mudar o horário; o **Histórico** mostra cada resposta e o custo.
+
+**WhatsApp:** em **Ajustes → Conversar pelo WhatsApp**, cadastre seus números pessoais. Mensagens (texto, áudio, foto, documento)
+desses números para um número do CRM vão para a sua assistente — a IA de primeiro contato ignora esses números. Opcional: atender
+também no "mensagem para mim" do número do CRM. Comandos: `SIM 12` aprova a ação 12, `NÃO 12` recusa, `nova conversa` recomeça.
+
+**Custos:** teto por dia do chat (inclui a leitura do CRM, o "Melhorar prompt" e o WhatsApp) e teto por dia dos agendados, separados,
+zerando à meia-noite do seu fuso; nos agendados há também teto por execução. O texto fixo (regras + cérebro) vai em cache, o que
+barateia as perguntas seguidas.
+
+**Transcrição de áudio (Whisper na VPS):** em **Agente → Ajustes → Transcrição**, um administrador clica em **Instalar** (~480 MB,
+na pasta `dados/transcricao`, que as atualizações não apagam; o modelo é baixado na primeira transcrição). A tela mostra CPU e RAM do
+servidor e recomenda o modelo: **base** (~500 MB de RAM), **small** (~1 GB, padrão) ou **large v3 turbo** (~3 GB). Roda num processo
+separado (se faltar memória, o CRM continua no ar) e cada áudio é transcrito uma vez só. Com **Transcrever sozinho os áudios novos**,
+os áudios dos últimos 3 dias (leads, contatos e grupos) são transcritos em segundo plano, um por vez.
+
 ## Calendly
 
 1. No Calendly: **Integrações → API e webhooks → Personal access tokens** → gere um token.
@@ -483,6 +526,7 @@ mostra a data da próxima reunião. Funciona em qualquer plano do Calendly e nã
 | `WHATSAPP_CONFIRMAR_LEITURA` | `1` = abrir a conversa marca como lida no WhatsApp (padrão); `0` = não avisa o contato |
 | `DISPAROS_FUSO` | Fuso usado no `{{saudacao}}` e na janela de horário dos disparos (padrão `America/Sao_Paulo`) |
 | `WHATSAPP_VERSAO` | Fixa a versão do WhatsApp Web (ex.: `2,3000,1043857760`). Em branco (padrão), o CRM consulta a versão atual sozinho, porque o WhatsApp recusa versões antigas ("Connection Terminated" em todos os números) |
+| `TRANSCRICAO_DIR` | Pasta da transcrição de áudio da assistente (biblioteca e modelos do Whisper). Padrão: `dados/transcricao`, ao lado do banco |
 
 Depois de mudar o `.env`, rode `./parar.sh && ./iniciar.sh`.
 
@@ -507,9 +551,14 @@ server/src/modules/whatsapp/
   envio.js        tudo que o CRM envia e as ações nas mensagens (editar, encaminhar, votar...)
   conversas.js    caixa de entrada (lista, filtros, estado das conversas, etiquetas)
   chamadas.js · figurinhas.js · presenca.js · previa.js · midia.js · conteudo.js · ffmpeg.js
+server/src/modules/agente/      ← Agente Alice (assistente pessoal de cada usuário)
+  motor.js        conversas e laço de ferramentas · ferramentas.js  o que ela lê e propõe
+  acoes.js        propostas, aprovação, execução e desfazer · consulta.js  leitura segura do banco
+  contexto.js     "Entender o CRM" · agendados.js  agendados · canal.js  conversar pelo WhatsApp
+  transcricao.js  Whisper na VPS (processo separado) · documentos.js  Word/Excel/PowerPoint em texto
 server/migrations/    ← mudanças no banco, numeradas (001_, 002_...). Só acrescentam, nunca apagam dados.
 server/testes/        ← testes automáticos (node:test) e ferramentas de teste com dados falsos
-web/src/              ← interface React (WhatsApp em WhatsAppPagina.jsx, Conversa.jsx e web/src/components/chat/)
+web/src/              ← interface React (WhatsApp em WhatsAppPagina.jsx, Conversa.jsx e web/src/components/chat/; Agente em web/src/components/ia/agente/)
 ```
 
 Novo módulo: criar `server/src/modules/<nome>/index.js` exportando `{ name, register(app) }` e registrar em `modules/index.js`.

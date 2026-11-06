@@ -120,3 +120,8 @@ export async function paraGif(entrada, saida) {
     { timeoutMs: 180000 }
   );
 }
+
+// Áudio → PCM float 32 bits, mono, 16 kHz (formato que o Whisper da transcrição local lê)
+export async function paraPcm16k(entrada, saida) {
+  await rodar(['-y', '-i', entrada, '-vn', '-ac', '1', '-ar', '16000', '-f', 'f32le', saida], { timeoutMs: 300000 });
+}

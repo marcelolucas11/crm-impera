@@ -21,20 +21,21 @@ function tituloDoArquivo(nome, texto = '') {
   return base ? base.charAt(0).toUpperCase() + base.slice(1) : 'Diretriz';
 }
 
-export default function DiretrizesIa({ admin }) {
+// base/evento/titulo/descricao: a mesma tela serve para as diretrizes do Agente (cada usuário tem as suas)
+export default function DiretrizesIa({ admin, base = '/ia/diretrizes', evento = 'ia', titulo = null, descricao = null }) {
   const aviso = useAviso();
   const [lista, setLista] = useState(null);
   const [resumo, setResumo] = useState(null);
   const [aberta, setAberta] = useState(null); // { id?, titulo, conteudo, ativa, arquivo? } | null
   const arquivoRef = useRef(null);
 
-  const carregar = useCallback(() => api('/ia/diretrizes').then((d) => { setLista(d.diretrizes); setResumo(d.resumo); }).catch((e) => aviso(e.message, 'erro')), [aviso]);
+  const carregar = useCallback(() => api(base).then((d) => { setLista(d.diretrizes); setResumo(d.resumo); }).catch((e) => aviso(e.message, 'erro')), [aviso, base]);
   useEffect(() => { carregar(); }, [carregar]);
-  useEvento('ia', (d) => { if (d?.diretrizes || d?.reconectou) carregar(); });
+  useEvento(evento, (d) => { if (d?.diretrizes || d?.reconectou) carregar(); });
 
   const alternar = async (dir, ativa) => {
     try {
-      const r = await api(`/ia/diretrizes/${dir.id}`, { method: 'PUT', body: { ativa } });
+      const r = await api(`${base}/${dir.id}`, { method: 'PUT', body: { ativa } });
       setLista((l) => l.map((x) => (x.id === dir.id ? r.diretriz : x)));
       setResumo(r.resumo);
     } catch (e) { aviso(e.message, 'erro'); }
@@ -45,7 +46,7 @@ export default function DiretrizesIa({ admin }) {
     const [item] = nova.splice(indice, 1);
     nova.splice(indice + passo, 0, item);
     setLista(nova);
-    try { setLista((await api('/ia/diretrizes/ordem', { method: 'PUT', body: { ids: nova.map((x) => x.id) } })).diretrizes); } catch (e) { aviso(e.message, 'erro'); carregar(); }
+    try { setLista((await api(`${base}/ordem`, { method: 'PUT', body: { ids: nova.map((x) => x.id) } })).diretrizes); } catch (e) { aviso(e.message, 'erro'); carregar(); }
   };
 
   const subirArquivos = async (e) => {
@@ -65,7 +66,7 @@ export default function DiretrizesIa({ admin }) {
     let ok = 0;
     for (const l of lidos) {
       try {
-        await api('/ia/diretrizes', { method: 'POST', body: { titulo: tituloDoArquivo(l.nome, l.texto), conteudo: l.texto, arquivo: l.nome } });
+        await api(base, { method: 'POST', body: { titulo: tituloDoArquivo(l.nome, l.texto), conteudo: l.texto, arquivo: l.nome } });
         ok++;
       } catch (err) { aviso(`${l.nome}: ${err.message}`, 'erro'); }
     }
@@ -82,7 +83,7 @@ export default function DiretrizesIa({ admin }) {
   return (
     <section className="cartao-secao">
       <div className="dp-secao-topo">
-        <h2><BookOpenText size={16} /> Diretrizes (prompts)</h2>
+        <h2><BookOpenText size={16} /> {titulo || 'Diretrizes (prompts)'}</h2>
         {admin && (
           <div className="ia-dir-botoes">
             <button type="button" className="btn btn-pequeno" onClick={() => arquivoRef.current?.click()}><Upload size={13} /> Subir arquivo</button>
@@ -91,10 +92,12 @@ export default function DiretrizesIa({ admin }) {
           </div>
         )}
       </div>
+      {descricao ? <p className="suave pequeno">{descricao}</p> : (
       <p className="suave pequeno">
         Textos que dão o norte para a IA: roteiro de SDR, como tratar cada tipo de lead, respostas para dúvidas frequentes. As ativas entram no prompt
         na ordem abaixo, junto com as respostas do formulário do lead. As regras de segurança e o formato de resposta do sistema sempre valem por cima.
       </p>
+      )}
       {resumo && (
         <p className="pequeno ia-dir-resumo">
           {resumo.ativas} ativa(s) · {numero(resumo.caracteres_ativos)} de {numero(resumo.limite_caracteres_ativos)} caracteres ({tokens(resumo.caracteres_ativos)})
@@ -129,14 +132,14 @@ export default function DiretrizesIa({ admin }) {
 
       {/* Fora do cartão: o efeito de vidro dos cartões prenderia a janela dentro da seção */}
       {aberta && createPortal(
-        <EditorDiretriz inicial={aberta} admin={admin} aoFechar={() => setAberta(null)} aoSalvar={aoSalvar} aoApagar={aoApagar} />,
+        <EditorDiretriz rota={base} inicial={aberta} admin={admin} aoFechar={() => setAberta(null)} aoSalvar={aoSalvar} aoApagar={aoApagar} />,
         document.body
       )}
     </section>
   );
 }
 
-function EditorDiretriz({ inicial, admin, aoFechar, aoSalvar, aoApagar }) {
+function EditorDiretriz({ rota, inicial, admin, aoFechar, aoSalvar, aoApagar }) {
   const aviso = useAviso();
   const [id, setId] = useState(inicial.id || null);
   const [titulo, setTitulo] = useState(inicial.titulo || '');
@@ -157,8 +160,8 @@ function EditorDiretriz({ inicial, admin, aoFechar, aoSalvar, aoApagar }) {
     setSalvando(true);
     try {
       const r = id
-        ? await api(`/ia/diretrizes/${id}`, { method: 'PUT', body: { titulo, conteudo } })
-        : await api('/ia/diretrizes', { method: 'POST', body: { titulo, conteudo, ativa: inicial.ativa ?? true, arquivo: inicial.arquivo } });
+        ? await api(`${rota}/${id}`, { method: 'PUT', body: { titulo, conteudo } })
+        : await api(rota, { method: 'POST', body: { titulo, conteudo, ativa: inicial.ativa ?? true, arquivo: inicial.arquivo } });
       setId(r.diretriz.id);
       setTitulo(r.diretriz.titulo);
       setConteudo(r.diretriz.conteudo);
@@ -172,7 +175,7 @@ function EditorDiretriz({ inicial, admin, aoFechar, aoSalvar, aoApagar }) {
   const apagar = async () => {
     if (!confirm(`Apagar a diretriz "${titulo}"? Esta ação não pode ser desfeita.`)) return;
     try {
-      const r = await api(`/ia/diretrizes/${id}`, { method: 'DELETE' });
+      const r = await api(`${rota}/${id}`, { method: 'DELETE' });
       aoApagar(id, r);
       aviso('Diretriz apagada', 'info');
       aoFechar();
@@ -181,13 +184,13 @@ function EditorDiretriz({ inicial, admin, aoFechar, aoSalvar, aoApagar }) {
 
   const abrirHistorico = async () => {
     if (versoes) { setVersoes(null); setVendo(null); return; }
-    try { setVersoes((await api(`/ia/diretrizes/${id}/versoes`)).versoes); } catch (e) { aviso(e.message, 'erro'); }
+    try { setVersoes((await api(`${rota}/${id}/versoes`)).versoes); } catch (e) { aviso(e.message, 'erro'); }
   };
 
   const restaurar = async (v) => {
     if (alterado && !confirm('Você tem alterações não salvas que serão perdidas. Restaurar mesmo assim?')) return;
     try {
-      const r = await api(`/ia/diretrizes/${id}/versoes/${v.id}/restaurar`, { method: 'POST' });
+      const r = await api(`${rota}/${id}/versoes/${v.id}/restaurar`, { method: 'POST' });
       setTitulo(r.diretriz.titulo);
       setConteudo(r.diretriz.conteudo);
       setBase({ titulo: r.diretriz.titulo, conteudo: r.diretriz.conteudo });

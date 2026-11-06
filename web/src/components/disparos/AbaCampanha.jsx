@@ -1,6 +1,8 @@
 // Disparo personalizado: monta o fluxo, escolhe os contatos (listas e/ou seleção), ajusta os timers e dispara
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { MessageSquareText, Users, Timer, Send, FlaskConical, ShieldAlert, ListChecks, Shuffle, Hash, Coffee, CalendarClock, Smartphone } from 'lucide-react';
+import { MessageSquareText, Users, Timer, Send, FlaskConical, ShieldAlert, ListChecks, Shuffle, Hash, Coffee, CalendarClock, Smartphone, Sparkles } from 'lucide-react';
+import { useEvento } from '../../tempoReal.js';
+import { useT } from '../../i18n/index.jsx';
 import { api } from '../../api.js';
 import Modal from '../Modal.jsx';
 import ConstrutorFluxo from './ConstrutorFluxo.jsx';
@@ -54,6 +56,34 @@ export default function AbaCampanha({ numeros, modeloInicial, aoConsumirModelo, 
   const [testando, setTestando] = useState(false);
   const [confirmando, setConfirmando] = useState(false);
   const [enviando, setEnviando] = useState(false);
+  // Rascunhos deixados pela assistente (Agente): abrem aqui para revisar e dar play
+  const t = useT();
+  const [rascunhos, setRascunhos] = useState([]);
+  const [rascunhoId, setRascunhoId] = useState(null);
+  const carregarRascunhos = () => api('/disparos/rascunhos').then((d) => setRascunhos(d.rascunhos)).catch(() => {});
+  useEffect(() => { carregarRascunhos(); }, []);
+  useEvento('disparos', (d) => { if (d?.rascunhos || d?.reconectou) carregarRascunhos(); });
+  const abrirRascunho = async (r) => {
+    setNome(r.nome || '');
+    const b = await hidratarBlocos(r.blocos, api);
+    setBlocos(b.map((x) => ({ ...x, id: novoId() })));
+    setConfig({ ...CONFIG_PADRAO, ...(r.config || {}) });
+    if (r.numero_id) setNumeroId(String(r.numero_id));
+    setListasEscolhidas(new Set(r.listas || []));
+    setSelecionados(new Map((r.contatos || []).map((c) => [c.telefone, {
+      chave: c.lead_id ? `l:${c.lead_id}` : `t:${c.telefone}`, tipo: c.lead_id ? 'kanban' : 'whatsapp', telefone: c.telefone, nome: c.nome, lead_id: c.lead_id, etiquetas: [],
+    }])));
+    setRascunhoId(r.id);
+    aviso(t('disparos.rascunhos.aberto', { nome: r.nome }), 'info');
+  };
+  const descartarRascunho = async (r) => {
+    if (!confirm(t('disparos.rascunhos.confirmarDescartar', { nome: r.nome }))) return;
+    try {
+      await api(`/disparos/rascunhos/${r.id}/descartar`, { method: 'POST' });
+      if (rascunhoId === r.id) setRascunhoId(null);
+      carregarRascunhos();
+    } catch (e) { aviso(e.message, 'erro'); }
+  };
 
   useEffect(() => {
     api('/disparos/listas').then((d) => setListas(d.listas)).catch(() => {});
@@ -144,8 +174,10 @@ export default function AbaCampanha({ numeros, modeloInicial, aoConsumirModelo, 
             listas: [...listasEscolhidas],
             contatos: [...selecionados.values()].map((c) => ({ telefone: c.telefone, lead_id: c.lead_id, nome: c.nome })),
           },
+          ...(rascunhoId ? { rascunho_id: rascunhoId } : {}),
         },
       });
+      if (rascunhoId) { setRascunhoId(null); carregarRascunhos(); }
       const extras = [r.repetidos && `${r.repetidos} repetido(s)`, r.bloqueados && `${r.bloqueados} bloqueado(s)`, r.invalidos && `${r.invalidos} inválido(s)`].filter(Boolean);
       aviso(`Disparo iniciado para ${r.total} contato(s)${extras.length ? ` — fora: ${extras.join(', ')}` : ''}`);
       setConfirmando(false);
@@ -160,6 +192,23 @@ export default function AbaCampanha({ numeros, modeloInicial, aoConsumirModelo, 
 
   return (
     <div className="dp-aba">
+      {rascunhos.length > 0 && (
+        <section className="cartao-secao dp-rascunhos">
+          <h2><Sparkles size={16} /> {t('disparos.rascunhos.titulo', { n: rascunhos.length })}</h2>
+          <p className="suave pequeno">{t('disparos.rascunhos.texto')}</p>
+          <ul>
+            {rascunhos.map((r) => (
+              <li key={r.id} className={rascunhoId === r.id ? 'ativo' : ''}>
+                <span><b>{r.nome}</b> <span className="suave pequeno">· {t('disparos.rascunhos.resumo', { blocos: r.blocos.length, contatos: r.contatos.length, listas: r.listas.length })}</span></span>
+                <span className="dp-rascunho-botoes">
+                  <button type="button" className="btn btn-pequeno btn-ouro" onClick={() => abrirRascunho(r)}>{rascunhoId === r.id ? t('disparos.rascunhos.reabrir') : t('disparos.rascunhos.abrir')}</button>
+                  <button type="button" className="btn btn-pequeno" onClick={() => descartarRascunho(r)}>{t('disparos.rascunhos.descartar')}</button>
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
       <div className="dp-grade">
         <div className="dp-coluna-principal">
           <Passo numero={1} icone={MessageSquareText} titulo="Mensagens" extra={<BarraModelos blocos={blocos} setBlocos={setBlocos} />}>
