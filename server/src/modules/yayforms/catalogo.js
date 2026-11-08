@@ -8,7 +8,7 @@
 //
 // Ao ligar o CRM (inclusive logo depois de uma atualização), aplicarNomes() passa por TODOS os leads e pelo histórico
 // já gravados e troca os códigos pelos nomes. Não depende de chegar resposta nova.
-import { all, run, tx, agora } from '../../db.js';
+import { all, run, tx, agora, iterar } from '../../db.js';
 import { config } from '../../config.js';
 import { lerEstado, salvarEstado } from '../../estado.js';
 import { lerJson } from '../../events.js';
@@ -184,7 +184,10 @@ export function aprenderDosPayloads(corpos = null) {
   const perguntas = { ...c.perguntas };
   let novas = 0;
   let mudou = false;
-  const lista = corpos || all("SELECT payload FROM webhook_events WHERE source = 'yayforms'").map((ev) => lerJson(ev.payload) || {});
+  // Sem lista: percorre os webhooks guardados um por um (antes carregava e abria todos de uma vez na memória)
+  const lista = corpos || (function* () {
+    for (const ev of iterar("SELECT payload FROM webhook_events WHERE source = 'yayforms'")) yield lerJson(ev.payload) || {};
+  })();
   for (const body of lista) {
     const formId = String(body.response?.formId || body.formId || body.form?.id || '') || null;
     if (formId && !formularios[formId]) {

@@ -148,7 +148,7 @@ export function encontrarPorRespostaYay(respostaId) {
   if (!respostaId) return null;
   const pelosWebhooks = get(
     `SELECT e.lead_id FROM webhook_events e JOIN leads l ON l.id = e.lead_id
-      WHERE e.source = 'yayforms' AND e.lead_id IS NOT NULL AND json_extract(e.payload, '$.response.id') = ?
+      WHERE e.source = 'yayforms' AND e.lead_id IS NOT NULL AND e.resposta_id = ?
       ORDER BY e.id DESC LIMIT 1`,
     [respostaId]
   );

@@ -112,6 +112,12 @@ export const all = (sql, params = []) => {
   return linhas;
 };
 
+// Percorre as linhas uma de cada vez, sem carregar todas na memória (para varrer tabelas grandes)
+export function* iterar(sql, params = []) {
+  const p = preparar(sql);
+  for (const r of p.st.iterate(...limpar(params))) yield { ...r };
+}
+
 export const run = (sql, params = []) => {
   const p = preparar(sql);
   const r = p.st.run(...limpar(params));

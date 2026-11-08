@@ -179,7 +179,7 @@ function receber(eventoId, body) {
   const respostaId = body.response?.id ? String(body.response.id) : null;
   const anterior = respostaId && get(
     `SELECT id, lead_id, payload FROM webhook_events
-      WHERE source = 'yayforms' AND status = 'processed' AND id != ? AND json_extract(payload, '$.response.id') = ?
+      WHERE source = 'yayforms' AND status = 'processed' AND id != ? AND resposta_id = ?
       ORDER BY id DESC LIMIT 1`,
     [eventoId, respostaId]
   );
