@@ -2,11 +2,13 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '../api.js';
 import { formatarTelefone, linkWhatsApp, tempoDesde, dataHora, dataCurta } from '../utils.js';
 import Conversa from './Conversa.jsx';
-import { Hourglass, Handshake, Check, TriangleAlert, CalendarDays, CircleDashed, PhoneCall } from 'lucide-react';
+import { Hourglass, Handshake, Check, TriangleAlert, CalendarDays, CircleDashed, PhoneCall, Camera as IconeInstagram, ExternalLink } from 'lucide-react';
 import Avatar from './Avatar.jsx';
+import { useT } from '../i18n/index.jsx';
+import { pode } from '../permissoes.js';
 
 const DESCRICAO = {
-  created: (d) => `Lead criado${d.origem && d.origem !== 'manual' ? ` (${{ yayforms: 'Yay! Forms', whatsapp: 'WhatsApp', calendly: 'Calendly' }[d.origem] || d.origem})` : ''}`,
+  created: (d) => `Lead criado${d.origem && d.origem !== 'manual' ? ` (${{ yayforms: 'Yay! Forms', whatsapp: 'WhatsApp', calendly: 'Calendly', instagram: 'Instagram' }[d.origem] || d.origem})` : ''}`,
   form_submitted: (d) => `Respondeu o formulário${d.formulario ? ` “${d.formulario}”` : ''}`,
   form_resubmitted: (d) => `Respondeu de novo${d.formulario ? ` “${d.formulario}”` : ''}${d.parcial ? ' (sem terminar)' : ''}`,
   form_partial: (d) => `Começou o formulário${d.formulario ? ` “${d.formulario}”` : ''} e parou (resposta parcial)`,
@@ -31,7 +33,57 @@ const DESCRICAO = {
     const r = { perdida: d.de_mim ? 'não atendida' : 'perdida', recusada: 'recusada', atendida_em_outro_aparelho: 'atendida no celular', atendida: 'atendida', falhou: 'não completada', silenciada: 'silenciada' }[d.resultado] || d.resultado;
     return `${tipo} ${r}${tempo}`;
   },
+  instagram_ligado: (d, t) => t('kanban.ficha.evento.instagramLigado', { username: d.username ? `@${d.username}` : t('kanban.ficha.instagram.semUsername'), perfil: d.perfil || '' }),
+  ia_handoff: (d, t) => t(d.canal === 'instagram' ? 'kanban.ficha.evento.iaHandoffInstagram' : 'kanban.ficha.evento.iaHandoff', { motivo: d.motivo || '' }),
 };
+
+// Bloco do Instagram na ficha: @ da pessoa, perfil da Impera com quem ela falou, entrevista da Alice e "Abrir no Direct"
+function BlocoInstagram({ lead, user }) {
+  const t = useT();
+  const [conversas, setConversas] = useState(null);
+  const ig = lead.extra?.instagram || null;
+  const entrevista = lead.extra?.entrevista_instagram || null;
+  const podeDirect = pode(user, 'instagram');
+  useEffect(() => {
+    if (!podeDirect || (!ig && lead.source !== 'instagram')) return;
+    api(`/instagram/leads/${lead.id}/conversas`).then((d) => setConversas(d.conversas)).catch(() => setConversas([]));
+  }, [lead.id, podeDirect, ig, lead.source]);
+  if (!ig && !entrevista && lead.source !== 'instagram') return null;
+  const campos = ['nicho', 'experiencia', 'anuncia', 'objetivo', 'quando_comecar', 'observacoes'].filter((k) => entrevista?.[k]);
+  const abrir = (id) => window.dispatchEvent(new CustomEvent('crm-abrir-conversa', { detail: `ig:${id}` }));
+  return (
+    <section className="ficha-instagram">
+      <h4><IconeInstagram size={14} /> {t('kanban.ficha.instagram.titulo')}</h4>
+      {ig && (
+        <p className="pequeno">
+          {ig.username ? <a href={`https://instagram.com/${ig.username}`} target="_blank" rel="noreferrer">@{ig.username} <ExternalLink size={11} /></a> : t('kanban.ficha.instagram.semUsername')}
+          {ig.perfil ? <span className="suave"> · {t('kanban.ficha.instagram.perfil', { perfil: ig.perfil })}</span> : null}
+        </p>
+      )}
+      {podeDirect && conversas?.length > 0 && (
+        <div className="acoes-linha ficha-instagram-acoes">
+          {conversas.map((c) => (
+            <button key={c.id} type="button" className="btn btn-pequeno" onClick={() => abrir(c.id)}>
+              <IconeInstagram size={13} /> {conversas.length > 1 ? t('kanban.ficha.instagram.abrirNo', { perfil: c.perfil_username }) : t('kanban.ficha.instagram.abrir')}
+            </button>
+          ))}
+        </div>
+      )}
+      {podeDirect && conversas && !conversas.length && <p className="suave pequeno">{t('kanban.ficha.instagram.semConversa')}</p>}
+      {entrevista && (campos.length > 0 || entrevista.resumo) && (
+        <>
+          <b className="pequeno">{t('kanban.ficha.instagram.entrevista')}</b>
+          {entrevista.resumo && <p className="pequeno suave">{entrevista.resumo}</p>}
+          {campos.length > 0 && (
+            <dl className="respostas">
+              {campos.map((k) => <div key={k}><dt>{t(`instagram.painel.campo.${k}`)}</dt><dd>{entrevista[k]}</dd></div>)}
+            </dl>
+          )}
+        </>
+      )}
+    </section>
+  );
+}
 
 const valoresIniciais = (l) => ({
   name: l.name || '',
@@ -98,7 +150,9 @@ const dataHoraLonga = (d) => new Date(d).toLocaleString('pt-BR', { weekday: 'sho
 // Ficha completa do lead. Usada no painel lateral do kanban e ao lado da conversa na tela de WhatsApp.
 export default function LeadFicha({
   leadId, stages, users, user, horas, onAtualizado, onExcluido, acaoTopo = null, comConversa = false, haNumeroConectado = true, numeroPreferido = '',
+  dentroDoDirect = false,
 }) {
+  const t = useT();
   const [lead, setLead] = useState(null);
   const [eventos, setEventos] = useState([]);
   const [reunioes, setReunioes] = useState([]);
@@ -267,12 +321,14 @@ export default function LeadFicha({
             </div>
           )}
 
-          {comConversa && (
+          {comConversa && pode(user, 'whatsapp') && (
             <>
               <h4>WhatsApp</h4>
               <Conversa chave={`l:${leadId}`} nome={lead.name || formatarTelefone(lead.phone)} onEnviado={aposEnviarMensagem} numeroPreferido={numeroPreferido} />
             </>
           )}
+
+          {!dentroDoDirect && <BlocoInstagram lead={lead} user={user} />}
 
           <ObservacoesFixas key={leadId} leadId={leadId} inicial={lead.notes} />
 
@@ -310,7 +366,7 @@ export default function LeadFicha({
 
           {respostas.length > 0 && (
             <>
-              <h4>Respostas do formulário{lead.extra.formulario ? ` — ${lead.extra.formulario}` : ''}</h4>
+              <h4>{lead.extra.origem_respostas === 'instagram' ? t('kanban.ficha.respostasInstagram') : <>Respostas do formulário{lead.extra.formulario ? ` — ${lead.extra.formulario}` : ''}</>}</h4>
               {lead.extra.parcial && (
                 <p className="aviso-parcial"><CircleDashed size={14} /> Formulário incompleto: a pessoa começou e não terminou. Estas são as respostas até onde ela parou.</p>
               )}
@@ -347,13 +403,13 @@ export default function LeadFicha({
           <ol className="linha-tempo">
             {eventos.map((ev) => (
               <li key={ev.id} className={`ev-${ev.type}`}>
-                <div>{(DESCRICAO[ev.type] || (() => ev.type))(ev.data || {})}</div>
+                <div>{(DESCRICAO[ev.type] || (() => ev.type))(ev.data || {}, t)}</div>
                 <small>{dataHora(ev.created_at)}{ev.user_name ? ` · ${ev.user_name}` : ' · sistema'}</small>
               </li>
             ))}
           </ol>
 
-          {user.role === 'admin' && onExcluido && <button className="btn btn-perigo" onClick={excluir}>Excluir lead</button>}
+          {pode(user, 'leads_excluir') && onExcluido && <button className="btn btn-perigo" onClick={excluir}>Excluir lead</button>}
         </div>
       )}
     </div>

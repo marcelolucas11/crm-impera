@@ -27,6 +27,7 @@ export const FILTROS_VAZIOS = {
 const ORIGENS = [
   ['yayforms', 'Yay! Forms'],
   ['whatsapp', 'WhatsApp'],
+  ['instagram', 'Instagram'],
   ['calendly', 'Calendly'],
   ['manual', 'Manual'],
 ];

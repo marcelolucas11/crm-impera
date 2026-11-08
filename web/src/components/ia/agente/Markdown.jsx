@@ -3,7 +3,7 @@
 import { Fragment } from 'react';
 import { useT } from '../../../i18n/index.jsx';
 
-const RE_INLINE = /(\*\*[^*\n]+\*\*|`[^`\n]+`|\[[^\]\n]+\]\(https?:\/\/[^)\s]+\)|(?<![\w*])\*[^*\n]+\*(?!\w)|(?<!\w)_[^_\n]+_(?!\w)|\bg:[\w.:-]+@g\.us\b|\bl:\d+\b)/g;
+const RE_INLINE = /(\*\*[^*\n]+\*\*|`[^`\n]+`|\[[^\]\n]+\]\(https?:\/\/[^)\s]+\)|(?<![\w*])\*[^*\n]+\*(?!\w)|(?<!\w)_[^_\n]+_(?!\w)|\bg:[\w.:-]+@g\.us\b|\bl:\d+\b|\big:\d+\b)/g;
 
 function inline(texto, aoAbrir, chave = 'i', t = (c) => c) {
   const partes = String(texto).split(RE_INLINE);
@@ -14,8 +14,9 @@ function inline(texto, aoAbrir, chave = 'i', t = (c) => c) {
     if (p.startsWith('`') && p.endsWith('`') && p.length > 2) return <code key={k}>{p.slice(1, -1)}</code>;
     const link = p.match(/^\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)$/);
     if (link) return <a key={k} href={link[2]} target="_blank" rel="noreferrer noopener">{link[1]}</a>;
-    if (/^g:[\w.:-]+@g\.us$|^l:\d+$/.test(p)) {
-      return aoAbrir ? <button key={k} type="button" className="ag-chave" onClick={() => aoAbrir(p)} title={t('ia.agente.md.abrir')}>{p.startsWith('g:') ? t('ia.agente.md.grupo') : t('ia.agente.md.lead', { id: p.slice(2) })}</button> : <code key={k}>{p}</code>;
+    if (/^g:[\w.:-]+@g\.us$|^l:\d+$|^ig:\d+$/.test(p)) {
+      const rotulo = p.startsWith('ig:') ? t('ia.agente.md.instagram') : p.startsWith('g:') ? t('ia.agente.md.grupo') : t('ia.agente.md.lead', { id: p.slice(2) });
+      return aoAbrir ? <button key={k} type="button" className="ag-chave" onClick={() => aoAbrir(p)} title={t('ia.agente.md.abrir')}>{rotulo}</button> : <code key={k}>{p}</code>;
     }
     if ((p.startsWith('*') && p.endsWith('*')) || (p.startsWith('_') && p.endsWith('_'))) return p.length > 2 ? <em key={k}>{p.slice(1, -1)}</em> : p;
     return <Fragment key={k}>{p}</Fragment>;

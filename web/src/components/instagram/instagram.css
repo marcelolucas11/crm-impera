@@ -1,0 +1,290 @@
+/* ============================================================
+   Instagram — Direct (reaproveita o visual do WhatsApp), comentários, desempenho, relatórios, ajustes e conexão.
+   Vidro Liquid Glass do CRM; cores das séries --serie-1 / --serie-2 (validadas para o fundo escuro).
+   ============================================================ */
+
+:root { --ig-gradiente: linear-gradient(135deg, #f58529, #dd2a7b 55%, #8134af); }
+
+/* Contador da aba no topo e nas sub-abas */
+.aba-contador-ig { background: var(--ig-gradiente) !important; color: #fff !important; border: 0 !important; }
+.ig-bolinha {
+  display: inline-flex; align-items: center; justify-content: center; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px;
+  background: var(--ig-gradiente); color: #fff; font-size: 11px; font-weight: 700; line-height: 1; text-shadow: none;
+}
+
+/* ---------- Página ---------- */
+.ig-pagina { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.ig-pagina > .pagina { flex: 1; min-height: 0; }
+.ig-pagina > .whatsapp-tela { flex: 1; min-height: 0; }
+.ig-subtopo { display: flex; align-items: center; gap: 10px; padding: 12px 16px 0; flex-wrap: wrap; }
+.ig-subtopo .segmentado button { display: inline-flex; align-items: center; gap: 6px; }
+.ig-perfis-mini { display: inline-flex; gap: 6px; flex-wrap: wrap; }
+.ig-perfis-mini .tag { display: inline-flex; align-items: center; gap: 4px; }
+.ig-aba { gap: 14px; }
+.ig-barra { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.ig-barra > p { margin: 0; }
+.ig-busca, label.ig-busca {
+  display: flex; flex-direction: row; align-items: center; gap: 8px; padding: 0 10px; min-width: 220px; border-radius: 10px; color: var(--suave);
+  background: rgba(0, 0, 0, .3); border: 1px solid var(--vidro-borda, rgba(255, 255, 255, .1));
+}
+.ig-busca input { flex: 1; min-width: 0; border: 0 !important; background: transparent !important; padding: 7px 0; color: var(--texto); outline: none; box-shadow: none; }
+.ig-seletor { width: auto; padding: 6px 28px 6px 10px; font-size: 13px; }
+.ig-rotulo-inline, label.ig-rotulo-inline { display: flex; flex-direction: row; align-items: center; gap: 8px; font-size: 12.5px; color: var(--suave); }
+.ig-nota {
+  display: flex; gap: 8px; align-items: center; margin: 0; padding: 8px 12px; font-size: 12.5px; color: #e9d9ae;
+  background: rgba(224, 190, 108, .07); border: 1px solid rgba(224, 190, 108, .25); border-radius: 10px;
+}
+.ig-nota svg { flex: 0 0 auto; color: var(--ouro); }
+.ig-tabela-rolagem { overflow-x: auto; }
+.tabela th.num, .tabela td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.ig-miniatura {
+  display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; overflow: hidden; border-radius: 10px;
+  background: rgba(255, 255, 255, .05); border: 1px solid rgba(255, 255, 255, .08); color: var(--suave);
+}
+.ig-miniatura img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+/* ---------- Direct ---------- */
+.ig-janela {
+  display: inline-flex; align-items: center; gap: 4px; padding: 1px 7px; border-radius: 999px; font-size: 10.5px; font-weight: 600; white-space: nowrap;
+  color: #9be7bd; background: rgba(52, 209, 123, .12); border: 1px solid rgba(52, 209, 123, .3);
+}
+.ig-janela.acabando { color: #f5c98a; background: rgba(242, 165, 58, .12); border-color: rgba(242, 165, 58, .4); }
+.ig-janela.fechada { color: var(--wa-suave); background: rgba(134, 150, 160, .12); border-color: rgba(134, 150, 160, .25); }
+.chat-topo .ig-janela { font-size: 11.5px; padding: 3px 9px; }
+.ig-conversa .conversa-lista { display: flex; flex-direction: column; }
+.ig-rolagem { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain; padding: 0 6% 4px; }
+.ig-bolha { max-width: min(560px, 72%); }
+.wa-tela[data-tema='escuro'] .linha-mensagem.minha .bolha.ig-bolha-alice { background: linear-gradient(135deg, rgba(224, 190, 108, .42), rgba(150, 108, 38, .36)); }
+.wa-tela[data-tema='claro'] .linha-mensagem.minha .bolha.ig-bolha-alice { background: #f6ecd2; }
+.ig-midia { display: block; max-width: min(300px, 100%); max-height: 380px; margin: 2px 0; border-radius: 10px; object-fit: cover; background: rgba(0, 0, 0, .25); }
+.ig-midia.clicavel { cursor: zoom-in; }
+.ig-audio { display: block; width: 280px; max-width: 100%; margin: 4px 0; }
+.ig-midia-erro {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 2px 0; padding: 8px 10px; border-radius: 8px;
+  font-size: 12.5px; color: var(--wa-suave); background: rgba(0, 0, 0, .2);
+}
+.ig-anexo, .ig-story { display: flex; flex-direction: column; gap: 4px; }
+.ig-referral { display: flex; align-items: center; gap: 5px; margin-bottom: 4px; font-size: 11.5px; color: var(--wa-suave); }
+.ig-link-compartilhado { display: inline-flex; align-items: center; gap: 4px; font-size: 12.5px; color: var(--wa-azul); }
+.ig-transcricao { font-size: 13px; opacity: .92; }
+.ig-aviso-partes { padding: 0 8px; }
+.ig-janela-fechada, .aviso-sem-numero:has(svg) { display: flex; align-items: center; gap: 6px; justify-content: center; }
+.ig-foto-contato { flex-shrink: 0; }
+.ig-verificado { color: #3897f0; vertical-align: -3px; }
+.ig-painel .grade-midias a { position: relative; display: block; aspect-ratio: 1; overflow: hidden; border-radius: 6px; background: var(--wa-barra); }
+.ig-painel .grade-midias img, .ig-painel .grade-midias video { width: 100%; height: 100%; object-fit: cover; display: block; }
+.ig-painel .dados-bloco label { display: flex; flex-direction: column; gap: 4px; color: var(--wa-suave); }
+.ig-painel .dados-bloco input { color: var(--wa-texto); }
+.ig-painel .ficha { border-top: 8px solid var(--wa-fundo); }
+.ig-painel .dados-bloco .tag { align-self: flex-start; }
+.ig-direct .chat-vazio p { max-width: 520px; text-align: center; margin-left: auto; margin-right: auto; }
+
+/* ---------- Comentários ---------- */
+.ig-comentarios { display: flex; flex-direction: column; gap: 10px; }
+.ig-comentario, .ig-comentario.cartao-secao { display: flex; flex-direction: row; gap: 14px; padding: 14px 16px; }
+.ig-comentario.nao-lido { border-color: rgba(224, 190, 108, .45); }
+.ig-comentario.oculto { opacity: .72; }
+.ig-comentario-post { flex: 0 0 auto; }
+.ig-comentario-corpo { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.ig-comentario-topo { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 13px; }
+.ig-comentario-topo a { color: var(--texto); }
+.ig-comentario-topo small { display: inline-flex; align-items: center; gap: 3px; }
+.ig-comentario-texto { margin: 0; font-size: 14px; line-height: 1.5; white-space: pre-wrap; word-break: break-word; }
+.ig-comentario-legenda { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ig-respostas { list-style: none; margin: 0; padding: 0 0 0 4px; display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
+.ig-respostas li { display: flex; gap: 6px; align-items: baseline; }
+.ig-respostas li svg { flex: 0 0 auto; color: var(--suave); }
+.ig-respostas li.minha b { color: var(--ouro); }
+.ig-comentario-status { display: flex; gap: 12px; flex-wrap: wrap; }
+.ig-comentario-status small { display: inline-flex; align-items: center; gap: 4px; }
+.ig-comentario-form { display: flex; flex-direction: column; gap: 6px; }
+.ig-comentario-form textarea { resize: vertical; font-size: 13.5px; }
+
+/* ---------- Desempenho ---------- */
+.ig-periodo-texto { margin: -6px 0 0; }
+.ig-recarregando { opacity: .55; transition: opacity .2s; }
+.ig-desempenho .indicadores { grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
+.ig-desempenho .indicador-detalhe { line-height: 1.45; }
+.ig-grafico { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.ig-grafico-area { position: relative; }
+.ig-grafico svg { display: block; overflow: visible; touch-action: pan-y; }
+.ig-grafico svg:focus { outline: none; }
+.ig-grafico svg:focus-visible { outline: 2px solid rgba(224, 190, 108, .5); outline-offset: 4px; border-radius: 6px; }
+.ig-grade { stroke: rgba(255, 255, 255, .07); stroke-width: 1; }
+.ig-eixo { stroke: rgba(255, 255, 255, .2); stroke-width: 1; }
+.ig-eixo-texto { fill: var(--suave); font-size: 11px; font-variant-numeric: tabular-nums; }
+.ig-rotulo-fim { fill: var(--texto); font-size: 11.5px; font-weight: 600; }
+.ig-mira { stroke: rgba(255, 255, 255, .35); stroke-width: 1; }
+.ig-coluna path { transition: filter .15s; }
+.ig-coluna.foco path { filter: brightness(1.3); }
+.ig-coluna rect { cursor: default; }
+.ig-coluna rect:focus { outline: none; }
+.ig-dica { bottom: auto; transform: translateX(14px); min-width: 150px; z-index: 8; text-shadow: none; }
+.ig-dica.ig-dica-esq { transform: translateX(calc(-100% - 14px)); }
+.ig-dica-linha { display: flex !important; align-items: baseline; gap: 6px; }
+.ig-dica-linha b { font-size: 13px; color: var(--texto); }
+.ig-dica-linha small { color: var(--suave); }
+.ig-chave-linha { display: inline-block; width: 14px; height: 3px; border-radius: 2px; flex: 0 0 auto; align-self: center; }
+.ig-legenda { margin-bottom: 2px; }
+.ig-sem-dados { padding: 26px 0; text-align: center; }
+.ig-melhores { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 10px; }
+.ig-post-cartao {
+  display: flex; gap: 12px; align-items: flex-start; padding: 10px; text-align: left; color: var(--texto); cursor: pointer; font: inherit;
+  border-radius: 14px; background: rgba(255, 255, 255, .03); border: 1px solid rgba(255, 255, 255, .07); transition: background .2s, transform .25s;
+}
+.ig-post-cartao:hover, .ig-post-cartao:focus-visible { background: rgba(255, 255, 255, .06); transform: translateY(-1px); outline: none; }
+.ig-post-textos { display: flex; flex-direction: column; gap: 3px; min-width: 0; font-size: 12.5px; }
+.ig-post-textos b { font-size: 14px; }
+.ig-post-textos .tag { align-self: flex-start; }
+.ig-pago { display: inline-flex; align-items: center; gap: 4px; color: #9fb8e0; }
+.ig-post-linha .ig-pago { margin-left: 8px; }
+.ig-publico { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 18px; }
+.ig-publico h4 { margin: 0 0 8px; color: var(--ouro); font-size: 13px; }
+.ig-publicacoes, .ig-anuncios { display: flex; flex-direction: column; gap: 12px; }
+.ig-post-linha { display: flex; gap: 10px; align-items: center; min-width: 280px; max-width: 460px; }
+.ig-legenda-curta { display: block; max-width: 380px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--suave); }
+.ig-anuncios td small { display: block; }
+.ig-post-detalhe { display: flex; flex-direction: column; gap: 14px; padding: 4px 2px 8px; }
+.ig-post-cabeca { display: flex; gap: 16px; align-items: flex-start; }
+.ig-legenda-post { margin: 4px 0; max-height: 160px; overflow: auto; white-space: pre-wrap; font-size: 13.5px; line-height: 1.5; }
+.ig-post-detalhe h4 { display: flex; align-items: center; gap: 6px; margin: 4px 0 0; color: var(--ouro); }
+.ig-metricas { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 8px; margin: 0; }
+.ig-metricas div { padding: 8px 10px; }
+.ig-metricas dt { font-size: 12px; color: var(--suave); }
+.ig-metricas dd { margin: 2px 0 0; font-size: 15px; font-weight: 600; }
+
+/* ---------- Relatórios ---------- */
+.ig-relatorios { display: grid; grid-template-columns: 340px minmax(0, 1fr); gap: 16px; align-items: start; }
+.ig-relatorios-lado { display: flex; flex-direction: column; gap: 14px; }
+.ig-gerar { display: flex; flex-direction: column; gap: 10px; }
+.ig-gerar h2, .ig-ajuste h2 { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 16px; }
+.ig-gerar p { margin: 0; }
+.ig-gerar label { display: flex; flex-direction: column; gap: 4px; font-size: 12.5px; color: var(--suave); }
+.ig-campo { display: flex; flex-direction: column; gap: 6px; }
+.ig-campo-rotulo { font-size: 12.5px; color: var(--suave); }
+.ig-lista-relatorios, .ig-lista-relatorios.cartao-secao { display: flex; flex-direction: column; gap: 4px; max-height: 60vh; overflow: auto; }
+.ig-lista-relatorios .cabecalho-cartao { margin-bottom: 4px; }
+.ig-item-relatorio {
+  display: flex; flex-direction: column; gap: 2px; padding: 8px 10px; text-align: left; color: var(--texto); cursor: pointer; font: inherit;
+  border-radius: 10px; border: 1px solid transparent; background: none;
+}
+.ig-item-relatorio:hover { background: rgba(255, 255, 255, .04); }
+.ig-item-relatorio.ativo { background: rgba(224, 190, 108, .1); border-color: rgba(224, 190, 108, .3); }
+.ig-item-relatorio-topo { display: flex; gap: 6px; align-items: center; font-size: 13px; min-width: 0; }
+.ig-item-relatorio-topo svg { flex: 0 0 auto; color: var(--ouro); }
+.ig-item-relatorio-topo b { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ig-leitura .ag-md { font-size: 14.5px; }
+.ig-leitura .ag-tabela { overflow-x: auto; }
+.ig-leitura .dp-centro { gap: 10px; }
+
+/* ---------- Ajustes ---------- */
+.ig-ajustes { gap: 14px; }
+.ig-barra-salvar {
+  position: sticky; top: 0; z-index: 5; padding: 10px 14px; border-radius: 14px;
+  background: rgba(17, 17, 20, .86); border: 1px solid var(--vidro-borda, rgba(255, 255, 255, .1));
+  -webkit-backdrop-filter: var(--lg-blur, blur(16px)); backdrop-filter: var(--lg-blur, blur(16px));
+}
+.ig-barra-salvar > p { flex: 1 1 320px; }
+.ig-ajuste { display: flex; flex-direction: column; gap: 10px; }
+.ig-ajuste > p { margin: 0; }
+.ig-lista-perfis { display: flex; flex-direction: column; gap: 6px; }
+.ig-linha-perfil {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; padding: 8px 12px;
+  border-radius: 12px; background: rgba(255, 255, 255, .03); border: 1px solid rgba(255, 255, 255, .07);
+}
+.ig-linha-perfil > span { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
+.ig-texto-grande { display: flex; flex-direction: column; gap: 6px; font-size: 12.5px; color: var(--suave); }
+.ig-texto-grande textarea { font-size: 13px; line-height: 1.5; resize: vertical; color: var(--texto); }
+.ig-campo-topo { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.ig-linha-campos { display: flex; flex-wrap: wrap; gap: 12px; }
+.ig-numero { display: flex; flex-direction: column; gap: 4px; min-width: 150px; font-size: 12.5px; color: var(--suave); }
+.ig-numero-largo { min-width: 300px; }
+.ig-numero-campo { display: flex; align-items: center; gap: 6px; }
+.ig-numero input[type='number'] { width: 110px; }
+.ig-numero input[type='time'] { width: 130px; color-scheme: dark; }
+.ig-botao-sozinho { align-self: flex-start; }
+
+/* ---------- Conexão (Equipe e integrações → Instagram) ---------- */
+.ig-conexao { display: flex; flex-direction: column; gap: 12px; }
+.ig-conexao > p { margin: 0; }
+.ig-conexao-topo { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.ig-conexao-topo h2 { display: flex; align-items: center; gap: 8px; margin: 0; }
+.ig-selo {
+  display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; font-size: 12.5px;
+  color: #f5c98a; background: rgba(242, 165, 58, .1); border: 1px solid rgba(242, 165, 58, .35);
+}
+.ig-selo.ok { color: #9be7bd; background: rgba(52, 209, 123, .1); border-color: rgba(52, 209, 123, .35); }
+.ig-passo { overflow: hidden; border-radius: 14px; background: rgba(255, 255, 255, .025); border: 1px solid rgba(255, 255, 255, .07); }
+.ig-passo-titulo {
+  display: flex; align-items: center; gap: 8px; width: 100%; padding: 12px 14px; text-align: left; cursor: pointer;
+  background: none; border: 0; color: var(--texto); font: inherit; font-size: 14px; font-weight: 600;
+}
+.ig-passo-titulo.estatico { cursor: default; }
+.ig-num {
+  display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; flex: 0 0 22px; border-radius: 50%;
+  background: rgba(224, 190, 108, .15); color: var(--ouro); font-size: 12px; font-weight: 700;
+}
+.ig-ok { display: inline-flex; align-items: center; gap: 4px; color: #9be7bd; font-size: 12.5px; font-weight: 500; }
+.ig-seta { margin-left: auto; transition: transform .2s; }
+.ig-seta.aberta { transform: rotate(180deg); }
+.ig-passo-corpo { display: flex; flex-direction: column; gap: 10px; padding: 0 14px 14px; }
+.ig-passo-corpo p { margin: 0; }
+.ig-passo-corpo label { display: flex; flex-direction: column; gap: 4px; font-size: 12.5px; color: var(--suave); }
+.ig-duas-opcoes { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 10px; }
+.ig-opcao { display: flex; flex-direction: column; gap: 8px; padding: 12px; border-radius: 12px; background: rgba(0, 0, 0, .2); border: 1px solid rgba(255, 255, 255, .06); }
+.ig-linha-token { display: flex; gap: 8px; align-items: center; }
+.ig-linha-token > *:first-child { flex: 1; min-width: 0; }
+.ig-acoes-esq { justify-content: flex-start; }
+.ig-perfis { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 10px; }
+.ig-perfil-cartao { display: flex; flex-direction: column; gap: 8px; padding: 12px; border-radius: 14px; background: rgba(255, 255, 255, .03); border: 1px solid rgba(255, 255, 255, .08); }
+.ig-perfil-topo { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.ig-foto {
+  display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; overflow: hidden; border-radius: 50%;
+  background: rgba(255, 255, 255, .06); color: var(--suave); box-shadow: 0 0 0 2px rgba(221, 42, 123, .5);
+}
+.ig-foto img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.ig-perfil-nome { display: flex; flex-direction: column; min-width: 0; }
+.ig-perfil-nome small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ig-perfil-status { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 12px; color: var(--suave); }
+.ig-utm { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--suave); }
+.ig-linha-erro td { color: #ffb4a6; }
+.ig-quando { white-space: nowrap; color: var(--suave); font-size: 12px; }
+.ig-toast { border-color: rgba(221, 42, 123, .55); background: rgba(40, 12, 28, .95); }
+.ig-toast svg { color: #f58fb8; }
+
+/* Origem do lead (cartão do kanban e filtros) */
+.tag-instagram { color: #f58fb8; border-color: rgba(221, 42, 123, .4); }
+
+/* Ficha do lead: bloco do Instagram */
+.ficha-instagram { display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; border-radius: 12px; background: rgba(221, 42, 123, .06); border: 1px solid rgba(221, 42, 123, .25); }
+.ficha-instagram h4 { display: flex; align-items: center; gap: 6px; margin: 0; }
+.ficha-instagram p { margin: 0; }
+.ficha-instagram a { display: inline-flex; align-items: center; gap: 3px; }
+.ficha-instagram-acoes { justify-content: flex-start; }
+
+/* Erro numa parte da tela do Instagram (o resto do CRM continua funcionando) */
+.ig-erro-tela { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 40px 20px; text-align: center; }
+.ig-erro-tela p { margin: 0; max-width: 520px; }
+.ig-erro-tela code { font-size: 12px; color: var(--suave); }
+
+/* ---------- Telas estreitas ---------- */
+@media (max-width: 980px) {
+  .ig-relatorios { grid-template-columns: minmax(0, 1fr); }
+  .ig-bolha { max-width: 86%; }
+}
+@media (max-width: 720px) {
+  .ig-subtopo { padding: 8px 10px 0; }
+  .ig-subtopo .segmentado { max-width: 100%; overflow-x: auto; scrollbar-width: none; }
+  .ig-subtopo .segmentado::-webkit-scrollbar { display: none; }
+  .chat-topo .ig-janela { display: none; }
+  .ig-desempenho .indicadores { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .ig-desempenho .indicador { padding: 12px; }
+  .ig-desempenho .indicador-valor { font-size: 22px; }
+  .ig-desempenho .indicador.destaque .indicador-valor { font-size: 26px; }
+  .ig-perfis-mini { display: none; }
+  .ig-comentario, .ig-comentario.cartao-secao { flex-direction: column; gap: 10px; }
+  .ig-busca { min-width: 0; flex: 1 1 100%; }
+  .ig-rolagem { padding: 0 10px 4px; }
+  .ig-post-cabeca { flex-direction: column; }
+  .ig-numero-largo { min-width: 0; flex: 1 1 100%; }
+}

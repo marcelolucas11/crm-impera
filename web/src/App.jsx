@@ -11,11 +11,14 @@ import Equipe from './components/Equipe.jsx';
 import ChamadaRecebida from './components/ChamadaRecebida.jsx';
 import IaPagina from './components/ia/IaPagina.jsx';
 import AvisoPassagem from './components/ia/AvisoPassagem.jsx';
+import InstagramPagina from './components/instagram/InstagramPagina.jsx';
+import AvisoInstagram from './components/instagram/AvisoInstagram.jsx';
+import { pode, podeVer, primeiraPagina } from './permissoes.js';
 
-const PAGINAS = new Set(['kanban', 'whatsapp', 'disparos', 'ia', 'estatisticas', 'equipe']);
-const paginaInicial = () => {
-  const p = window.location.hash.replace('#', '');
-  return PAGINAS.has(p) ? p : 'kanban';
+const PAGINAS = new Set(['kanban', 'whatsapp', 'instagram', 'disparos', 'ia', 'estatisticas', 'equipe']);
+const paginaInicial = (user) => {
+  const p = window.location.hash.replace('#', '').split('/')[0];
+  return PAGINAS.has(p) && podeVer(user, p) ? p : primeiraPagina(user);
 };
 
 export default function App() {
@@ -33,7 +36,7 @@ export default function App() {
 
 // Estrutura comum: barra do topo com as abas + a tela escolhida (tudo dentro do CRM, sem abrir abas no navegador)
 function Sistema({ user, aoMudarUser, aoSair }) {
-  const [pagina, setPaginaEstado] = useState(paginaInicial);
+  const [pagina, setPaginaEstado] = useState(() => paginaInicial(user));
   const [stages, setStages] = useState([]);
   const [users, setUsers] = useState([]);
   const [resumo, setResumo] = useState(null);
@@ -41,8 +44,10 @@ function Sistema({ user, aoMudarUser, aoSair }) {
   const [pedidoDisparo, setPedidoDisparo] = useState(null);
 
   const setPagina = (p) => {
-    setPaginaEstado(p);
-    window.history.replaceState(null, '', `#${p}`);
+    // Tela sem permissão (link antigo, permissão retirada): vai para a primeira liberada
+    const destino = podeVer(user, p) ? p : primeiraPagina(user);
+    setPaginaEstado(destino);
+    window.history.replaceState(null, '', `${window.location.pathname}#${destino}`);
   };
 
   const carregarEtapas = useCallback(() => api('/stages').then((d) => setStages(d.stages)).catch((e) => setErro(e.message)), []);
@@ -60,12 +65,25 @@ function Sistema({ user, aoMudarUser, aoSair }) {
   // Mensagem nova: atualiza o contador da aba WhatsApp
   useEvento('whatsapp', (d) => { if (d?.chat || d?.reconectou) carregarResumo(); });
 
-  // Abre uma conversa na tela de WhatsApp (chamada recebida, aviso da IA, lista da tela IA)
-  const abrirConversa = (chave) => {
+  // Abre uma conversa: WhatsApp (chamada recebida, aviso da IA, lista da tela IA) ou Instagram (chave ig:<id>)
+  const abrirConversa = useCallback((chave) => {
+    if (String(chave || '').startsWith('ig:')) {
+      window.__igAbrir = Number(String(chave).slice(3));
+      setPagina('instagram');
+      setTimeout(() => window.dispatchEvent(new CustomEvent('ig-abrir', { detail: window.__igAbrir })), 50);
+      return;
+    }
     window.__waAbrir = chave;
     setPagina('whatsapp');
     setTimeout(() => window.dispatchEvent(new CustomEvent('wa-abrir', { detail: chave })), 50);
-  };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Outras telas (ficha do lead no kanban) pedem para abrir uma conversa
+  useEffect(() => {
+    const ouvir = (e) => abrirConversa(e.detail);
+    window.addEventListener('crm-abrir-conversa', ouvir);
+    return () => window.removeEventListener('crm-abrir-conversa', ouvir);
+  }, [abrirConversa]);
 
   const sair = async () => {
     await api('/auth/logout', { method: 'POST' }).catch(() => {});
@@ -84,6 +102,7 @@ function Sistema({ user, aoMudarUser, aoSair }) {
       {erro && <div className="faixa-erro" onClick={() => setErro('')}>{erro} <span>×</span></div>}
       {pagina === 'kanban' && <KanbanPagina {...comum} usarPublico={usarPublico} />}
       {pagina === 'whatsapp' && <WhatsAppPagina {...comum} />}
+      {pagina === 'instagram' && <InstagramPagina {...comum} aoAbrirConversa={abrirConversa} />}
       {pagina === 'disparos' && <DisparosPagina pedidoLista={pedidoDisparo} aoConsumirPedido={() => setPedidoDisparo(null)} />}
       {pagina === 'ia' && <IaPagina user={user} aoAbrirConversa={abrirConversa} />}
       {pagina === 'estatisticas' && <Estatisticas {...comum} />}
@@ -92,8 +111,9 @@ function Sistema({ user, aoMudarUser, aoSair }) {
         const eu = lista.find((u) => u.id === user.id);
         if (eu && eu.foto !== user.foto) aoMudarUser({ ...user, foto: eu.foto });
       }} />}
-      <ChamadaRecebida aoAbrirConversa={abrirConversa} />
+      {podeVer(user, 'whatsapp') && <ChamadaRecebida aoAbrirConversa={abrirConversa} />}
       <AvisoPassagem aoAbrir={abrirConversa} />
+      {pode(user, 'instagram') && <AvisoInstagram aoAbrir={abrirConversa} />}
     </div>
   );
 }

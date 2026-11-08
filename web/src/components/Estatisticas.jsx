@@ -9,7 +9,7 @@ import Utms from './estatisticas/Utms.jsx';
 import { janelaDoPeriodo, lerPref, salvarPref } from './estatisticas/util.js';
 import './estatisticas/estatisticas.css';
 
-const ORIGENS = { yayforms: 'Yay! Forms', whatsapp: 'WhatsApp', manual: 'Manual' };
+const ORIGENS = { yayforms: 'Yay! Forms', whatsapp: 'WhatsApp', instagram: 'Instagram', manual: 'Manual' };
 const nf = new Intl.NumberFormat('pt-BR');
 const num = (v) => (v === null || v === undefined ? '—' : nf.format(v));
 const pct = (v) => (v === null || v === undefined ? '—' : `${nf.format(v)}%`);

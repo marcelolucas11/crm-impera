@@ -5,7 +5,7 @@ import Avatar from './Avatar.jsx';
 import { FotoUsuario } from './FotoUsuario.jsx';
 import MenuFlutuante, { OpcaoMenu, TituloMenu } from './MenuFlutuante.jsx';
 
-const ORIGENS = { yayforms: 'Yay! Forms', whatsapp: 'WhatsApp', calendly: 'Calendly', manual: 'Manual' };
+const ORIGENS = { yayforms: 'Yay! Forms', whatsapp: 'WhatsApp', instagram: 'Instagram', calendly: 'Calendly', manual: 'Manual' };
 
 // Ordem dos cartões dentro de cada coluna (de cima para baixo). Vale igual em todas as etapas,
 // então um lead movido de fase cai na mesma posição relativa na coluna nova.

@@ -755,3 +755,20 @@ textarea { resize: vertical; }
 .minha-conta-nome { display: flex; flex-direction: column; font-weight: 600; margin-right: auto; }
 .minha-conta-nome small { font-weight: 400; color: var(--suave); }
 .minha-conta .btn svg { vertical-align: -2px; margin-right: 4px; }
+
+/* Permissões de cada pessoa da equipe (Equipe e integrações → Permissões) */
+.perm-corpo { display: flex; flex-direction: column; gap: 12px; }
+.perm-corpo > p { margin: 0; display: flex; align-items: center; gap: 6px; }
+.perm-colunas { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px; }
+.perm-grupo { display: flex; flex-direction: column; gap: 6px; }
+.perm-titulo { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--ouro); margin-bottom: 2px; }
+.perm-item {
+  display: flex; flex-direction: row; align-items: flex-start; gap: 10px; padding: 9px 12px; border-radius: 12px; cursor: pointer;
+  background: rgba(255, 255, 255, .03); border: 1px solid rgba(255, 255, 255, .07); transition: background .2s, border-color .2s;
+}
+.perm-item:hover { background: rgba(255, 255, 255, .05); }
+.perm-item.ligada { border-color: rgba(224, 190, 108, .35); background: rgba(224, 190, 108, .06); }
+.perm-item input { width: auto; flex: none; margin: 3px 0 0; accent-color: var(--ouro); }
+.perm-textos { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.perm-nome { font-size: 13.5px; color: var(--texto); font-weight: 500; }
+.perm-textos small { line-height: 1.4; }

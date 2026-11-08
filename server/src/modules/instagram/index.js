@@ -17,6 +17,7 @@ import { emitir } from '../../tempoReal.js';
 import { ErroHttp, idValido } from '../../util.js';
 import { exigirLogin, exigirAdmin, exigirPermissao } from '../auth/middleware.js';
 import { ErroIA } from '../ia/cliente.js';
+import { MODELOS } from '../ia/config.js';
 import { lerConfig, configPublica, salvarApp, salvarAjustes, removerSegredo, fuso } from './config.js';
 import { ErroMeta } from './graph.js';
 import {
@@ -270,6 +271,7 @@ export default {
       res.json({
         perfis: all('SELECT * FROM ig_perfis WHERE ativo = 1 ORDER BY id').map(perfilPublico),
         comentarios_ativo: cfg.comentarios_ativo, direct_ativo: cfg.direct_ativo, fuso: fuso(),
+        relatorio_modelo: cfg.relatorio_modelo, modelos: MODELOS,
         conectado: Boolean(get("SELECT 1 AS ok FROM ig_credenciais WHERE chave = 'usuario'")) || Boolean(get('SELECT 1 AS ok FROM ig_perfis WHERE ativo = 1')),
         publica_https: /^https:\/\//.test(config.publicUrl || ''),
         ...contadores(),

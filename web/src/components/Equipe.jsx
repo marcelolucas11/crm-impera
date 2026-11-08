@@ -9,7 +9,10 @@ import Atualizacao from './Atualizacao.jsx';
 import { FotoUsuario, CampoFoto, prepararFoto } from './FotoUsuario.jsx';
 import { TextoSecreto } from './Segredo.jsx';
 import TrocarSenha from './TrocarSenha.jsx';
-import { Camera, Trash2, KeyRound } from 'lucide-react';
+import Permissoes from './Permissoes.jsx';
+import InstagramConexao from './instagram/InstagramConexao.jsx';
+import { useT } from '../i18n/index.jsx';
+import { Camera, Trash2, KeyRound, ShieldCheck } from 'lucide-react';
 
 const NOVO_VAZIO = { name: '', email: '', senha: '', role: 'member', foto: '' };
 
@@ -84,7 +87,9 @@ function MinhaConta({ user, aoMudarFoto, aoMensagem, aoErro }) {
 
 export default function Equipe({ user, aoMudarUsuarios, aoMudarMinhaFoto }) {
   const admin = user?.role === 'admin';
+  const t = useT();
   const [users, setUsers] = useState([]);
+  const [permissoesDe, setPermissoesDe] = useState(null);
   const [novo, setNovo] = useState(NOVO_VAZIO);
   const [erro, setErro] = useState('');
   const [msg, setMsg] = useState('');
@@ -156,6 +161,9 @@ export default function Equipe({ user, aoMudarUsuarios, aoMudarMinhaFoto }) {
                   <td>{u.active ? 'Ativo' : 'Desativado'}</td>
                   <td>
                     <div className="acoes-linha">
+                      <button className="btn btn-pequeno" onClick={() => setPermissoesDe(u)} title={u.role === 'admin' ? t('equipe.permissoes.adminCurto') : t('equipe.permissoes.botaoDica')}>
+                        <ShieldCheck size={13} /> {t('equipe.permissoes.botao')}
+                      </button>
                       <button className="btn btn-pequeno" onClick={() => redefinir(u)}>Senha</button>
                       {u.id !== user.id && (
                         <button className="btn btn-pequeno"
@@ -185,6 +193,7 @@ export default function Equipe({ user, aoMudarUsuarios, aoMudarMinhaFoto }) {
         </section>
 
         <WhatsAppNumeros aoMensagem={setMsg} aoErro={setErro} />
+        <InstagramConexao aoMensagem={setMsg} aoErro={setErro} />
         <CalendlyStatus aoMensagem={setMsg} aoErro={setErro} />
 
         <section className="cartao-secao">
@@ -230,6 +239,10 @@ export default function Equipe({ user, aoMudarUsuarios, aoMudarMinhaFoto }) {
         </section>
         </>}
       </div>
+      {permissoesDe && (
+        <Permissoes usuario={permissoesDe} onFechar={() => setPermissoesDe(null)}
+          onSalvo={(u) => { setMsg(t('equipe.permissoes.salvo', { nome: u.name })); carregar(); }} />
+      )}
     </>
   );
 }

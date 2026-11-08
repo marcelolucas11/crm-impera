@@ -4,7 +4,9 @@ CRM da agência: leads do Yay! Forms caindo direto num kanban, alerta de follow-
 Roda direto no Mac, a partir do SSD externo, sem Docker e sem instalar nada no sistema.
 A mesma pasta funciona depois na VPS da Contabo.
 
-**Versão atual: 0.25.0** — o número fica no arquivo `VERSAO` e é o que aparece em **Equipe e integrações → Atualização do CRM**.
+**Versão atual: 0.26.0** — o número fica no arquivo `VERSAO` e é o que aparece em **Equipe e integrações → Atualização do CRM**.
+
+**Versão 0.26.0:** Nova aba **Instagram**, ao lado do WhatsApp, para os perfis da Impera conectados pela API oficial da Meta. **Direct** no estilo do WhatsApp Web (lista com busca e filtros, chat, ficha do lead à direita), com fotos, vídeos, áudios, respostas a story, menções, publicações compartilhadas e o anúncio que trouxe a pessoa; o prazo de **24 h** para responder (7 dias quando veio de anúncio) aparece em cada conversa e a caixa de resposta só abre dentro dele. A **Alice SDR** (a mesma do WhatsApp) atende o Direct de cada perfil que você ligar: cumprimenta, faz a entrevista (nicho, experiência, se anuncia, objetivo, quando começar) e, quando a pessoa passa o WhatsApp, o **lead entra no kanban** com as respostas e o @ — opcionalmente a IA do WhatsApp manda a primeira mensagem por lá. No modo copiloto ela só sugere; se alguém da equipe escrever, ela para. **Transformar em lead** pelo botão (com ou sem WhatsApp). **Comentários** (desligado de fábrica): ver, responder em público, ocultar e **chamar no Direct**. **Desempenho**: seguidores, visualizações, alcance, interações, engajamento, conversas no Direct, leads (Direct + Yay! Forms) e gasto em anúncios, com comparação ao período anterior, gráficos por dia, **funil post → Direct → lead → reunião → fechado**, formatos, melhores publicações, publicações com todos os números (e a evolução dia a dia), **anúncios** das contas da Impera ligados aos perfis (números da Meta ao lado do que virou no CRM), público (idade, gênero, cidades, países) e melhores horários. Tudo é guardado no CRM e atualizado a cada 24 h, com o histórico mais antigo que a Meta entrega. **Relatórios da IA**: semanal automático toda segunda, na hora ou por período escolhido, com o modelo à escolha e teto de gasto por dia. A **assistente pessoal** também lê o Instagram (conversas, números, publicações, anúncios e comentários) e propõe respostas no Direct com aprovação. Nova aba **Permissões** para cada pessoa da equipe em **Equipe e integrações**: o administrador escolhe as telas (Kanban, WhatsApp, Instagram: Direct, desempenho e comentários, Disparos, IA, assistente, Estatísticas) e as funções (editar e excluir leads, enviar no WhatsApp, responder no Instagram, disparar campanhas); o servidor bloqueia o que não estiver liberado. O Instagram nasce liberado só para administradores. Veja [Instagram](#instagram) e [Permissões da equipe](#permissões-da-equipe).
 
 **Versão 0.25.0:** A **IA de primeiro contato (Alice SDR)** passa a entender o que o lead manda além de texto. **Áudios** e a fala de **vídeos curtos** (até 3 min) são transcritos na hora pelo **Whisper da VPS** (o mesmo de Agente → Ajustes → Transcrição, sem chave e sem custo por minuto) e ela responde ao que foi falado — inclusive "quero falar com uma pessoa" num áudio cai na regra de passar para a equipe. **Imagens** (prints, fotos) e **PDFs** vão para o modelo ver (até 3 por resposta, os mais recentes); ela devolve uma frase do que é cada um, que fica guardada, e nas próximas respostas vai só esse texto (a imagem não é reenviada). **Word, Excel, PowerPoint, CSV e texto** viram texto. Localização, contato e enquete chegam com a descrição do WhatsApp. Antes, qualquer mídia fazia a IA passar o lead para a equipe; agora ela só passa quando não consegue abrir (transcrição desligada, mídia expirada, arquivo grande demais) ou pelas regras de sempre. Documentos pessoais (RG, cartão, senha) não são repetidos: ela orienta a não enviar por aqui. Na aba **IA → Como ela trabalha**, o bloco **O que ela entende além de texto** mostra se a transcrição está ligada e tem a opção **Ver imagens e PDFs**. O **Organizador do kanban** e o **playbook** também passam a ler a fala transcrita dos áudios (da equipe e dos leads). Corrige o rótulo das mídias que a equipe envia (antes apareciam para a IA como "o lead mandou").
 
@@ -264,6 +266,8 @@ em `PUBLIC_URL` no `.env`. Na Contabo isso não é necessário.
 Yay! Forms, etapa, responsável, histórico), que pode ser recolhida. Detalhes na seção WhatsApp abaixo. Se o contato ainda não é lead, aparece o botão **Transformar em lead**; se já existir um lead com o mesmo
 telefone, a conversa é ligada a ele.
 
+**Instagram** — Direct dos perfis da Impera (com a Alice), comentários, desempenho, anúncios e relatórios da IA. Detalhes na seção Instagram abaixo.
+
 **Disparos** — saudação automática do Yay! Forms, campanhas, listas e monitor da fila. Detalhes na seção Disparos abaixo.
 
 **Estatísticas** — leads novos (com comparação ao período anterior), taxa de resposta, tempo até a primeira resposta, respondidos
@@ -507,6 +511,66 @@ servidor e recomenda o modelo: **base** (~500 MB de RAM), **small** (~1 GB, padr
 separado (se faltar memória, o CRM continua no ar) e cada áudio é transcrito uma vez só. Com **Transcrever sozinho os áudios novos**,
 os áudios dos últimos 3 dias (leads, contatos e grupos) são transcritos em segundo plano, um por vez.
 
+## Instagram
+
+Só os perfis **da Impera** (contas profissionais ligadas a uma Página do Facebook do Gerenciador de Negócios da Impera). Como o app
+é usado só pelas contas da própria empresa, **não precisa de App Review** da Meta: o acesso padrão basta. Tudo é configurado em
+**Equipe e integrações → Instagram** (administrador) e o dia a dia fica na aba **Instagram**.
+
+### Ligar (uma vez)
+
+1. **App da Meta** — em [developers.facebook.com](https://developers.facebook.com) → Meus apps → Criar app → tipo **Empresa**, ligado ao
+   Gerenciador de Negócios da Impera. Adicione os produtos **Instagram** (API do Instagram com login do Facebook), **Webhooks** e
+   **Login do Facebook para Empresas**. Em **Configurações do app → Básico**: copie o **ID do app** e a **Chave secreta**, preencha a
+   URL da política de privacidade (pode ser uma página simples do site da Impera) e cole o ID e a chave na tela do CRM
+   (**1. App da Meta**). A chave fica só no servidor e aparece coberta (••••).
+2. **Endereço de retorno do login** — em **Login do Facebook para Empresas → Configurações**, cole o endereço que a tela mostra em
+   "URIs de redirecionamento do OAuth válidos" (termina em `/api/instagram/oauth/retorno`). O CRM precisa estar em **https**
+   (`PUBLIC_URL` no `.env`): a Meta não aceita http.
+3. **Webhook** — em **Webhooks**, escolha **Instagram**, cole a **URL de retorno** e o **token de verificação** da tela (passo 2) e
+   assine: `messages`, `messaging_seen`, `message_reactions`, `messaging_referral`, `comments`, `mentions` e `story_insights`.
+   Depois mude o app para o modo **Ao vivo** (a Meta só entrega mensagens de verdade a apps ao vivo).
+4. **Acesso às contas** — o recomendado é um **usuário do sistema**: Gerenciador de Negócios → Configurações → **Usuários do
+   sistema** → Adicionar (função administrador) → **Atribuir ativos** (as Páginas e os perfis do Instagram da Impera e as **contas de
+   anúncio**) → **Gerar token** do app com as permissões `instagram_basic`, `instagram_manage_messages`, `instagram_manage_comments`,
+   `instagram_manage_insights`, `pages_show_list`, `pages_read_engagement`, `pages_manage_metadata`, `business_management` e
+   `ads_read`, validade **Nunca**. Cole em **3. Acesso às contas** e clique em **Conferir e guardar**. (Para testar rápido dá para usar
+   **Entrar com o Facebook**; esse acesso vence em ~60 dias.)
+5. **Perfis** — **Buscar perfis disponíveis** → **Conectar** em cada perfil da Impera. O CRM inscreve a Página no app (para o
+   webhook), busca o histórico do Direct, as publicações, os números da conta (até 2 anos para trás, aos poucos), o público e os
+   anúncios. Em cada perfil dá para ligar a **Alice no Direct** e informar as palavras da UTM que identificam o perfil nos formulários
+   do Yay! Forms (padrão: `instagram, ig`).
+
+### No dia a dia
+
+- **Direct**: como o WhatsApp. O selo de cada conversa mostra quanto falta do prazo para responder: **24 h** depois da última
+  mensagem da pessoa (**7 dias** se ela veio de um anúncio de mensagem). Fora do prazo a caixa de resposta fecha — é regra do
+  Instagram; quando a pessoa escreve de novo, abre de novo. Textos longos saem em mais de uma mensagem (o limite é 1.000 caracteres).
+  Arquivos até 25 MB (foto, vídeo, áudio, PDF).
+- **Alice**: liga por perfil (**Instagram → Ajustes** ou na conexão). Usa o nome, a apresentação, o playbook, as diretrizes, o horário
+  e o modo (copiloto ou automático) da tela **IA**, e precisa da IA de primeiro contato ligada. Atende só quem escreve pela primeira
+  vez e ninguém da equipe falou; para quando alguém da equipe escreve (pelo CRM ou pelo app) e passa para a equipe quando a pessoa pede
+  um humano, não é lead ou chega no limite de mensagens. Pegou o WhatsApp: o lead entra no kanban como **aguardando** com a entrevista
+  (e liga às conversas do WhatsApp desse número). A entrevista é editável em **Ajustes**.
+- **Comentários**: vêm desligados. Ligados, o CRM busca os comentários das publicações recentes a cada poucos minutos (o webhook de
+  comentários só funciona com acesso avançado da Meta, por isso a busca). **Chamar no Direct** manda uma mensagem privada (uma por
+  comentário, até 7 dias depois).
+- **Desempenho** e **Relatórios da IA**: período de 7 a 365 dias ou personalizado, por perfil ou somando todos. Os números da conta
+  chegam com 1 a 2 dias de atraso; o público e os horários só aparecem em perfis com 100 seguidores ou mais. O relatório semanal sai
+  toda segunda (dia, hora, modelo e teto em **Ajustes**).
+
+**Limites da Meta:** do que aconteceu **antes** de conectar, a API entrega só as **20 mensagens mais recentes** de cada conversa (daí
+para a frente o CRM guarda tudo); métricas diárias da conta até **2 anos** para trás; stories somem em 24 h (o CRM guarda os números a
+cada hora). Mídias do Direct são baixadas na hora, porque os links da Meta expiram.
+
+## Permissões da equipe
+
+Em **Equipe e integrações → Equipe**, botão **Permissões** em cada pessoa. **Telas:** Kanban, WhatsApp, Instagram (Direct,
+desempenho e relatórios, comentários), Disparos, IA (configuração), assistente pessoal e Estatísticas. **Funções:** editar leads,
+excluir leads, enviar no WhatsApp, responder no Instagram (inclui ligar/pausar a Alice e aprovar as sugestões dela) e disparar
+campanhas. O que estava liberado antes continua liberado; o Instagram e **excluir leads** nascem fechados. Administrador pode tudo. O
+servidor confere cada pedido (não adianta só esconder o botão).
+
 ## Calendly
 
 1. No Calendly: **Integrações → API e webhooks → Personal access tokens** → gere um token.
@@ -537,6 +601,8 @@ mostra a data da próxima reunião. Funciona em qualquer plano do Calendly e nã
 | `DISPAROS_FUSO` | Fuso usado no `{{saudacao}}` e na janela de horário dos disparos (padrão `America/Sao_Paulo`) |
 | `WHATSAPP_VERSAO` | Fixa a versão do WhatsApp Web (ex.: `2,3000,1043857760`). Em branco (padrão), o CRM consulta a versão atual sozinho, porque o WhatsApp recusa versões antigas ("Connection Terminated" em todos os números) |
 | `TRANSCRICAO_DIR` | Pasta da transcrição de áudio da assistente (biblioteca e modelos do Whisper). Padrão: `dados/transcricao`, ao lado do banco |
+| `META_APP_ID` / `META_APP_SECRET` | Opcional: ID e chave secreta do app da Meta (Instagram). Prefira colar pela tela (Equipe e integrações → Instagram) |
+| `META_API_VERSAO` | Versão da Graph API usada pelo Instagram (padrão `v25.0`; também dá para trocar pela tela) |
 
 Depois de mudar o `.env`, rode `./parar.sh && ./iniciar.sh`.
 
@@ -568,9 +634,15 @@ server/src/modules/agente/      ← Agente Alice (assistente pessoal de cada usu
   transcricao.js  Whisper na VPS (processo separado) · documentos.js  Word/Excel/PowerPoint em texto
 server/src/modules/ia/          ← IA de primeiro contato (Alice SDR)
   motor.js        quando atua, para e passa · prompt.js  regras e pedido ao modelo · midias.js  áudio/imagem/PDF/documento do lead
+server/src/modules/instagram/   ← Instagram (perfis da Impera pela API da Meta)
+  conexao.js      app, login, tokens, perfis · graph.js  chamadas à Meta · webhook.js  eventos · direct.js  Direct (gravar, enviar, leads)
+  sdr.js          Alice no Direct · metricas.js  conta, publicações, stories, público · anuncios.js  anúncios ligados aos perfis
+  comentarios.js · desempenho.js  números para a tela · relatorios.js  relatórios da IA · agente.js  ferramentas da assistente
+server/src/modules/auth/permissoes.js ← permissões por pessoa (telas e funções)
 server/migrations/    ← mudanças no banco, numeradas (001_, 002_...). Só acrescentam, nunca apagam dados.
 server/testes/        ← testes automáticos (node:test) e ferramentas de teste com dados falsos
-web/src/              ← interface React (WhatsApp em WhatsAppPagina.jsx, Conversa.jsx e web/src/components/chat/; Agente em web/src/components/ia/agente/)
+web/src/              ← interface React (WhatsApp em WhatsAppPagina.jsx, Conversa.jsx e web/src/components/chat/; Agente em web/src/components/ia/agente/;
+                         Instagram em web/src/components/instagram/; permissões em web/src/permissoes.js e components/Permissoes.jsx)
 ```
 
 Novo módulo: criar `server/src/modules/<nome>/index.js` exportando `{ name, register(app) }` e registrar em `modules/index.js`.
