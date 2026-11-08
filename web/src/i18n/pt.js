@@ -138,6 +138,14 @@ export default {
   'equipe.yay.renomeado': 'Formulário renomeado para “{nome}”. Os leads e o histórico dele já mostram o nome novo.',
   'equipe.yay.nomeRemovido': 'Nome à mão removido: volta a valer o nome do Yay! Forms.',
 
+  // ---------- IA → Primeiro contato: o que a atendente entende além de texto
+  'ia.midias.titulo': 'O que ela entende além de texto',
+  'ia.midias.audioOn': 'Áudios e a fala de vídeos curtos: transcritos pelo Whisper da VPS, sem custo por minuto.',
+  'ia.midias.audioDesligado': 'Áudios: a transcrição está instalada, mas desligada. Ligue em Agente → Ajustes → Transcrição; até lá, quem manda áudio é passado para a equipe.',
+  'ia.midias.audioNaoInstalado': 'Áudios: instale a transcrição em Agente → Ajustes → Transcrição; até lá, quem manda áudio é passado para a equipe.',
+  'ia.midias.documentos': 'Word, Excel, PowerPoint, CSV e texto: lidos como texto.',
+  'ia.midias.verImagens': 'Ver imagens (prints, fotos) e PDFs que o lead mandar. Gasta mais tokens na resposta em que chegam; depois ela guarda uma descrição curta e não reenvia o arquivo.',
+
   // ---------- IA → Agente (assistente pessoal de cada usuário)
   'ia.aba.agente': 'Agente {nome}',
   'ia.agente.titulo': '{nome}, sua assistente',

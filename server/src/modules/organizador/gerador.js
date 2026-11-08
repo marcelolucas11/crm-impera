@@ -127,7 +127,7 @@ const origemDe = (extra) => {
 /** Bloco de uma conversa para a análise (anonimizado) */
 function blocoDaConversa(l, n, fuso, maxMensagens) {
   const msgs = all(
-    `SELECT * FROM (SELECT id, from_me, type, body, legenda, media_name, extra, timestamp FROM wa_messages
+    `SELECT * FROM (SELECT id, from_me, type, body, legenda, media_name, transcricao, texto_extraido, extra, timestamp FROM wa_messages
        WHERE lead_id = ? AND chat_jid NOT LIKE '%@g.us' AND type <> 'chamada' AND deleted_at IS NULL
        ORDER BY timestamp DESC, id DESC LIMIT ?) ORDER BY timestamp, id`,
     [l.id, maxMensagens]

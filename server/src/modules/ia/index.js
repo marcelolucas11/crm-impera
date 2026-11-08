@@ -27,6 +27,8 @@ import {
   iniciarRelogio, pararRelogio, passarParaHumano, leadsPendentes, enfileirarPendentes, iaJaFalou, emAtendimento,
 } from './motor.js';
 import { estadoRevisao, revisarAtendimentos, iniciarRevisao, pararRevisao } from './revisao.js';
+import { transcricaoPronta } from './midias.js';
+import { instalada as transcricaoInstalada } from '../agente/transcricao.js';
 
 // Converte erros da IA em respostas HTTP
 const rota = (fn) => async (req, res) => {
@@ -128,7 +130,9 @@ export default {
       let saudacaoDisparos = false;
       try { saudacaoDisparos = Boolean((await import('../disparos/servico.js')).lerConfigYay().ativo); } catch { /* ignora */ }
       const numeros = all('SELECT id, name AS nome, phone FROM wa_instances ORDER BY id');
-      res.json({ config: configPublica(), resumo: resumoGeral(), numeros, saudacao_disparos_ativa: saudacaoDisparos, protecao: statusProtecao(lerConfig()) });
+      // O que a IA entende além de texto: áudio depende da transcrição (Whisper na VPS, em Agente → Ajustes)
+      const midias = { transcricao_pronta: transcricaoPronta(), transcricao_instalada: transcricaoInstalada() };
+      res.json({ config: configPublica(), resumo: resumoGeral(), numeros, saudacao_disparos_ativa: saudacaoDisparos, protecao: statusProtecao(lerConfig()), midias });
     }));
 
     // Fila: leads da janela de "lead novo" que chegaram antes de a IA ligar e ninguém chamou

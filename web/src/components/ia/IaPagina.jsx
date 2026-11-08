@@ -232,6 +232,19 @@ function Conteudo({ user, aoAbrirConversa }) {
                 </select>
                 <span className="suave pequeno">Preço em US$ por milhão de tokens (entrada / saída). Para o primeiro contato o Haiku costuma bastar; os maiores entendem melhor conversas difíceis, mas custam mais a cada mensagem.</span>
               </label>
+              <div className="ia-midias">
+                <b>{t('ia.midias.titulo')}</b>
+                <ul>
+                  <li className={dados.midias?.transcricao_pronta ? 'ok' : 'falta'}>
+                    {dados.midias?.transcricao_pronta ? t('ia.midias.audioOn') : dados.midias?.transcricao_instalada ? t('ia.midias.audioDesligado') : t('ia.midias.audioNaoInstalado')}
+                  </li>
+                  <li className="ok">{t('ia.midias.documentos')}</li>
+                </ul>
+                <label className="dp-check">
+                  <input type="checkbox" checked={cfg.ver_imagens !== false} disabled={!admin} onChange={(e) => mudar({ ver_imagens: e.target.checked })} />
+                  <span>{t('ia.midias.verImagens')}</span>
+                </label>
+              </div>
               {cfg.modo === 'sugestao' && (
                 <label className="dp-check">
                   <input type="checkbox" checked={cfg.automatico_fora_horario} disabled={!admin} onChange={(e) => mudar({ automatico_fora_horario: e.target.checked })} />

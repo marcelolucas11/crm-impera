@@ -268,3 +268,9 @@
 .org-gerador-notas ul { margin: 6px 0 0; padding-left: 18px; display: flex; flex-direction: column; gap: 3px; }
 .org-progresso-indef span { width: 35% !important; animation: org-indef 1.4s ease-in-out infinite; }
 @keyframes org-indef { 0% { transform: translateX(-100%); } 100% { transform: translateX(300%); } }
+
+/* Primeiro contato: o que a atendente entende além de texto */
+.ia-midias { display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; border-radius: 12px; background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.08); font-size: 12.5px; }
+.ia-midias ul { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 3px; color: var(--suave); }
+.ia-midias li.ok::marker { content: '✓  '; color: #4ade80; }
+.ia-midias li.falta::marker { content: '!  '; color: #fbbf24; }

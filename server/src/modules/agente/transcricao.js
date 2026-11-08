@@ -5,6 +5,7 @@
 //  - Cada áudio é transcrito uma vez só e guardado na mensagem (wa_messages.transcricao).
 //  - "Transcrever áudios novos": a cada 2 min transcreve os áudios dos últimos 3 dias (leads, contatos e grupos),
 //    um por vez, em segundo plano. A IA de primeiro contato, o Organizador e a Alice passam a ler esses textos.
+//    A IA de primeiro contato também transcreve na hora o áudio que o lead acabou de mandar (ia/midias.js).
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -224,17 +225,28 @@ export function transcreverArquivo(caminho, { exigirAtiva = true } = {}) {
   return tarefa;
 }
 
-/** Transcrição de uma mensagem de áudio do WhatsApp (usa a guardada, se já existir) */
-export async function transcreverMensagem(linhaId, { exigirAtiva = true } = {}) {
+// Mensagens sendo transcritas agora: quem pedir a mesma (a varredura e o atendimento da IA) espera o mesmo resultado
+const emCurso = new Map();
+
+/** Transcrição de uma mensagem de áudio (ou da fala de um vídeo) do WhatsApp (usa a guardada, se já existir) */
+export function transcreverMensagem(linhaId, opcoes = {}) {
+  if (emCurso.has(linhaId)) return emCurso.get(linhaId);
+  const tarefa = transcreverMensagemAgora(linhaId, opcoes).finally(() => emCurso.delete(linhaId));
+  emCurso.set(linhaId, tarefa);
+  return tarefa;
+}
+
+async function transcreverMensagemAgora(linhaId, { exigirAtiva = true } = {}) {
   const m = get('SELECT id, type, transcricao FROM wa_messages WHERE id = ?', [linhaId]);
   if (!m) throw new ErroHttp(404, 'Mensagem não encontrada');
-  if (m.type !== 'audio') throw new ErroHttp(400, 'Esta mensagem não é um áudio');
+  if (m.type !== 'audio' && m.type !== 'video') throw new ErroHttp(400, 'Esta mensagem não é um áudio');
   if (m.transcricao) return m.transcricao;
   const linha = await baixarMidia(linhaId);
   try {
     const texto = await transcreverArquivo(absoluto(linha.media_path), { exigirAtiva });
-    run('UPDATE wa_messages SET transcricao = ?, transcricao_em = ? WHERE id = ?', [texto || '(áudio sem fala)', agora(), linhaId]);
-    return texto || '(áudio sem fala)';
+    const semFala = m.type === 'video' ? '(vídeo sem fala)' : '(áudio sem fala)';
+    run('UPDATE wa_messages SET transcricao = ?, transcricao_em = ? WHERE id = ?', [texto || semFala, agora(), linhaId]);
+    return texto || semFala;
   } catch (err) {
     run('UPDATE wa_messages SET transcricao_em = ? WHERE id = ?', [agora(), linhaId]);
     throw err;

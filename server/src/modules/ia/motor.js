@@ -26,6 +26,7 @@ import { diretrizesAtivas } from './diretrizes.js';
 import { dadosDoFormulario } from './formulario.js';
 import { perguntarModelo, lerJsonDaResposta, registrar, ErroIA, perguntarNoFormato } from './cliente.js';
 import { bloqueioAgora, depoisDeEnviar, falhaDeEnvio } from './protecao.js';
+import { prepararMidias, guardarDescricoes, resumoDasMidias } from './midias.js';
 
 // Dependências do WhatsApp (trocadas nos testes)
 // Prazo máximo de cada chamada ao WhatsApp: uma chamada que nunca responde (socket meio caído) segurava o atendimento
@@ -409,7 +410,8 @@ export async function enviarComoPessoa(conversa, mensagens, { userId = null, sim
 export function historicoDaConversa(contato) {
   const f = filtro(contato);
   return all(
-    `SELECT m.id, m.from_me, m.type, m.body, m.legenda, m.timestamp FROM wa_messages m
+    `SELECT m.id, m.from_me, m.type, m.body, m.legenda, m.timestamp, m.media_name, m.media_mime, m.media_seconds,
+            m.transcricao, m.transcricao_em, m.texto_extraido FROM wa_messages m
       WHERE ${f.where} AND m.type <> 'chamada' AND m.deleted_at IS NULL AND m.hidden_at IS NULL
       ORDER BY m.timestamp, m.id`,
     f.params
@@ -483,7 +485,21 @@ export async function processarConversa(id) {
   }
 
   if (novas.length) atualizar(id, { ultima_lida_id: Math.max(...novas.map((m) => m.id)) });
-  const textoNovo = novas.map((m) => (m.type === 'texto' ? m.body : m.legenda) || '').join('\n');
+
+  // Mídias do lead: áudio/vídeo transcrito pelo Whisper da VPS, documento em texto, imagem/PDF anexado para o modelo ver
+  let anexos = [];
+  try {
+    anexos = await prepararMidias(historico, { verImagens: cfg.ver_imagens !== false });
+    const resumo = resumoDasMidias(historico, anexos);
+    if (resumo) registrar(id, 'midias', resumo);
+  } catch (err) {
+    console.error(`[ia] conversa ${conversa.chave}: mídias: ${err.message}`);
+  }
+  // Alguém da equipe pode ter assumido enquanto o áudio era transcrito
+  if (get('SELECT status FROM ia_conversas WHERE id = ?', [id])?.status !== 'ativa') return { feito: 'interrompida' };
+
+  // O que o lead disse agora (texto, legenda e a fala dos áudios) passa pelos filtros de segurança e de "quero uma pessoa"
+  const textoNovo = novas.map((m) => (m.type === 'texto' ? m.body : [m.legenda, m.transcricao].filter(Boolean).join(' ')) || '').join('\n');
   const saudacao = saudacaoDoMomento(cfg);
   const nome = primeiroNome(nomeDoLead(conversa, contato));
   const precisaAvisoHorario = foraDoHorario && !conversa.aviso_fora_horario_em;
@@ -535,10 +551,12 @@ export async function processarConversa(id) {
         origem: conversa.origem, jaAvisouForaHorario: Boolean(conversa.aviso_fora_horario_em),
         atraso: DA_FILA.includes(conversa.origem) ? atrasoDaFila(conversa, contato) : null,
         formulario: dadosDoFormulario(conversa.lead_id || contato.leadId, cfg),
+        anexos,
       }),
     });
     registrar(id, 'chamada_modelo', tentativas > 1 ? `2ª tentativa (a 1ª veio fora do formato)` : null, uso);
     resposta = lida;
+    if (resposta) guardarDescricoes(anexos, resposta.midias);
     if (!resposta) throw new ErroIA(parada === 'max_tokens' ? 'A resposta do modelo veio cortada (longa demais), mesmo na 2ª tentativa' : 'O modelo não respondeu no formato combinado, mesmo na 2ª tentativa');
   } catch (err) {
     registrar(id, 'erro', err.message);

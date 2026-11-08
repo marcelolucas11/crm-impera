@@ -61,7 +61,7 @@ export function coletarConversas({ dias = DIAS_ANALISADOS, novasDesde = null, ma
   for (const l of leads) {
     // As últimas mensagens da janela, em ordem
     const msgs = all(
-      `SELECT * FROM (SELECT id, from_me, type, body, legenda, extra, timestamp FROM wa_messages
+      `SELECT * FROM (SELECT id, from_me, type, body, legenda, media_name, transcricao, texto_extraido, extra, timestamp FROM wa_messages
          WHERE lead_id = ? AND timestamp >= ? AND chat_jid NOT LIKE '%@g.us' AND type <> 'chamada' AND deleted_at IS NULL
          ORDER BY timestamp DESC, id DESC LIMIT ?) ORDER BY timestamp, id`,
       [l.id, desde, maxMensagens]

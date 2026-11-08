@@ -4,7 +4,9 @@ CRM da agência: leads do Yay! Forms caindo direto num kanban, alerta de follow-
 Roda direto no Mac, a partir do SSD externo, sem Docker e sem instalar nada no sistema.
 A mesma pasta funciona depois na VPS da Contabo.
 
-**Versão atual: 0.24.1** — o número fica no arquivo `VERSAO` e é o que aparece em **Equipe e integrações → Atualização do CRM**.
+**Versão atual: 0.25.0** — o número fica no arquivo `VERSAO` e é o que aparece em **Equipe e integrações → Atualização do CRM**.
+
+**Versão 0.25.0:** A **IA de primeiro contato (Alice SDR)** passa a entender o que o lead manda além de texto. **Áudios** e a fala de **vídeos curtos** (até 3 min) são transcritos na hora pelo **Whisper da VPS** (o mesmo de Agente → Ajustes → Transcrição, sem chave e sem custo por minuto) e ela responde ao que foi falado — inclusive "quero falar com uma pessoa" num áudio cai na regra de passar para a equipe. **Imagens** (prints, fotos) e **PDFs** vão para o modelo ver (até 3 por resposta, os mais recentes); ela devolve uma frase do que é cada um, que fica guardada, e nas próximas respostas vai só esse texto (a imagem não é reenviada). **Word, Excel, PowerPoint, CSV e texto** viram texto. Localização, contato e enquete chegam com a descrição do WhatsApp. Antes, qualquer mídia fazia a IA passar o lead para a equipe; agora ela só passa quando não consegue abrir (transcrição desligada, mídia expirada, arquivo grande demais) ou pelas regras de sempre. Documentos pessoais (RG, cartão, senha) não são repetidos: ela orienta a não enviar por aqui. Na aba **IA → Como ela trabalha**, o bloco **O que ela entende além de texto** mostra se a transcrição está ligada e tem a opção **Ver imagens e PDFs**. O **Organizador do kanban** e o **playbook** também passam a ler a fala transcrita dos áudios (da equipe e dos leads). Corrige o rótulo das mídias que a equipe envia (antes apareciam para a IA como "o lead mandou").
 
 **Versão 0.24.1:** Corrige o erro 400 da Anthropic ("Invalid `signature` in `thinking` block") que aparecia no chat do Agente a partir da segunda mensagem de uma conversa. Os pensamentos de respostas anteriores não são mais reenviados (o texto fixo muda a cada mensagem, com a hora, as diretrizes e a memória, e a API recusa pensamento antigo); os da resposta em andamento continuam indo junto. Conversas que já deram esse erro voltam a funcionar depois de atualizar.
 
@@ -419,8 +421,14 @@ lead escrever). Mensagens da saudação automática não contam como "contato da
 **Assumir**, **Pausar** e **Devolver para a IA**.
 
 **Quando passa para você:** o lead pede uma pessoa; pergunta preço, contrato, resultado ou detalhes do nicho (ela sempre diz que não pode
-prometer resultados); manda áudio, imagem ou arquivo; fica irritado; ou depois de 6 mensagens da IA (ajustável). O lead fica
+prometer resultados); manda uma mídia que ela não conseguiu abrir; fica irritado; ou depois de 6 mensagens da IA (ajustável). O lead fica
 **aguardando minha resposta** no kanban, com o motivo, um resumo na conversa e um aviso flutuante no CRM.
+
+**Áudio, imagem e arquivos:** áudios e a fala de vídeos de até 3 min são transcritos pelo Whisper da VPS (precisa da transcrição
+instalada e ligada em **Agente → Ajustes → Transcrição**; o atendimento espera até 3 min pela transcrição e, se passar disso, segue sem ela).
+Imagens (JPG, PNG, WebP, GIF até 3,7 MB) e PDFs (até 10 MB) vão para o modelo ver — até 3 por resposta; depois fica guardada uma descrição
+curta e o arquivo não é reenviado. Word, Excel, PowerPoint, CSV e texto viram texto. A opção **Ver imagens e PDFs** (aba IA) desliga a parte
+que gasta mais tokens. O que estiver nas mídias é tratado como dado do lead: ordens escritas num print ou faladas num áudio são ignoradas.
 
 **Horário:** segunda a sexta 7h–18h e sábado 7h–16h (ajustável, fuso de São Paulo por padrão). Fora disso e no domingo, a primeira resposta
 avisa que a Impera não está com atendimento humano de prontidão e que o retorno pode levar algumas horas.
@@ -558,6 +566,8 @@ server/src/modules/agente/      ← Agente Alice (assistente pessoal de cada usu
   acoes.js        propostas, aprovação, execução e desfazer · consulta.js  leitura segura do banco
   contexto.js     "Entender o CRM" · agendados.js  agendados · canal.js  conversar pelo WhatsApp
   transcricao.js  Whisper na VPS (processo separado) · documentos.js  Word/Excel/PowerPoint em texto
+server/src/modules/ia/          ← IA de primeiro contato (Alice SDR)
+  motor.js        quando atua, para e passa · prompt.js  regras e pedido ao modelo · midias.js  áudio/imagem/PDF/documento do lead
 server/migrations/    ← mudanças no banco, numeradas (001_, 002_...). Só acrescentam, nunca apagam dados.
 server/testes/        ← testes automáticos (node:test) e ferramentas de teste com dados falsos
 web/src/              ← interface React (WhatsApp em WhatsAppPagina.jsx, Conversa.jsx e web/src/components/chat/; Agente em web/src/components/ia/agente/)

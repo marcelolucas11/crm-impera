@@ -33,16 +33,19 @@ function conteudo(m) {
   if (m.type === 'texto') return corta(m.body);
   if (m.type === 'documento') {
     const nome = m.media_name || String(m.body || '').replace(/^📄\s*/, '');
-    return `[arquivo: ${corta(nome)}${ehPdfDeProposta(m) ? ' — PDF de proposta comercial' : ''}]${m.legenda ? ` ${corta(m.legenda)}` : ''}`;
+    return `[arquivo: ${corta(nome)}${ehPdfDeProposta(m) ? ' — PDF de proposta comercial' : ''}]${m.legenda ? ` ${corta(m.legenda)}` : ''}${m.texto_extraido ? ` Conteúdo: ${corta(m.texto_extraido)}` : ''}`;
   }
   const rotulos = { imagem: 'imagem', video: 'vídeo', audio: 'áudio', figurinha: 'figurinha', localizacao: 'localização', contato: 'contato', enquete: 'enquete', evento: 'evento' };
-  return `[${rotulos[m.type] || m.type}]${m.legenda ? ` ${corta(m.legenda)}` : ''}`;
+  // Áudio e vídeo com a fala transcrita pelo Whisper da VPS; imagem com a descrição feita pela IA de primeiro contato
+  const extra = (m.type === 'audio' || m.type === 'video') && m.transcricao ? ` O que foi falado: "${corta(m.transcricao)}"`
+    : m.type === 'imagem' && m.texto_extraido ? ` O que aparece: ${corta(m.texto_extraido)}` : '';
+  return `[${rotulos[m.type] || m.type}]${m.legenda ? ` ${corta(m.legenda)}` : ''}${extra}`;
 }
 
 /** Conversa do lead em texto (as mensagens mais recentes cabem; as mais antigas saem primeiro) */
 export function conversaEmTexto(leadId, fuso = fusoDoDia()) {
   const msgs = all(
-    `SELECT id, from_me, type, body, legenda, media_name, media_mime, extra, timestamp FROM wa_messages
+    `SELECT id, from_me, type, body, legenda, media_name, media_mime, transcricao, texto_extraido, extra, timestamp FROM wa_messages
       WHERE lead_id = ? AND type <> 'chamada' AND deleted_at IS NULL AND hidden_at IS NULL AND chat_jid NOT LIKE '%@g.us'
       ORDER BY timestamp DESC, id DESC LIMIT ?`, [leadId, MAX_MENSAGENS]
   );

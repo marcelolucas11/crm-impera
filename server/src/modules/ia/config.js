@@ -96,6 +96,9 @@ export const PADRAO = {
   limite_novos_por_dia: 40,
   // O contador de leads novos zera todo dia à meia-noite (no fuso acima) em vez de ser uma janela móvel de 24 h
   zerar_novos_meia_noite: true,
+  // Imagens (prints, fotos) e PDFs que o lead manda vão para o modelo ver (gasta mais tokens na resposta em que chegam).
+  // Áudio é sempre transcrito pelo Whisper da VPS quando a transcrição está ligada; Word/Excel/PowerPoint viram texto.
+  ver_imagens: true,
   api_key_painel: null,
 };
 
@@ -233,6 +236,7 @@ export function salvarConfig(entrada = {}) {
     limite_por_dia: inteiro(v('limite_por_dia'), 1, 3000, 150),
     limite_novos_por_dia: inteiro(v('limite_novos_por_dia'), 1, 1000, 40),
     zerar_novos_meia_noite: Boolean(v('zerar_novos_meia_noite')),
+    ver_imagens: v('ver_imagens') === undefined ? true : Boolean(v('ver_imagens')),
   };
   // Mais por hora do que por dia não faz sentido: o limite de 24 h manda
   if (novo.limite_por_hora > novo.limite_por_dia) novo.limite_por_hora = novo.limite_por_dia;
