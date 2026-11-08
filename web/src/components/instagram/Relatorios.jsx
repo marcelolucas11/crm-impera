@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { FileText, Sparkles, Copy, Download, RefreshCw, AlertTriangle, CalendarClock } from 'lucide-react';
 import { api } from '../../api.js';
 import { useT } from '../../i18n/index.jsx';
-import { useEvento } from '../../tempoReal.js';
+import { useEvento, avisoTem } from '../../tempoReal.js';
 import { dataHora } from '../../utils.js';
 import { isoDia } from '../estatisticas/util.js';
 import { useAviso, Vazio } from '../disparos/comum.jsx';
@@ -87,7 +87,7 @@ function Leitura({ id, t }) {
   const [r, setR] = useState(null);
   const carregar = useCallback(() => api(`/instagram/relatorios/${id}`).then((d) => setR(d.relatorio)).catch((e) => aviso(e.message, 'erro')), [id, aviso]);
   useEffect(() => { setR(null); carregar(); }, [carregar]);
-  useEvento('instagram', (d) => { if (d?.relatorio === id) carregar(); });
+  useEvento('instagram', (d) => { if (avisoTem(d, 'relatorio', id)) carregar(); });
   if (!r) return <div className="cartao-secao dp-centro"><span className="girando" /></div>;
   const copiar = () => navigator.clipboard?.writeText(r.texto || '').then(() => aviso(t('instagram.relatorios.copiado'))).catch(() => {});
   const baixar = () => {

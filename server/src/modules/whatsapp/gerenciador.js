@@ -22,6 +22,7 @@ import crypto from 'node:crypto';
 import { get, all, run, agora } from '../../db.js';
 import { config } from '../../config.js';
 import { emitir } from '../../tempoReal.js';
+import { memoizar } from '../../cache.js';
 import {
   instancias, estado, socketConectado, algumConectado, avisar, carregarBaileys, definirBiblioteca, esperar,
 } from './instancias.js';
@@ -299,15 +300,24 @@ const filaFotos = [];
 const naFila = new Set();
 let consultandoFotos = false;
 
+// Fotos já consultadas, lidas do banco uma vez e reaproveitadas até a tabela mudar (a tela pergunta por centenas de
+// contatos de uma vez, e antes cada um era uma consulta no banco + uma ida ao disco a cada pergunta)
+const fotosConhecidas = () => memoizar('wa|fotos', ['wa_photos'], 10 * 60000, () => {
+  const mapa = new Map();
+  for (const r of all('SELECT jid, path, checked_at FROM wa_photos')) mapa.set(r.jid, { path: r.path, checked_at: r.checked_at });
+  return mapa;
+});
+
 function fotoNoCache(jid) {
-  const r = get('SELECT path, checked_at FROM wa_photos WHERE jid = ?', [jid]);
+  const r = fotosConhecidas().get(jid);
   if (!r) return { conhecida: false };
+  if (r.existe === undefined) r.existe = Boolean(r.path) && fs.existsSync(absoluto(r.path));
+  if (r.existe && r.versao === undefined) r.versao = crypto.createHash('sha1').update(r.checked_at).digest('hex').slice(0, 8);
   const idade = Date.now() - new Date(r.checked_at).getTime();
-  const existe = Boolean(r.path) && fs.existsSync(absoluto(r.path));
   return {
-    conhecida: r.path ? existe && idade < FOTO_VALIDA_MS : idade < SEM_FOTO_VALIDO_MS,
-    caminho: existe ? absoluto(r.path) : null,
-    versao: existe ? crypto.createHash('sha1').update(r.checked_at).digest('hex').slice(0, 8) : null,
+    conhecida: r.path ? r.existe && idade < FOTO_VALIDA_MS : idade < SEM_FOTO_VALIDO_MS,
+    caminho: r.existe ? absoluto(r.path) : null,
+    versao: r.existe ? r.versao : null,
   };
 }
 

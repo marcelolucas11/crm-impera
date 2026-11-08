@@ -14,6 +14,9 @@ const git = async (...args) => (await sh('git', args, { cwd: APP_DIR, timeout: 6
 
 let iniciadaEm = null; // evita dois cliques seguidos
 
+// Saídas do git podem trazer o endereço do repositório com usuário e token: esconde antes de mostrar na tela
+const semCredenciais = (t) => String(t || '').replace(/\/\/[^/@\s]+@/g, '//***@').replace(/gh[pousr]_[A-Za-z0-9]{20,}/g, '***');
+
 // O número da versão fica no arquivo VERSAO (raiz do repositório), o mesmo que aparece no README e nas tags do GitHub
 const limparVersao = (t) => String(t || '').trim().split('\n')[0].replace(/^v/i, '') || null;
 const versaoInstalada = () => { try { return limparVersao(fs.readFileSync(path.join(APP_DIR, 'VERSAO'), 'utf8')); } catch { return null; } };
@@ -51,7 +54,9 @@ export default {
           novidades: log ? log.split('\n').map((l) => l.trim()).filter(Boolean) : [],
         });
       } catch (e) {
-        res.status(500).json({ erro: `Não consegui consultar o GitHub: ${String(e.stderr || e.message).trim().slice(0, 300)}` });
+        // A mensagem do git pode trazer o endereço do repositório com usuário e token: esconde antes de mostrar
+        const detalhe = semCredenciais(String(e.stderr || e.message)).trim().slice(0, 300);
+        res.status(500).json({ erro: `Não consegui consultar o GitHub: ${detalhe}` });
       }
     });
 
@@ -60,8 +65,15 @@ export default {
       try {
         fs.mkdirSync(path.dirname(LOG), { recursive: true });
         const saida = fs.openSync(LOG, 'w');
-        // detached: roda numa sessão própria, então continua vivo quando o atualizar.sh desliga este servidor
-        const filho = spawn('bash', [path.join(APP_DIR, 'atualizar.sh')], { cwd: APP_DIR, detached: true, stdio: ['ignore', saida, saida] });
+        // detached: roda numa sessão própria, então continua vivo quando o atualizar.sh desliga este servidor.
+        // A atualização cria os arquivos do programa com as permissões de sempre (o servidor deixa só os dados privados).
+        const anterior = process.umask(0o022);
+        let filho;
+        try {
+          filho = spawn('bash', [path.join(APP_DIR, 'atualizar.sh')], { cwd: APP_DIR, detached: true, stdio: ['ignore', saida, saida] });
+        } finally {
+          process.umask(anterior);
+        }
         filho.unref();
         iniciadaEm = Date.now();
         res.json({ ok: true });
@@ -72,7 +84,7 @@ export default {
 
     r.get('/log', (req, res) => {
       let texto = '';
-      try { texto = fs.readFileSync(LOG, 'utf8').replace(/\x1b\[[0-9;]*m/g, ''); } catch { /* ainda não existe */ }
+      try { texto = semCredenciais(fs.readFileSync(LOG, 'utf8').replace(/\x1b\[[0-9;]*m/g, '')); } catch { /* ainda não existe */ }
       res.json({ log: texto.split('\n').slice(-40).join('\n') });
     });
 

@@ -8,7 +8,7 @@ import { registrarEvento, lerJson } from '../../events.js';
 import { exigirLogin, exigirAdmin } from '../auth/middleware.js';
 import { criarLead, encontrarExistente, vincularConversasExistentes } from '../leads/service.js';
 import { interpretarPayload, extrairInicio, extrairSituacao } from './parser.js';
-import { idValido } from '../../util.js';
+import { idValido, iguaisSeguro } from '../../util.js';
 import { lerEstado, salvarEstado } from '../../estado.js';
 import { aoReceberLeadYay } from '../disparos/servico.js';
 import { avisarGancho } from '../../ganchos.js';
@@ -16,12 +16,6 @@ import {
   opcoesDoParser, prepararCatalogo, conhecerFormulario, aplicarNomes, sincronizar, conectarComToken, removerToken,
   montarStatus, infoFormulario, tokenYay, esquecerCache,
 } from './catalogo.js';
-
-function iguaisSeguro(a, b) {
-  const ba = Buffer.from(String(a));
-  const bb = Buffer.from(String(b));
-  return ba.length === bb.length && crypto.timingSafeEqual(ba, bb);
-}
 
 // ---- Segredos de assinatura ----
 // Cada webhook criado no Yay! Forms ganha um "Secret" próprio. O CRM guarda vários (tela Equipe e integrações)
@@ -185,7 +179,7 @@ function receber(eventoId, body) {
   const respostaId = body.response?.id ? String(body.response.id) : null;
   const anterior = respostaId && get(
     `SELECT id, lead_id, payload FROM webhook_events
-      WHERE source = 'yayforms' AND status = 'processed' AND id != ? AND json_extract(payload, '$.response.id') = ?
+      WHERE source = 'yayforms' AND status = 'processed' AND id != ? AND resposta_id = ?
       ORDER BY id DESC LIMIT 1`,
     [eventoId, respostaId]
   );

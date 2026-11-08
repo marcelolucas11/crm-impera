@@ -3,7 +3,7 @@
 import { Router } from 'express';
 import { get, all } from '../../db.js';
 import { exigirLogin, exigirAdmin, exigirPermissao } from '../auth/middleware.js';
-import { idValido, ErroHttp } from '../../util.js';
+import { idValido, ErroHttp, criarRota } from '../../util.js';
 import { ErroIA } from '../ia/cliente.js';
 import { meiaNoiteNoFuso } from '../ia/protecao.js';
 import { lerConfig, salvarConfig, custoDaChamada, fusoDoDia, MODELOS } from './config.js';
@@ -17,15 +17,7 @@ import { temDadosParaLer } from './avaliacao.js';
 import { iniciarGeracao, estadoTarefa as estadoGeracao, dispensarGeracao, estimar as estimarGeracao, ORIENTACAO_QUALIFICADO_PADRAO } from './gerador.js';
 import { MODELO_PLAYBOOK_PADRAO } from '../ia/config.js';
 
-const rota = (fn) => async (req, res) => {
-  try {
-    await fn(req, res);
-  } catch (err) {
-    const status = err instanceof ErroHttp || err instanceof ErroIA ? err.status || 400 : 500;
-    if (status === 500) console.error('[organizador]', err);
-    res.status(status).json({ erro: status === 500 ? (err.message || 'Erro interno') : err.message });
-  }
-};
+const rota = criarRota('organizador', [ErroIA]);
 
 function movimentos(limite = 40) {
   return all(
@@ -124,7 +116,8 @@ export default {
 
     r.get('/movimentos', rota((req, res) => res.json({ movimentos: movimentos(Math.min(200, Number(req.query.limite) || 40)) })));
 
-    r.post('/movimentos/:id/desfazer', rota((req, res) => {
+    // Desfazer move o lead de etapa: exige a permissão de editar leads (a mesma do kanban)
+    r.post('/movimentos/:id/desfazer', exigirPermissao('leads_editar'), rota((req, res) => {
       const id = idValido(req.params.id);
       if (!id) throw new ErroHttp(400, 'Movimentação inválida');
       const r2 = desfazerMovimento(id, req.user.id);

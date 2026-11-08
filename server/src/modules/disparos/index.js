@@ -3,6 +3,7 @@
 //
 // Atenção: o WhatsApp conectado por QR code não é oficial e pode banir números que mandam mensagens em massa.
 // Os timers aleatórios, o descanso por lote e a janela de horário diminuem o risco, mas não o eliminam.
+import { enviarArquivoSeguro } from '../../arquivos.js';
 import { Router } from 'express';
 import { get, all } from '../../db.js';
 import { lerJson } from '../../events.js';
@@ -19,7 +20,6 @@ import {
   lerConfigYay, salvarConfigYay, campanhaYay, inspecionarUltimoPayload,
  listarRascunhos, descartarRascunho } from './servico.js';
 
-const ABRE_NA_TELA = /^(image\/(jpeg|png|webp|gif)|audio\/|video\/|application\/pdf)/i;
 
 function variaveisDoLead(leadId) {
   const l = leadId
@@ -141,13 +141,7 @@ export default {
     });
     r.get('/midias/:id', (req, res) => {
       const arq = arquivoDaMidia(idValido(req.params.id));
-      const mime = arq.mime.split(';')[0].trim();
-      res.setHeader('Content-Type', arq.mime);
-      res.setHeader('Cache-Control', 'private, max-age=604800, immutable');
-      if (mime === 'application/pdf') res.removeHeader('Content-Security-Policy');
-      else res.setHeader('Content-Security-Policy', "default-src 'none'; img-src 'self'; media-src 'self'; style-src 'unsafe-inline'; sandbox");
-      if (!ABRE_NA_TELA.test(mime)) res.attachment(arq.nome);
-      res.sendFile(arq.caminho);
+      enviarArquivoSeguro(res, arq.caminho, { mime: arq.mime, nome: arq.nome, cache: 'private, max-age=604800, immutable' });
     });
 
     // ------------------------------------------------------------ saudação automática do Yay! Forms

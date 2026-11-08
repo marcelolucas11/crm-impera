@@ -43,6 +43,11 @@ export function encerrarTempoReal() {
   anexados.clear();
 }
 
+// Avisos seguidos do mesmo tipo chegam juntos: o último no formato de sempre e todos em "lote".
+// itensDoAviso devolve cada aviso do grupo; avisoTem(d, 'conversa', 12) confere se algum deles é sobre a conversa 12.
+export const itensDoAviso = (d) => (Array.isArray(d?.lote) ? d.lote : [d || {}]);
+export const avisoTem = (d, campo, valor) => itensDoAviso(d).some((x) => (valor === undefined ? Boolean(x?.[campo]) : x?.[campo] === valor));
+
 // Versão sem React: devolve a função para parar de ouvir
 export function ouvir(tipo, fn) {
   if (!ouvintes.has(tipo)) ouvintes.set(tipo, new Set());

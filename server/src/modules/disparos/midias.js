@@ -3,13 +3,11 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
-import dns from 'node:dns/promises';
-import net from 'node:net';
-import { Transform, Readable } from 'node:stream';
-import { pipeline } from 'node:stream/promises';
 import { get, run, all } from '../../db.js';
 import { config } from '../../config.js';
 import { ErroHttp } from '../../util.js';
+import { gravarFluxo } from '../../upload.js';
+import { baixarSeguro } from '../../rede.js';
 
 const EXTENSOES = {
   'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/gif': 'gif',
@@ -28,41 +26,26 @@ function extensao(mime, nome) {
   return /^[a-z0-9]{1,8}$/.test(daNome) ? daNome : 'bin';
 }
 
-function limitador() {
-  let total = 0;
-  const max = maxBytes();
-  const t = new Transform({
-    transform(pedaco, _enc, cb) {
-      total += pedaco.length;
-      if (total > max) return cb(new ErroHttp(413, `Arquivo grande demais (máximo ${config.whatsapp.envioMaxMb} MB)`));
-      cb(null, pedaco);
-    },
-  });
-  t.total = () => total;
-  return t;
-}
+const mensagemGrande = () => `Arquivo grande demais (máximo ${config.whatsapp.envioMaxMb} MB)`;
 
-async function gravar(fonte, { nome, mime }, userId) {
+function pastaDoMes() {
   const agora = new Date();
   const pastaRel = path.join('disparos', `${agora.getUTCFullYear()}-${String(agora.getUTCMonth() + 1).padStart(2, '0')}`);
   fs.mkdirSync(path.join(config.filesDir, pastaRel), { recursive: true });
-  const rel = path.join(pastaRel, `${crypto.randomUUID()}.${extensao(mime, nome)}`);
-  const destino = path.join(config.filesDir, rel);
-  const limite = limitador();
-  try {
-    await pipeline(fonte, limite, fs.createWriteStream(destino));
-  } catch (err) {
-    fs.rmSync(destino, { force: true });
-    throw err.status ? err : new ErroHttp(400, 'O envio do arquivo foi interrompido');
-  }
-  if (!limite.total()) {
-    fs.rmSync(destino, { force: true });
-    throw new ErroHttp(400, 'Arquivo vazio');
-  }
+  return pastaRel;
+}
+
+function registrar(rel, { nome, mime, tamanho }, userId) {
   const id = Number(run('INSERT INTO disparo_midias (nome, mime, path, tamanho, criado_por) VALUES (?, ?, ?, ?, ?)', [
-    String(nome || 'arquivo').slice(0, 200), String(mime || 'application/octet-stream').slice(0, 120), rel, limite.total(), userId || null,
+    String(nome || 'arquivo').slice(0, 200), String(mime || 'application/octet-stream').slice(0, 120), rel, tamanho, userId || null,
   ]).lastInsertRowid);
   return publica(get('SELECT * FROM disparo_midias WHERE id = ?', [id]));
+}
+
+async function gravar(fonte, { nome, mime }, userId) {
+  const rel = path.join(pastaDoMes(), `${crypto.randomUUID()}.${extensao(mime, nome)}`);
+  const tamanho = await gravarFluxo(fonte, path.join(config.filesDir, rel), { max: maxBytes(), mensagem: mensagemGrande() });
+  return registrar(rel, { nome, mime, tamanho }, userId);
 }
 
 export const publica = (m) => (m ? { id: m.id, nome: m.nome, mime: m.mime, tamanho: m.tamanho, created_at: m.created_at } : null);
@@ -74,47 +57,41 @@ export async function receberUpload(req, userId) {
   return gravar(req, { nome: String(req.query.nome || 'arquivo'), mime: String(req.query.mime || 'application/octet-stream') }, userId);
 }
 
-// Endereços internos (rede local, a própria máquina) não podem ser baixados: o servidor não vira ponte para dentro da rede
-function ipInterno(ip) {
-  if (net.isIPv4(ip)) {
-    const [a, b] = ip.split('.').map(Number);
-    return a === 10 || a === 127 || a === 0 || (a === 169 && b === 254) || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || (a === 100 && b >= 64 && b <= 127) || a >= 224;
-  }
-  const v = ip.toLowerCase();
-  if (v.startsWith('::ffff:')) return ipInterno(v.slice(7));
-  return v === '::1' || v === '::' || v.startsWith('fc') || v.startsWith('fd') || v.startsWith('fe80');
-}
-
-// Baixa um arquivo de um link (ex.: vídeo MP4 hospedado) e guarda como mídia
+// Baixa um arquivo de um link (ex.: vídeo MP4 hospedado) e guarda como mídia.
+// Endereços internos (rede local, a própria máquina) nunca são baixados: rede.js confere o IP na própria conexão e em
+// cada redirecionamento, então o servidor não vira ponte para dentro da rede.
 export async function importarDeUrl(endereco, userId) {
   let url;
   try { url = new URL(String(endereco || '').trim()); } catch { throw new ErroHttp(400, 'Link inválido'); }
   if (!['https:', 'http:'].includes(url.protocol)) throw new ErroHttp(400, 'Use um link http(s)');
-  const ips = await dns.lookup(url.hostname, { all: true }).catch(() => []);
-  if (!ips.length) throw new ErroHttp(400, 'Não encontrei esse endereço');
-  if (ips.some((i) => ipInterno(i.address))) throw new ErroHttp(400, 'Esse endereço não pode ser usado');
-  const controle = new AbortController();
-  const tempo = setTimeout(() => controle.abort(), 120000);
+  const pastaRel = pastaDoMes();
+  const temporario = path.join(config.filesDir, pastaRel, `${crypto.randomUUID()}.baixando`);
+  let r;
   try {
-    const resp = await fetch(url, { redirect: 'follow', signal: controle.signal });
-    // O link pode redirecionar: o destino final também não pode ser interno
-    if (resp.url && new URL(resp.url).hostname !== url.hostname) {
-      const finais = await dns.lookup(new URL(resp.url).hostname, { all: true }).catch(() => []);
-      if (!finais.length || finais.some((i) => ipInterno(i.address))) { controle.abort(); throw new ErroHttp(400, 'Esse endereço não pode ser usado'); }
-    }
-    if (!resp.ok || !resp.body) throw new ErroHttp(400, `O link respondeu com erro ${resp.status}`);
-    const tamanho = Number(resp.headers.get('content-length') || 0);
-    if (tamanho > maxBytes()) throw new ErroHttp(413, `Arquivo grande demais (máximo ${config.whatsapp.envioMaxMb} MB)`);
-    const mime = (resp.headers.get('content-type') || 'application/octet-stream').split(';')[0].trim();
-    if (/^text\/html/i.test(mime)) throw new ErroHttp(400, 'O link abre uma página, não um arquivo. Use o link direto do arquivo (ex.: terminando em .mp4)');
-    const nome = decodeURIComponent(path.basename(url.pathname)) || 'arquivo';
-    return await gravar(Readable.fromWeb(resp.body), { nome, mime }, userId);
+    r = await baixarSeguro(url.toString(), { max: maxBytes(), aoExceder: 'erro', tempoMs: 30000, totalMs: 120000, redirecionamentos: 5, destino: temporario });
   } catch (err) {
-    if (err.name === 'AbortError') throw new ErroHttp(400, 'O download demorou demais');
-    throw err.status ? err : new ErroHttp(400, `Não consegui baixar: ${err.message}`);
-  } finally {
-    clearTimeout(tempo);
+    fs.rmSync(temporario, { force: true });
+    if (err.grande) throw new ErroHttp(413, mensagemGrande());
+    if (/interno/i.test(err.message)) throw new ErroHttp(400, 'Esse endereço não pode ser usado');
+    if (err.statusHttp) throw new ErroHttp(400, `O link respondeu com erro ${err.statusHttp}`);
+    if (/demorou|esgotado/i.test(err.message)) throw new ErroHttp(400, 'O download demorou demais');
+    if (err.code === 'ENOTFOUND') throw new ErroHttp(400, 'Não encontrei esse endereço');
+    throw new ErroHttp(400, `Não consegui baixar: ${err.message}`);
   }
+  const mime = (r.tipo || 'application/octet-stream').split(';')[0].trim() || 'application/octet-stream';
+  if (/^text\/html/i.test(mime)) {
+    fs.rmSync(temporario, { force: true });
+    throw new ErroHttp(400, 'O link abre uma página, não um arquivo. Use o link direto do arquivo (ex.: terminando em .mp4)');
+  }
+  if (!r.tamanho) {
+    fs.rmSync(temporario, { force: true });
+    throw new ErroHttp(400, 'Arquivo vazio');
+  }
+  let nome = 'arquivo';
+  try { nome = decodeURIComponent(path.basename(url.pathname)) || 'arquivo'; } catch { nome = path.basename(url.pathname) || 'arquivo'; }
+  const rel = path.join(pastaRel, `${crypto.randomUUID()}.${extensao(mime, nome)}`);
+  fs.renameSync(temporario, path.join(config.filesDir, rel));
+  return registrar(rel, { nome, mime, tamanho: r.tamanho }, userId);
 }
 
 export function arquivoDaMidia(id) {

@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Plus, Archive, ArchiveRestore, Paperclip, Mic, Square, Send, X, FileText, Image as Imagem, Music, MessageCircle, Clock, Smartphone, Pencil, Check, Loader2 } from 'lucide-react';
 import { api } from '../../../api.js';
 import { rota } from '../../../base.js';
-import { useEvento } from '../../../tempoReal.js';
+import { useEvento, itensDoAviso } from '../../../tempoReal.js';
 import { useT } from '../../../i18n/index.jsx';
 import { tempoDesde } from '../../../utils.js';
 import { useAviso } from '../../disparos/comum.jsx';
@@ -64,8 +64,8 @@ export default function Chat({ user, dados, aoAbrirConversa, aoMudar }) {
   const recarregarLista = useRef(null);
   useEvento('agente', (d) => {
     if (d?.usuario && d.usuario !== user.id) return;
-    if (d?.conversa && d.conversa === atual && d.status === 'pensando') setEtapa(d.etapa || t('ia.agente.chat.pensando'));
-    else if (atual && (!d?.conversa || d.conversa === atual)) carregarDetalhe(atual);
+    if (d?.conversa && d.conversa === atual && d.status === 'pensando' && !d.lote) setEtapa(d.etapa || t('ia.agente.chat.pensando'));
+    else if (atual && itensDoAviso(d).some((x) => !x?.conversa || x.conversa === atual)) carregarDetalhe(atual);
     clearTimeout(recarregarLista.current);
     recarregarLista.current = setTimeout(carregarLista, 400);
   });

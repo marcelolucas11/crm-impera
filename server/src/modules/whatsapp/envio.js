@@ -604,6 +604,11 @@ export async function avisarDigitando(numeroId, jid, estadoPresenca = 'composing
   const chave = `${numeroId}|${jid}|${estadoPresenca}`;
   if (estadoPresenca !== 'paused' && Date.now() - (ultimaPresenca.get(chave) || 0) < 4000) return;
   ultimaPresenca.set(chave, Date.now());
+  // O mapa só serve para os últimos segundos: limpa o que ficou velho (antes crescia para sempre)
+  if (ultimaPresenca.size > 300) {
+    const limite = Date.now() - 60000;
+    for (const [k, quando] of ultimaPresenca) if (quando < limite) ultimaPresenca.delete(k);
+  }
   await e.sock.sendPresenceUpdate(estadoPresenca, jid).catch(() => {});
 }
 

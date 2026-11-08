@@ -15,6 +15,7 @@ import { lerConfig as lerConfigOrganizador, salvarConfig as salvarConfigOrganiza
 import { maxMsgId, maxEventoId } from '../organizador/motor.js';
 import { socketConectado } from '../whatsapp/instancias.js';
 import { interpretarConversa, nomeDaConversa, acharConversas } from './dados.js';
+import { temPermissao } from '../auth/permissoes.js';
 
 export const TIPOS = {
   enviar_mensagem: 'Enviar mensagem no WhatsApp',
@@ -36,6 +37,18 @@ export function registrarExecutor(tipo, { validar, executar, titulo = null }) {
 }
 
 const avisarTela = (userId, dados = {}) => emitir('agente', { usuario: userId, acoes: true, ...dados });
+
+// Permissão que cada ação exige de quem aprova (a mesma das telas: aprovar pela assistente não pode ser um atalho)
+const PERMISSAO_DA_ACAO = {
+  enviar_mensagem: 'whatsapp_enviar', mover_lead: 'leads_editar', atualizar_lead: 'leads_editar',
+  criar_publico: 'disparos', criar_disparo: 'disparos', criar_modelo_disparo: 'disparos',
+};
+function conferirPermissao(tipo, userId) {
+  const chave = PERMISSAO_DA_ACAO[tipo];
+  if (chave && !temPermissao(userId, chave)) {
+    throw new ErroHttp(403, 'Você não tem permissão para esta ação. Peça a um administrador para liberar em Equipe e integrações → Permissões.');
+  }
+}
 const textoLimpo = (v, max = MAX_TEXTO) => String(v ?? '').replace(/\r\n?/g, '\n').trim().slice(0, max);
 
 // ------------------------------------------------------------------ validação de cada tipo
@@ -306,6 +319,7 @@ function mapear(a) {
 export function propor(tipo, entrada, ctx) {
   const validar = VALIDAR[tipo] || executores[tipo]?.validar;
   if (!validar) throw new Error(`Ação desconhecida: ${tipo}`);
+  if (PERMISSAO_DA_ACAO[tipo] && !temPermissao(ctx.userId, PERMISSAO_DA_ACAO[tipo])) throw new Error('Este usuário não tem permissão para esta ação');
   const { dados, resumo, editaveis = [] } = validar(entrada || {}, ctx);
   const id = Number(run('INSERT INTO agente_acoes (user_id, conversa_id, tipo, resumo, dados) VALUES (?, ?, ?, ?, ?)', [
     ctx.userId, ctx.conversaId || null, tipo, resumo, JSON.stringify({ ...dados, __editaveis: editaveis }),
@@ -338,6 +352,7 @@ function anotarNaConversa(acao, texto) {
 export async function aprovar(id, userId, edicao = {}, { papel = 'member' } = {}) {
   const a = obterAcao(id, userId);
   if (a.status !== 'pendente') throw new ErroHttp(409, a.status === 'executada' ? 'Esta ação já foi executada' : 'Esta ação já foi decidida');
+  conferirPermissao(a.tipo, userId);
   let dados = lerJson(a.dados);
   const editaveis = dados.__editaveis || [];
   const mudou = Object.keys(edicao || {}).filter((k) => editaveis.includes(k) && edicao[k] !== undefined && edicao[k] !== dados[k]);
@@ -378,6 +393,7 @@ export function recusar(id, userId) {
 export function desfazer(id, userId) {
   const a = obterAcao(id, userId);
   if (a.status !== 'executada' || a.desfeita_em) throw new ErroHttp(409, 'Só dá para desfazer uma ação executada');
+  conferirPermissao(a.tipo, userId);
   const fn = DESFAZER[a.tipo];
   if (!fn) throw new ErroHttp(409, 'Esta ação não tem como ser desfeita (nada é apagado pelo CRM)');
   fn(a, userId);

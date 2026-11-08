@@ -1,4 +1,5 @@
 // Módulo de estatísticas: entrada de leads, respostas, tempo de resposta, follow-up, funil, UTMs e equipe
+import { responderJson } from '../../cache.js';
 import { get, all } from '../../db.js';
 import { config } from '../../config.js';
 import { exigirLogin, exigirPermissao } from '../auth/middleware.js';
@@ -248,7 +249,13 @@ export default {
   register(app) {
     app.get('/api/estatisticas', exigirLogin, exigirPermissao('estatisticas'), (req, res) => {
       const fusoMin = Math.max(-840, Math.min(840, Number(req.query.fuso) || 0));
-      res.json(calcularEstatisticas({ dias: req.query.dias, inicio: req.query.inicio, fim: req.query.fim, fusoMin }));
+      const filtro = { dias: req.query.dias, inicio: req.query.inicio, fim: req.query.fim, fusoMin };
+      // A tela atualiza sozinha a cada minuto: o mesmo período é reaproveitado até algo mudar nos dados
+      responderJson(req, res, {
+        chave: `estatisticas|${JSON.stringify(filtro)}`,
+        tabelas: ['leads', 'lead_events', 'stages', 'users', 'wa_messages', 'calendly_events'],
+        ttlMs: 60000,
+      }, () => calcularEstatisticas(filtro));
     });
   },
 };

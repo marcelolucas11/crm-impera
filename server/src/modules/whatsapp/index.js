@@ -6,13 +6,13 @@ import QRCode from 'qrcode';
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
-import { Transform } from 'node:stream';
-import { pipeline } from 'node:stream/promises';
 import { all, run, agora } from '../../db.js';
 import { config } from '../../config.js';
 import { exigirLogin, exigirAdmin, exigirPermissao } from '../auth/middleware.js';
 import { idValido, texto, ErroHttp } from '../../util.js';
 import { abrirCanal, fecharCanais } from '../../tempoReal.js';
+import { receberCorpo } from '../../upload.js';
+import { enviarArquivoSeguro } from '../../arquivos.js';
 import {
   listarNumeros, conectar, desconectar, removerNumero, criarNumero, iniciarTodos, pararTodos, numeroExiste,
   consultarFotos, arquivoDaFoto,
@@ -34,35 +34,15 @@ import {
 } from './figurinhas.js';
 import { baixarMidia } from './midia.js';
 
-// Tipos que o navegador pode abrir direto na tela; o resto é sempre baixado (evita abrir HTML/SVG de terceiros)
-const ABRE_NA_TELA = /^(image\/(jpeg|png|webp|gif)|audio\/|video\/|application\/pdf)/i;
-
 // Recebe o arquivo enviado pelo navegador direto para o disco, com limite de tamanho
 async function receberArquivo(req) {
-  const max = config.whatsapp.envioMaxMb * 1024 * 1024;
-  const declarado = Number(req.headers['content-length'] || 0);
-  if (declarado > max) throw new ErroHttp(413, `Arquivo grande demais (máximo ${config.whatsapp.envioMaxMb} MB)`);
   const pasta = path.join(config.filesDir, 'whatsapp', 'tmp');
   fs.mkdirSync(pasta, { recursive: true });
   const caminho = path.join(pasta, crypto.randomUUID());
-  let total = 0;
-  const limite = new Transform({
-    transform(pedaco, _enc, cb) {
-      total += pedaco.length;
-      if (total > max) return cb(new ErroHttp(413, `Arquivo grande demais (máximo ${config.whatsapp.envioMaxMb} MB)`));
-      cb(null, pedaco);
-    },
+  await receberCorpo(req, caminho, {
+    max: config.whatsapp.envioMaxMb * 1024 * 1024,
+    mensagem: `Arquivo grande demais (máximo ${config.whatsapp.envioMaxMb} MB)`,
   });
-  try {
-    await pipeline(req, limite, fs.createWriteStream(caminho));
-  } catch (err) {
-    fs.rmSync(caminho, { force: true });
-    throw err.status ? err : new ErroHttp(400, 'O envio do arquivo foi interrompido');
-  }
-  if (!total) {
-    fs.rmSync(caminho, { force: true });
-    throw new ErroHttp(400, 'Arquivo vazio');
-  }
   return caminho;
 }
 
@@ -346,7 +326,8 @@ export default {
       const caminho = arquivoDaFoto(jidsDaChave(req.params.chave));
       if (!caminho) return res.status(404).json({ erro: 'Sem foto' });
       res.setHeader('Cache-Control', 'private, max-age=604800, immutable');
-      res.sendFile(caminho);
+      res.setHeader('X-Content-Type-Options', 'nosniff');
+      res.type('image/jpeg').sendFile(caminho);
     });
 
     // ------------------------------------------------------------ mídia e mensagens
@@ -354,15 +335,8 @@ export default {
       const id = idValido(req.params.id);
       if (!id) return res.status(404).json({ erro: 'Mídia não encontrada' });
       const arq = await arquivoDaMidia(id, { compat: req.query.compat === '1' });
-      const mime = arq.mime.split(';')[0].trim();
       const nome = arq.nome || `whatsapp-${id}${path.extname(arq.caminho)}`;
-      res.setHeader('Content-Type', arq.mime);
-      res.setHeader('Cache-Control', 'private, max-age=604800');
-      // PDF precisa do leitor do navegador (que a política restrita bloquearia); o resto abre isolado
-      if (mime === 'application/pdf') res.removeHeader('Content-Security-Policy');
-      else res.setHeader('Content-Security-Policy', "default-src 'none'; img-src 'self'; media-src 'self'; style-src 'unsafe-inline'; sandbox");
-      if (req.query.download === '1' || !ABRE_NA_TELA.test(mime)) res.attachment(nome);
-      res.sendFile(arq.caminho);
+      enviarArquivoSeguro(res, arq.caminho, { mime: arq.mime, nome, download: req.query.download === '1', cache: 'private, max-age=604800' });
     });
 
     r.post('/mensagens/:id/reacao', async (req, res) => {

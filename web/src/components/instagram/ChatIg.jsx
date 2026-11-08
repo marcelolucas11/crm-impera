@@ -5,7 +5,7 @@ import { Bot, Send, X, Pause, Play, Sparkles, Smile, Paperclip, SendHorizontal, 
 import { api } from '../../api.js';
 import { rota } from '../../base.js';
 import { useT } from '../../i18n/index.jsx';
-import { useEvento } from '../../tempoReal.js';
+import { useEvento, avisoTem } from '../../tempoReal.js';
 import { pode } from '../../permissoes.js';
 import { tempoDesde, dataHora } from '../../utils.js';
 import { TextoFormatado } from '../chat/formatacao.jsx';
@@ -167,7 +167,7 @@ function FaixaAlice({ conversa, perfil, podeResponder, t }) {
     } catch { /* tenta no próximo aviso */ }
   }, [conversa.id]);
   useEffect(() => { setEstado(null); setErro(''); carregar(); }, [carregar]);
-  useEvento('instagram', (d) => { if (d?.conversa === conversa.id && (d.ia || d.nova)) carregar(); });
+  useEvento('instagram', (d) => { if (avisoTem(d, 'conversa', conversa.id) && (d.ia || d.nova)) carregar(); });
 
   if (!estado) return null;
   const status = estado.status;
@@ -376,7 +376,7 @@ export default function ChatIg({ conversa, perfil, user, onEnviado }) {
     const id = setInterval(() => { if (!document.hidden) carregar(); }, RESERVA_MS);
     return () => clearInterval(id);
   }, [carregar]);
-  useEvento('instagram', (d) => { if (d?.conversa === conversa.id || d?.conversas) carregar(); });
+  useEvento('instagram', (d) => { if (avisoTem(d, 'conversa', conversa.id) || d?.conversas) carregar(); });
 
   // Rolagem: começa no fim, acompanha mensagens novas quando já está no fim e mantém a posição ao carregar as antigas
   useLayoutEffect(() => {

@@ -13,6 +13,7 @@ import { confirmarLeitura, refletirNoCelular } from './envio.js';
 import { digitandoAgora } from './presenca.js';
 import { telefoneDoJid } from './ligacao.js';
 import { avisar } from './instancias.js';
+import { memoizar } from '../../cache.js';
 
 export function interpretarChave(chave) {
   const [tipo, ...resto] = String(chave || '').split(':');
@@ -50,20 +51,31 @@ function chaveDe(jid, leadId, phone) {
  *  numero: só conversas deste número conectado (id) — vazio = todos
  * Devolve { conversas, arquivadas: quantidade, mensagens: [resultados da busca no texto] }
  */
+// Partes pesadas da lista, guardadas enquanto as tabelas não mudam (a tela pede a lista a cada poucos segundos, em
+// todas as abas abertas, e antes cada pedido lia todas as mensagens do banco para agrupar por conversa).
+// "leads" entra porque excluir um lead mexe nas mensagens sem passar por um UPDATE do CRM.
+const VALIDADE_MS = 60000;
+const resumoPorJid = (numeroId) => memoizar(`wa|porjid|${numeroId || ''}`, ['wa_messages', 'leads'], VALIDADE_MS, () => all(
+  `SELECT m.chat_jid, max(m.lead_id) AS lead_id, max(m.timestamp) AS ultima_em,
+          sum(CASE WHEN m.from_me = 0 AND m.read_at IS NULL THEN 1 ELSE 0 END) AS nao_lidas
+     FROM wa_messages m
+    WHERE m.hidden_at IS NULL ${numeroId ? 'AND m.instance_id = ?' : ''}
+    GROUP BY m.chat_jid`,
+  numeroId ? [numeroId] : []
+));
+const mapaContatos = () => memoizar('wa|contatos', ['wa_contacts', 'leads'], VALIDADE_MS,
+  () => new Map(all('SELECT jid, phone, lead_id, name, push_name FROM wa_contacts').map((c) => [c.jid, c])));
+const mapaEstados = () => memoizar('wa|estados', ['wa_chats'], VALIDADE_MS, () => new Map(all('SELECT * FROM wa_chats').map((c) => [c.jid, c])));
+// Última mensagem de cada conversa (prévia na lista): um mapa por "geração" das mensagens, preenchido aos poucos
+const ultimasMensagens = () => memoizar('wa|ultimas', ['wa_messages', 'wa_contacts'], VALIDADE_MS, () => new Map());
+
 export function listarConversas({ busca = '', filtro = 'todas', numero = null, horasFollowup = config.followupHours, limite = 600 } = {}) {
   const numeroId = idValido(numero);
-  const porJid = all(
-    `SELECT m.chat_jid, max(m.lead_id) AS lead_id, max(m.timestamp) AS ultima_em,
-            sum(CASE WHEN m.from_me = 0 AND m.read_at IS NULL THEN 1 ELSE 0 END) AS nao_lidas
-       FROM wa_messages m
-      WHERE m.hidden_at IS NULL ${numeroId ? 'AND m.instance_id = ?' : ''}
-      GROUP BY m.chat_jid`,
-    numeroId ? [numeroId] : []
-  );
+  const porJid = resumoPorJid(numeroId);
   if (!porJid.length) return { conversas: [], arquivadas: 0, mensagens: [] };
 
-  const contatos = new Map(all('SELECT jid, phone, lead_id, name, push_name FROM wa_contacts').map((c) => [c.jid, c]));
-  const estados = new Map(all('SELECT * FROM wa_chats').map((c) => [c.jid, c]));
+  const contatos = mapaContatos();
+  const estados = mapaEstados();
   const digitando = digitandoAgora();
 
   // Junta os identificadores da mesma conversa (o mesmo lead pode ter o número e o LID)
@@ -187,12 +199,16 @@ export function listarConversas({ busca = '', filtro = 'todas', numero = null, h
   lista = lista.slice(0, limite);
 
   // Última mensagem de cada conversa visível (prévia na lista)
+  const ultimas = ultimasMensagens();
   for (const c of lista) {
-    const m = get(
-      `SELECT m.body, m.type, m.from_me, m.status, m.deleted_at, m.instance_id, m.participant_name, m.participant_jid, m.extra
-         FROM wa_messages m WHERE m.chat_jid = ? AND m.hidden_at IS NULL ORDER BY m.timestamp DESC, m.id DESC LIMIT 1`,
-      [c.jid_ultima]
-    );
+    if (!ultimas.has(c.jid_ultima)) {
+      ultimas.set(c.jid_ultima, get(
+        `SELECT m.body, m.type, m.from_me, m.status, m.deleted_at, m.instance_id, m.participant_name, m.participant_jid, m.extra
+           FROM wa_messages m WHERE m.chat_jid = ? AND m.hidden_at IS NULL ORDER BY m.timestamp DESC, m.id DESC LIMIT 1`,
+        [c.jid_ultima]
+      ));
+    }
+    const m = ultimas.get(c.jid_ultima);
     c.ultima_mensagem = m?.body ?? null;
     c.ultimo_tipo = m?.type ?? null;
     c.ultima_minha = Boolean(m?.from_me);

@@ -4,7 +4,9 @@ CRM da agência: leads do Yay! Forms caindo direto num kanban, alerta de follow-
 Roda direto no Mac, a partir do SSD externo, sem Docker e sem instalar nada no sistema.
 A mesma pasta funciona depois na VPS da Contabo.
 
-**Versão atual: 0.26.0** — o número fica no arquivo `VERSAO` e é o que aparece em **Equipe e integrações → Atualização do CRM**.
+**Versão atual: 0.27.0** — o número fica no arquivo `VERSAO` e é o que aparece em **Equipe e integrações → Atualização do CRM**.
+
+**Versão 0.27.0:** Revisão de segurança e de desempenho (nenhuma tela muda de visual). **Segurança:** a consulta ao banco da **assistente pessoal** tinha um furo — um nome entre aspas duplas com uma aspa simples dentro fazia a conferência pular o resto da consulta e permitia ler chaves de API, senhas (hash) e sessões; agora a consulta é lida pedaço por pedaço como o próprio SQLite lê, e as conversas particulares da assistente de cada pessoa também ficam de fora. A assistente passa a respeitar as **permissões** de cada pessoa (quem não tem WhatsApp liberado não lê conversas por ela; enviar mensagem, mover lead e criar disparo pela assistente exigem a mesma permissão da tela), e aprovar a sugestão da IA de primeiro contato exige a permissão de enviar no WhatsApp. Pedidos que mudam algo no CRM só são aceitos se vierem da própria tela do CRM (bloqueia ataques de outros sites, inclusive de outros subdomínios). **Trocar a senha** (ou desativar alguém) encerra as sessões abertas nos outros aparelhos. O login não revela mais pelo tempo de resposta quais e-mails têm conta, tem limite também por conta e não bloqueia mais a equipe inteira de um escritório (só tentativas erradas contam). Webhooks e links públicos bloqueiam quem erra token ou assinatura muitas vezes. Arquivos que vieram de fora (mídias do WhatsApp e do Instagram, anexos da assistente, arquivos dos disparos) só abrem na tela isolados e o resto é sempre baixado. Downloads por link (disparos) passam pela mesma proteção da prévia de links contra endereços internos, conferida em cada redirecionamento. Banco, sessões do WhatsApp, mídias e backups ficam legíveis só pelo usuário que roda o CRM. Mensagens de erro do git na tela de atualização não mostram mais token. **Correção:** **excluir um lead apagava junto as conversas do WhatsApp** dele; agora só o cartão sai do kanban e a conversa continua na tela de WhatsApp como contato. **Desempenho:** o kanban, a lista de conversas do WhatsApp, os contadores do topo e as estatísticas são calculados uma vez e reaproveitados por todas as abas até algo mudar no banco (antes cada atualização automática relia todas as mensagens); a tela recebe "nada mudou" (304) em vez da lista inteira quando nada mudou. A conversa aberta só recarrega quando chega mensagem **nela** (antes recarregava a cada mensagem de qualquer conversa) e o aviso em tempo real não perde mais mensagens que chegam juntas em conversas diferentes. Sessões de login não gravam mais no disco a cada clique. Mídias do WhatsApp são baixadas direto para o disco, sem ocupar a memória. A interface abre mais leve: as telas de IA, Instagram, Disparos, Estatísticas e Equipe só são baixadas quando alguém abre, os arquivos vão compactados (~4x menores) e ficam guardados no navegador entre versões. O `crm.log` não cresce mais para sempre (passou de 20 MB, vira `crm.log.1`). Índices novos no banco para os contadores.
 
 **Versão 0.26.0:** Nova aba **Instagram**, ao lado do WhatsApp, para os perfis da Impera conectados pela API oficial da Meta. **Direct** no estilo do WhatsApp Web (lista com busca e filtros, chat, ficha do lead à direita), com fotos, vídeos, áudios, respostas a story, menções, publicações compartilhadas e o anúncio que trouxe a pessoa; o prazo de **24 h** para responder (7 dias quando veio de anúncio) aparece em cada conversa e a caixa de resposta só abre dentro dele. A **Alice SDR** (a mesma do WhatsApp) atende o Direct de cada perfil que você ligar: cumprimenta, faz a entrevista (nicho, experiência, se anuncia, objetivo, quando começar) e, quando a pessoa passa o WhatsApp, o **lead entra no kanban** com as respostas e o @ — opcionalmente a IA do WhatsApp manda a primeira mensagem por lá. No modo copiloto ela só sugere; se alguém da equipe escrever, ela para. **Transformar em lead** pelo botão (com ou sem WhatsApp). **Comentários** (desligado de fábrica): ver, responder em público, ocultar e **chamar no Direct**. **Desempenho**: seguidores, visualizações, alcance, interações, engajamento, conversas no Direct, leads (Direct + Yay! Forms) e gasto em anúncios, com comparação ao período anterior, gráficos por dia, **funil post → Direct → lead → reunião → fechado**, formatos, melhores publicações, publicações com todos os números (e a evolução dia a dia), **anúncios** das contas da Impera ligados aos perfis (números da Meta ao lado do que virou no CRM), público (idade, gênero, cidades, países) e melhores horários. Tudo é guardado no CRM e atualizado a cada 24 h, com o histórico mais antigo que a Meta entrega. **Relatórios da IA**: semanal automático toda segunda, na hora ou por período escolhido, com o modelo à escolha e teto de gasto por dia. A **assistente pessoal** também lê o Instagram (conversas, números, publicações, anúncios e comentários) e propõe respostas no Direct com aprovação. Nova aba **Permissões** para cada pessoa da equipe em **Equipe e integrações**: o administrador escolhe as telas (Kanban, WhatsApp, Instagram: Direct, desempenho e comentários, Disparos, IA, assistente, Estatísticas) e as funções (editar e excluir leads, enviar no WhatsApp, responder no Instagram, disparar campanhas); o servidor bloqueia o que não estiver liberado. O Instagram nasce liberado só para administradores. Veja [Instagram](#instagram) e [Permissões da equipe](#permissões-da-equipe).
 
@@ -603,6 +605,7 @@ mostra a data da próxima reunião. Funciona em qualquer plano do Calendly e nã
 | `TRANSCRICAO_DIR` | Pasta da transcrição de áudio da assistente (biblioteca e modelos do Whisper). Padrão: `dados/transcricao`, ao lado do banco |
 | `META_APP_ID` / `META_APP_SECRET` | Opcional: ID e chave secreta do app da Meta (Instagram). Prefira colar pela tela (Equipe e integrações → Instagram) |
 | `META_API_VERSAO` | Versão da Graph API usada pelo Instagram (padrão `v25.0`; também dá para trocar pela tela) |
+| `LOG_MAX_MB` | Tamanho máximo do `logs/crm.log` antes de virar `crm.log.1` (padrão 20) |
 
 Depois de mudar o `.env`, rode `./parar.sh && ./iniciar.sh`.
 
@@ -617,8 +620,13 @@ Depois de mudar o `.env`, rode `./parar.sh && ./iniciar.sh`.
 
 ```
 server/src/modules/   ← cada integração é um módulo (auth, users, stages, leads, followup, yayforms, calendly, whatsapp...)
-server/src/db.js      ← toda a conversa com o banco (SQLite embutido no Node)
-server/src/tempoReal.js ← avisos em tempo real para a tela (/api/eventos)
+server/src/db.js      ← toda a conversa com o banco (SQLite embutido no Node) e as "gerações" de cada tabela
+server/src/tempoReal.js ← avisos em tempo real para a tela (/api/eventos), agrupados em lote e filtrados por permissão
+server/src/cache.js   ← memoizar() e responderJson(): listas pesadas reaproveitadas até a tabela mudar (ETag/304/gzip)
+server/src/rede.js    ← baixarSeguro(): download de endereço digitado por alguém (nunca rede interna, nem por redirecionamento)
+server/src/upload.js  ← receberCorpo(): arquivo enviado pela tela direto para o disco, com limite de tamanho
+server/src/arquivos.js ← enviarArquivoSeguro(): entrega de arquivo que veio de fora (abre isolado ou baixa)
+server/src/util.js    ← telefone, e-mail, iguaisSeguro() (tokens), criarRota() (erros das rotas), esperar()
 server/src/modules/whatsapp/
   gerenciador.js  conexão (QR code, reconexão), eventos do WhatsApp, fotos de perfil
   recebimento.js  mensagens recebidas → banco (ao vivo e em lotes do histórico)
@@ -646,6 +654,13 @@ web/src/              ← interface React (WhatsApp em WhatsAppPagina.jsx, Conve
 ```
 
 Novo módulo: criar `server/src/modules/<nome>/index.js` exportando `{ name, register(app) }` e registrar em `modules/index.js`.
+
+Regras de segurança (revisão 0.27): toda rota confere o login **e a permissão** no servidor (`exigirPermissao`), inclusive o que a
+assistente faz em nome da pessoa (`PERMISSAO_DA_FERRAMENTA` em `agente/ferramentas.js` e `PERMISSAO_DA_ACAO` em `agente/acoes.js`);
+arquivo recebido usa `receberCorpo`, arquivo de fora sai por `enviarArquivoSeguro`, link digitado por alguém passa por `baixarSeguro`;
+token e assinatura se comparam com `iguaisSeguro`; erro inesperado de rota nunca vai com detalhe para a tela (`criarRota`).
+Lista pesada que a tela pede sempre: `responderJson(req, res, { chave, tabelas, ttlMs }, calcular)` — liste em `tabelas`
+tudo de que o resultado depende. Pedidos POST/PUT/PATCH/DELETE em `/api` só passam vindos da própria tela (proteção contra CSRF).
 Mudança no banco: criar `server/migrations/00X_descricao.sql`. Ela roda sozinha na próxima atualização, dentro de uma transação.
 Nunca reescreva o histórico do Git (`push --force`) no repositório: o `atualizar.sh` só avança versões.
 Versão nova: mude o número no arquivo `VERSAO` e no topo deste README no mesmo commit, e crie a tag no GitHub

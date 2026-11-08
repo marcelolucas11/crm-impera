@@ -6,15 +6,16 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { Transform } from 'node:stream';
-import { pipeline } from 'node:stream/promises';
+import crypto from 'node:crypto';
 import { Router } from 'express';
 import { get, all, agora } from '../../db.js';
 import { config } from '../../config.js';
 import { lerEstado, salvarEstado } from '../../estado.js';
 import { aoAcontecer } from '../../ganchos.js';
 import { emitir } from '../../tempoReal.js';
-import { ErroHttp, idValido } from '../../util.js';
+import { receberCorpo } from '../../upload.js';
+import { enviarArquivoSeguro } from '../../arquivos.js';
+import { ErroHttp, idValido, criarRota } from '../../util.js';
 import { exigirLogin, exigirAdmin, exigirPermissao } from '../auth/middleware.js';
 import { ErroIA } from '../ia/cliente.js';
 import { MODELOS } from '../ia/config.js';
@@ -39,16 +40,7 @@ const MAX_ARQUIVO = 25 * 1024 * 1024;
 let relogio = null;
 const rodando = new Set();
 
-const rota = (fn) => async (req, res) => {
-  try {
-    await fn(req, res);
-  } catch (err) {
-    const conhecido = err instanceof ErroHttp || err instanceof ErroIA || err instanceof ErroMeta;
-    const status = conhecido ? err.status || 400 : 500;
-    if (status >= 500) console.error('[instagram]', err);
-    res.status(status >= 500 && !conhecido ? 500 : status).json({ erro: status >= 500 && !conhecido ? 'Erro interno' : err.message });
-  }
-};
+const rota = criarRota('instagram', [ErroIA, ErroMeta], { mensagemSimples: false });
 
 const id = (req, nome = 'id') => {
   const v = idValido(req.params[nome]);
@@ -56,30 +48,18 @@ const id = (req, nome = 'id') => {
   return v;
 };
 
-function enviarArquivoLocal(res, caminho, mime = null) {
+function enviarArquivoLocal(res, caminho, mime = null, { download = false } = {}) {
   if (!caminho || !fs.existsSync(caminho)) return res.status(404).json({ erro: 'Arquivo não encontrado' });
-  res.setHeader('Cache-Control', 'private, max-age=86400');
-  res.setHeader('X-Content-Type-Options', 'nosniff');
-  if (mime) res.type(mime);
-  return res.sendFile(caminho);
+  // Sem tipo informado (fotos e miniaturas): o navegador deduz pela extensão, sempre como imagem isolada
+  const tipo = mime || ({ '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.webp': 'image/webp', '.gif': 'image/gif' }[path.extname(caminho).toLowerCase()] || null);
+  return enviarArquivoSeguro(res, caminho, { mime: tipo, nome: path.basename(caminho), download, cache: 'private, max-age=86400' });
 }
 
 /** Recebe um arquivo no corpo do pedido (até 25 MB) e devolve o caminho temporário */
 async function receberArquivo(req) {
-  const declarado = Number(req.headers['content-length'] || 0);
-  if (declarado > MAX_ARQUIVO) throw new ErroHttp(413, 'Arquivo grande demais (o Instagram aceita até 25 MB)');
-  const destino = path.join(os.tmpdir(), `crm-ig-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2)}${path.extname(String(req.query.nome || '')).slice(0, 6).replace(/[^.\w]/g, '')}`);
-  let total = 0;
-  const limite = new Transform({
-    transform(p, _e, cb) { total += p.length; if (total > MAX_ARQUIVO) return cb(new ErroHttp(413, 'Arquivo grande demais (o Instagram aceita até 25 MB)')); cb(null, p); },
-  });
-  try {
-    await pipeline(req, limite, fs.createWriteStream(destino));
-  } catch (err) {
-    fs.rmSync(destino, { force: true });
-    throw err.status ? err : new ErroHttp(400, 'O envio do arquivo foi interrompido');
-  }
-  if (!total) { fs.rmSync(destino, { force: true }); throw new ErroHttp(400, 'Arquivo vazio'); }
+  const ext = path.extname(String(req.query.nome || '')).slice(0, 6).replace(/[^.\w]/g, '');
+  const destino = path.join(os.tmpdir(), `crm-ig-${process.pid}-${crypto.randomUUID()}${ext}`);
+  await receberCorpo(req, destino, { max: MAX_ARQUIVO, mensagem: 'Arquivo grande demais (o Instagram aceita até 25 MB)' });
   return { caminho: destino, mime: String(req.query.mime || 'application/octet-stream').slice(0, 100), nome: String(req.query.nome || 'arquivo').slice(0, 200) };
 }
 
@@ -321,8 +301,7 @@ export default {
       const indice = req.params.indice === 'story' ? 'story' : Number(req.params.indice) || 0;
       const arq = direct.arquivoDaMidia(id(req, 'msg'), indice);
       if (!arq) return res.status(404).json({ erro: 'A mídia ainda não foi baixada (ou expirou na Meta)' });
-      if (req.query.download === '1') res.setHeader('Content-Disposition', 'attachment');
-      return enviarArquivoLocal(res, arq.caminho, arq.mime);
+      return enviarArquivoLocal(res, arq.caminho, arq.mime, { download: req.query.download === '1' });
     }));
     r.post('/midia/:msg/baixar', verDirect, rota(async (req, res) => {
       await direct.baixarMidiasDaMensagem(id(req, 'msg'));

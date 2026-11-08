@@ -4,14 +4,15 @@
 // Tirar este módulo da lista não quebra nada: o resto do CRM não depende dele.
 import fs from 'node:fs';
 import path from 'node:path';
-import { Transform } from 'node:stream';
-import { pipeline } from 'node:stream/promises';
+import crypto from 'node:crypto';
 import { Router } from 'express';
 import { get, all, run } from '../../db.js';
 import { config } from '../../config.js';
 import { exigirLogin, exigirAdmin, exigirPermissao } from '../auth/middleware.js';
 import { aoAcontecer } from '../../ganchos.js';
-import { ErroHttp, idValido } from '../../util.js';
+import { receberCorpo } from '../../upload.js';
+import { enviarArquivoSeguro } from '../../arquivos.js';
+import { ErroHttp, idValido, criarRota } from '../../util.js';
 import { ErroIA } from '../ia/cliente.js';
 import { MODELOS } from '../ia/config.js';
 import { estado as estadoNumero } from '../whatsapp/instancias.js';
@@ -28,16 +29,7 @@ import * as canal from './canal.js';
 const MAX_ANEXO = 25 * 1024 * 1024;
 let relogioContexto = null;
 
-const rota = (fn) => async (req, res) => {
-  try {
-    await fn(req, res);
-  } catch (err) {
-    const conhecido = err instanceof ErroHttp || err instanceof ErroIA;
-    const status = conhecido ? err.status || 400 : 500;
-    if (status === 500) console.error('[agente]', err);
-    res.status(status).json({ erro: err.message || 'Erro interno' });
-  }
-};
+const rota = criarRota('agente', [ErroIA]);
 
 const id = (req, nome = 'id') => {
   const v = idValido(req.params[nome]);
@@ -62,26 +54,13 @@ function resumo(user) {
 }
 
 async function receberAnexo(req, userId) {
-  const declarado = Number(req.headers['content-length'] || 0);
-  if (declarado > MAX_ANEXO) throw new ErroHttp(413, 'Arquivo grande demais (máximo 25 MB)');
   const nome = String(req.query.nome || 'arquivo').slice(0, 200);
   const mime = String(req.query.mime || 'application/octet-stream').slice(0, 100);
   const pasta = path.join(motor.PASTA_ANEXOS, String(userId));
   fs.mkdirSync(pasta, { recursive: true });
   const ext = (path.extname(nome).slice(0, 10).replace(/[^.\w]/g, '')) || '';
-  const arquivo = `a${Date.now()}${Math.random().toString(36).slice(2, 7)}${ext}`;
-  const destino = path.join(pasta, arquivo);
-  let total = 0;
-  const limite = new Transform({
-    transform(p, _e, cb) { total += p.length; if (total > MAX_ANEXO) return cb(new ErroHttp(413, 'Arquivo grande demais (máximo 25 MB)')); cb(null, p); },
-  });
-  try {
-    await pipeline(req, limite, fs.createWriteStream(destino));
-  } catch (err) {
-    fs.rmSync(destino, { force: true });
-    throw err.status ? err : new ErroHttp(400, 'O envio do arquivo foi interrompido');
-  }
-  if (!total) { fs.rmSync(destino, { force: true }); throw new ErroHttp(400, 'Arquivo vazio'); }
+  const destino = path.join(pasta, `a${Date.now()}${crypto.randomBytes(4).toString('hex')}${ext}`);
+  const total = await receberCorpo(req, destino, { max: MAX_ANEXO, mensagem: 'Arquivo grande demais (máximo 25 MB)' });
   const rel = path.relative(config.filesDir, destino);
   const novo = Number(run('INSERT INTO agente_anexos (user_id, nome, mime, caminho, tamanho) VALUES (?, ?, ?, ?, ?)', [userId, nome, mime, rel, total]).lastInsertRowid);
   return { id: novo, nome, mime, tamanho: total };
@@ -137,9 +116,7 @@ export default {
     r.post('/anexos/:id/transcrever', rota(async (req, res) => res.json({ texto: await motor.transcreverAnexo(req.user.id, id(req)) })));
     r.get('/anexos/:id', rota((req, res) => {
       const a = motor.anexoDoUsuario(req.user.id, id(req));
-      res.type(a.mime || 'application/octet-stream');
-      res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(a.nome || 'arquivo')}"`);
-      res.sendFile(a.absoluto);
+      enviarArquivoSeguro(res, a.absoluto, { mime: a.mime, nome: a.nome || 'arquivo', cache: 'private, max-age=3600' });
     }));
 
     // ------------------------------------------------------------ ações (aprovar / recusar / desfazer)

@@ -91,6 +91,8 @@ async function redefinirSenha() {
   if (senha.length < 8) throw new Error('A senha precisa ter pelo menos 8 caracteres');
   const { changes } = run('UPDATE users SET password_hash = ?, active = 1 WHERE lower(email) = ?', [await bcrypt.hash(senha, 12), email]);
   if (!changes) throw new Error('Usuário não encontrado');
+  // Quem estava logado com a senha antiga (em qualquer aparelho) precisa entrar de novo
+  run("DELETE FROM sessions WHERE json_extract(sess, '$.userId') = (SELECT id FROM users WHERE lower(email) = ?)", [email]);
   console.log(`✔ Senha redefinida para ${email}`);
 }
 
@@ -101,6 +103,8 @@ function contarUsuarios() {
 
 // Cópia consistente do banco (funciona com o CRM rodando)
 function backup() {
+  // O backup tem o banco inteiro (conversas, leads, chaves): só o usuário do CRM lê o arquivo
+  try { process.umask(0o077); } catch { /* sistema sem umask */ }
   const destino = args[1];
   if (!destino) throw new Error('Informe o arquivo de destino');
   if (fs.existsSync(destino)) throw new Error(`O arquivo já existe: ${destino}`);

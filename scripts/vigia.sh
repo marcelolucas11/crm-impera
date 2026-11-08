@@ -19,6 +19,18 @@ PID_NODE=""
 
 registrar() { echo "[vigia] $(date '+%Y-%m-%d %H:%M:%S') $*" >> "$LOG_FILE"; }
 
+# O log do CRM crescia para sempre. Passou de LOG_MAX_MB: guarda uma cópia (crm.log.1, a anterior é descartada)
+# e esvazia o atual. O servidor continua escrevendo normalmente (o arquivo é aberto em modo de acréscimo).
+LOG_MAX_BYTES=$(( ${LOG_MAX_MB:-20} * 1024 * 1024 ))
+girar_log() {
+  [ -f "$LOG_FILE" ] || return 0
+  local tamanho
+  tamanho=$(wc -c < "$LOG_FILE" 2>/dev/null | tr -d ' ')
+  [ -n "$tamanho" ] && [ "$tamanho" -gt "$LOG_MAX_BYTES" ] || return 0
+  cp "$LOG_FILE" "$LOG_FILE.1" 2>/dev/null && : > "$LOG_FILE"
+  registrar "log grande demais ($((tamanho / 1048576)) MB): cópia em crm.log.1, log atual zerado"
+}
+
 desligar() {
   PARANDO=1
   if [ -n "$PID_NODE" ] && kill -0 "$PID_NODE" 2>/dev/null; then
@@ -41,6 +53,7 @@ registrar "ligado"
 espera_religar=3
 
 while [ $PARANDO -eq 0 ]; do
+  girar_log
   export APP_VERSION
   APP_VERSION=$(versao_crm)
   echo "----- $(date '+%Y-%m-%d %H:%M:%S') iniciando versão $APP_VERSION -----" >> "$LOG_FILE"
@@ -49,12 +62,16 @@ while [ $PARANDO -eq 0 ]; do
   echo "$PID_NODE" > "$PID_FILE"
   inicio=$(date +%s)
   falhas=0
+  voltas=0
 
   while kill -0 "$PID_NODE" 2>/dev/null; do
     sleep "$VERIFICAR_A_CADA" &
     wait $! 2>/dev/null
     [ $PARANDO -eq 1 ] && break
     kill -0 "$PID_NODE" 2>/dev/null || break
+    # A cada ~10 min confere o tamanho do log
+    voltas=$((voltas + 1))
+    [ $((voltas % 40)) -eq 0 ] && girar_log
     [ $(( $(date +%s) - inicio )) -lt $CARENCIA_INICIO ] && continue
     if curl -fsS -m 5 "http://127.0.0.1:${PORTA}/api/health" >/dev/null 2>&1; then
       falhas=0

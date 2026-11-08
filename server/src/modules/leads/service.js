@@ -41,6 +41,9 @@ export const BASE_LEADS = `
   LEFT JOIN users wu ON wu.id = l.waiting_by
   LEFT JOIN users cu ON cu.id = l.closing_by`;
 
+// Tabelas que mudam o que aparece nos cartões do kanban (para o cache da lista saber quando recalcular)
+export const TABELAS_DO_KANBAN = ['leads', 'stages', 'users', 'wa_messages', 'calendly_events', 'ia_conversas'];
+
 // Notificação do cartão: o lead mandou mensagem depois da nossa última resposta
 // e depois da última vez que alguém limpou o aviso à mão. Responder pelo WhatsApp apaga sozinho.
 export function semResposta(row) {
@@ -145,7 +148,7 @@ export function encontrarPorRespostaYay(respostaId) {
   if (!respostaId) return null;
   const pelosWebhooks = get(
     `SELECT e.lead_id FROM webhook_events e JOIN leads l ON l.id = e.lead_id
-      WHERE e.source = 'yayforms' AND e.lead_id IS NOT NULL AND json_extract(e.payload, '$.response.id') = ?
+      WHERE e.source = 'yayforms' AND e.lead_id IS NOT NULL AND e.resposta_id = ?
       ORDER BY e.id DESC LIMIT 1`,
     [respostaId]
   );

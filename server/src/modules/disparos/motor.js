@@ -82,8 +82,12 @@ let parando = false;
 const avisar = (campanhaId) => emitir('disparos', { campanha: campanhaId });
 
 function definirEstado(w, campanhaId, estado) {
+  // Campanha parada esperando (janela, número desconectado, aguardando leads) repete o mesmo estado a cada volta:
+  // só avisa a tela quando algo muda de verdade (antes eram avisos a cada 15–60 s para todas as abas abertas)
+  const { em: _antes, ...anterior } = w.estado || {};
+  const igual = w.estado && JSON.stringify(anterior) === JSON.stringify(estado);
   w.estado = { ...estado, em: agora() };
-  avisar(campanhaId);
+  if (!igual) avisar(campanhaId);
 }
 
 export function estadoAoVivo(campanhaId) {
