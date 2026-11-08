@@ -144,6 +144,12 @@
 .ig-post-linha { display: flex; gap: 10px; align-items: center; min-width: 280px; max-width: 460px; }
 .ig-legenda-curta { display: block; max-width: 380px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--suave); }
 .ig-anuncios td small { display: block; }
+/* Anúncios: cabeçalhos em até duas linhas para as 12 colunas caberem numa tela de notebook */
+.ig-anuncios .utm-tabela th, .ig-anuncios .utm-tabela td { padding: 8px 6px; }
+.ig-anuncios .utm-tabela th.num { white-space: normal; vertical-align: bottom; line-height: 1.25; }
+.ig-anuncios .utm-tabela th.num button { max-width: 86px; text-align: right; }
+.ig-anuncios .utm-tabela td:first-child { min-width: 180px; }
+.ig-link-anuncio { margin-left: 5px; vertical-align: -1px; }
 .ig-post-detalhe { display: flex; flex-direction: column; gap: 14px; padding: 4px 2px 8px; }
 .ig-post-cabeca { display: flex; gap: 16px; align-items: flex-start; }
 .ig-legenda-post { margin: 4px 0; max-height: 160px; overflow: auto; white-space: pre-wrap; font-size: 13.5px; line-height: 1.5; }

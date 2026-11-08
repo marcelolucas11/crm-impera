@@ -83,9 +83,9 @@ export default function Anuncios({ periodo, perfil }) {
                     <span className="utm-nome-dentro">
                       {a.id === melhor && <Trophy size={13} className="trofeu" aria-label={t('instagram.anuncios.melhor')} />}
                       <span title={a.nome}>{a.nome}</span>
+                      {a.permalink && <a className="link ig-link-anuncio" href={a.permalink} target="_blank" rel="noreferrer" title={t('instagram.anuncios.abrirPublicacao')} aria-label={t('instagram.anuncios.abrirPublicacao')}><ExternalLink size={11} /></a>}
                     </span>
                     <small className="suave">{[a.campanha, a.status ? (STATUS.has(a.status) ? t(`instagram.anuncios.situacao.${a.status}`) : a.status) : null].filter(Boolean).join(' · ')}</small>
-                    {a.permalink && <> <a className="link" href={a.permalink} target="_blank" rel="noreferrer"><ExternalLink size={11} /></a></>}
                   </td>
                   {COLUNAS.map((c) => <td key={c} className={`num ${c === ordem ? 'forte' : ''}`}>{valor(c, a[c])}</td>)}
                 </tr>
