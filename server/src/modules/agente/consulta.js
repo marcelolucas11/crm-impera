@@ -11,7 +11,7 @@ import { config } from '../../config.js';
 import { all } from '../../db.js';
 
 // Tabelas e colunas que a Alice nunca lê
-export const PROIBIDAS = ['integration_state', 'sessions', 'password_hash', 'sess', 'schema_migrations'];
+export const PROIBIDAS = ['integration_state', 'sessions', 'password_hash', 'sess', 'schema_migrations', 'ig_credenciais', 'ig_envios_publicos'];
 const COLUNAS_RETIRADAS = new Set(['password_hash', 'raw', 'thumb', 'sess']);
 const PALAVRAS_PROIBIDAS = /\b(pragma|attach|detach|load_extension|readfile|writefile|fts3_tokenizer|vacuum|insert|update|delete|drop|create|alter|reindex|analyze)\b/i;
 export const MAX_LINHAS = 200;

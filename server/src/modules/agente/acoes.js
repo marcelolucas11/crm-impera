@@ -30,7 +30,10 @@ export const TIPOS = {
 const MAX_TEXTO = 4000;
 let executores = {};
 /** Os agendados registram o executor deles (evita importação circular) */
-export function registrarExecutor(tipo, { validar, executar }) { executores[tipo] = { validar, executar }; }
+export function registrarExecutor(tipo, { validar, executar, titulo = null }) {
+  executores[tipo] = { validar, executar };
+  if (titulo && !TIPOS[tipo]) TIPOS[tipo] = titulo;
+}
 
 const avisarTela = (userId, dados = {}) => emitir('agente', { usuario: userId, acoes: true, ...dados });
 const textoLimpo = (v, max = MAX_TEXTO) => String(v ?? '').replace(/\r\n?/g, '\n').trim().slice(0, max);

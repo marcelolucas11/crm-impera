@@ -20,6 +20,7 @@ import { consultar } from './consulta.js';
 import { extrairTexto, ehPdf, ehImagem } from './documentos.js';
 import * as transcricao from './transcricao.js';
 import { propor, TIPOS as TIPOS_ACAO } from './acoes.js';
+import { temPermissao } from '../auth/permissoes.js';
 
 const json = (obj) => JSON.stringify(obj, null, 1);
 const cortar = (t, n) => (t && t.length > n ? `${t.slice(0, n)}… (cortado)` : t || '');
@@ -242,8 +243,30 @@ const PARA_ACAO = {
   propor_memoria: 'guardar_memoria', propor_agendado: 'criar_agendado',
 };
 
+// ------------------------------------------------------------------ extensões
+// Outros módulos (ex.: Instagram) acrescentam ferramentas sem a assistente depender deles. Cada extensão diz:
+//  definicao: { name, description, input_schema } · impl(entrada, ctx) (leitura) ou acao: tipo de ação (vira proposta)
+//  descrever(entrada): texto de progresso · permitido(ctx): se o usuário pode usar (ex.: permissão da tela)
+const EXTRAS = new Map();
+
+export function registrarFerramenta({ definicao, impl = null, acao = null, descrever = null, permitido = null }) {
+  if (!definicao?.name || EXTRAS.has(definicao.name)) return;
+  EXTRAS.set(definicao.name, { definicao, impl, acao, descrever, permitido });
+  DEFINICOES.push(definicao);
+}
+
+/** Ferramentas que este usuário pode usar (as extensões respeitam as permissões dele) */
+export function definicoesPara(ctx) {
+  return DEFINICOES.filter((d) => {
+    const extra = EXTRAS.get(d.name);
+    return !extra?.permitido || extra.permitido(ctx);
+  });
+}
+
 // Mensagens de progresso (aparecem na tela enquanto ela trabalha)
 export function descreverChamada(nome, e = {}) {
+  const extra = EXTRAS.get(nome);
+  if (extra) return extra.descrever?.(e) || (extra.acao ? `Preparando: ${TIPOS_ACAO[extra.acao] || extra.acao}` : nome);
   switch (nome) {
     case 'visao_do_crm': return 'Olhando o panorama do CRM';
     case 'buscar_conversas': return e.busca ? `Procurando conversas com "${e.busca}"` : 'Listando conversas';
@@ -605,7 +628,11 @@ const IMPL = {
     return cortar(json({ dias, ...resto }), 12000);
   },
 
-  async consultar_banco(e) {
+  async consultar_banco(e, ctx) {
+    // Dados do Instagram só para quem tem acesso a ele (permissões da equipe)
+    if (/\big_\w+/i.test(String(e.sql || '')) && !['instagram', 'instagram_desempenho', 'instagram_comentarios'].some((c) => temPermissao(ctx.userId, c))) {
+      throw new Error('Este usuário não tem acesso aos dados do Instagram');
+    }
     const r = await consultar(e.sql);
     if (r.erro) throw new Error(r.erro);
     return cortar(json(r), 30000);
@@ -661,6 +688,17 @@ export function blocoDeArquivo(caminho, { mime = '', nome = '', legenda = null, 
  */
 export async function executarFerramenta(nome, entrada, ctx) {
   try {
+    const extra = EXTRAS.get(nome);
+    if (extra) {
+      if (extra.permitido && !extra.permitido(ctx)) return { conteudo: 'Erro: este usuário não tem permissão para esta parte do CRM.', erro: true };
+      if (extra.acao) {
+        const acao = propor(extra.acao, entrada, ctx);
+        ctx.acoes?.push(acao.id);
+        return { conteudo: `Proposta registrada como ação #${acao.id} ("${acao.resumo}"). Ela aparece como cartão para o usuário aprovar, editar ou recusar. Não repita a proposta; avise o usuário em uma frase.` };
+      }
+      const r = await extra.impl(entrada || {}, ctx);
+      return { conteudo: r ?? '' };
+    }
     if (PARA_ACAO[nome]) {
       const acao = propor(PARA_ACAO[nome], entrada, ctx);
       ctx.acoes?.push(acao.id);

@@ -91,6 +91,7 @@ const SITUACAO_FORMULARIO = {
   parcial: 'PARCIAL — começou o formulário e não terminou',
   completo_sem_reuniao: 'COMPLETO SEM REUNIÃO — terminou o formulário e não agendou reunião',
   completo_com_reuniao: 'COMPLETO COM REUNIÃO — terminou o formulário e agendou reunião',
+  instagram: 'ENTREVISTA NO INSTAGRAM — conversou com você no Direct do Instagram e passou o WhatsApp para continuar por aqui',
 };
 
 /**
@@ -120,6 +121,7 @@ export function haQuanto(horas) {
 // Como o lead chegou, para o modelo não tratar quem espera há dias como se tivesse acabado de chegar
 function textoDaOrigem(origem, atraso) {
   if (origem === 'yayforms') return 'Ele preencheu um formulário de cadastro de um anúncio da empresa.';
+  if (origem === 'instagram') return 'Ele conversou com você no Direct do Instagram e passou este WhatsApp para continuar o atendimento. Não se apresente como se fosse a primeira vez: retome de onde parou no Instagram (ex.: "oi, aqui é a Alice, conversamos no Instagram"), com base no que ele já contou.';
   if (origem === 'fila') {
     const quando = haQuanto(atraso?.horasDesdeCadastro);
     const como = atraso?.fonte === 'yayforms' ? 'preencheu um formulário de cadastro de um anúncio da empresa' : 'entrou como lead da empresa';

@@ -17,7 +17,7 @@ import { custoDaChamada } from '../organizador/config.js';
 import { chamarModelo, textoDaResposta } from './cliente.js';
 import { lerConfig } from './config.js';
 import { montarSistema } from './prompt.js';
-import { DEFINICOES, executarFerramenta, descreverChamada, blocoDeArquivo } from './ferramentas.js';
+import { definicoesPara, executarFerramenta, descreverChamada, blocoDeArquivo } from './ferramentas.js';
 import { registrarUso, statusTeto } from './uso.js';
 import { ehAudio } from './documentos.js';
 import * as transcricao from './transcricao.js';
@@ -201,7 +201,6 @@ export async function executarTurno({ userId, conversaId, conteudoUsuario, model
   const acoes = [];
   let custo = 0;
   let ultima = null;
-  const ferramentas = DEFINICOES;
   const ctx = {
     userId, papel: usuario.role, cfg, fuso: cfg.fuso, conversaId, origem, acoes,
     fonte: (f) => {
@@ -211,6 +210,7 @@ export async function executarTurno({ userId, conversaId, conteudoUsuario, model
     },
     progresso: (texto) => marcarEtapa(userId, conversaId, texto),
   };
+  const ferramentas = definicoesPara(ctx);
 
   for (let rodada = 0; rodada <= MAX_RODADAS; rodada++) {
     const tetoDia = statusTeto(userId, teto);

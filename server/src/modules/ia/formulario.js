@@ -44,6 +44,8 @@ export function dadosDoFormulario(leadId, cfg) {
     if (ev) reuniao = dataDaReuniao(ev.start_time, cfg?.fuso || 'America/Sao_Paulo');
   } catch { /* sem Calendly */ }
 
+  // Respostas da entrevista da Alice no Instagram (não é formulário)
+  if (extra.origem_respostas === 'instagram') return { situacao: 'instagram', reuniao, respostas };
   const situacao = extra.parcial ? 'parcial' : reuniao ? 'completo_com_reuniao' : 'completo_sem_reuniao';
   return { situacao, reuniao, respostas };
 }

@@ -262,6 +262,27 @@ export function aoReceberLeadFormulario({ leadId, novo } = {}, { saudacaoDisparo
   return conversa;
 }
 
+/** Lead que a Alice entrevistou no Direct do Instagram e que passou o WhatsApp: a IA continua por lá (opção do Instagram) */
+export function aoReceberLeadInstagram({ leadId } = {}) {
+  const cfg = lerConfig();
+  if (!cfg.ativo || !leadId) return null;
+  const lead = get('SELECT id, phone FROM leads WHERE id = ?', [leadId]);
+  if (!lead?.phone) return null;
+  if (acharConversa({ leadId, phone: lead.phone })) return null;
+  const contato = { leadId, phone: lead.phone, jid: null, jids: jidsDoContato({ leadId, phone: lead.phone }) };
+  const motivo = motivoParaNaoAtuar(cfg, contato, { leadId });
+  const atraso = 60000 + Math.round(deps.aleatorio() * 60000);
+  const conversa = criarConversa({
+    leadId, phone: lead.phone, jid: null, instanciaId: cfg.numero_ids[0] || null, origem: 'instagram',
+    status: motivo ? 'ignorada' : 'ativa', motivo, proximaEm: motivo ? null : daquiA(atraso),
+  });
+  if (!motivo) {
+    registrar(conversa.id, 'inicio', 'Instagram (passou o WhatsApp no Direct)');
+    avisarTela(conversa);
+  }
+  return conversa;
+}
+
 // ------------------------------------------------------------------ fila: leads que chegaram antes de a IA ligar
 //
 // A IA só reage a eventos novos (mensagem chegando, cadastro novo no Yay! Forms). Quem virou lead antes de ela ser
