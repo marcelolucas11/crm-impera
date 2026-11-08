@@ -1,7 +1,7 @@
 // Módulo de estatísticas: entrada de leads, respostas, tempo de resposta, follow-up, funil, UTMs e equipe
 import { get, all } from '../../db.js';
 import { config } from '../../config.js';
-import { exigirLogin } from '../auth/middleware.js';
+import { exigirLogin, exigirPermissao } from '../auth/middleware.js';
 import { rotuloFormulario } from '../yayforms/catalogo.js';
 
 const DIA_MS = 86400000;
@@ -246,7 +246,7 @@ export function calcularEstatisticas({ dias = 30, inicio, fim, fusoMin = 0 } = {
 export default {
   name: 'estatisticas',
   register(app) {
-    app.get('/api/estatisticas', exigirLogin, (req, res) => {
+    app.get('/api/estatisticas', exigirLogin, exigirPermissao('estatisticas'), (req, res) => {
       const fusoMin = Math.max(-840, Math.min(840, Number(req.query.fuso) || 0));
       res.json(calcularEstatisticas({ dias: req.query.dias, inicio: req.query.inicio, fim: req.query.fim, fusoMin }));
     });

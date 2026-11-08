@@ -10,7 +10,7 @@ import { Transform } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import { all, run, agora } from '../../db.js';
 import { config } from '../../config.js';
-import { exigirLogin, exigirAdmin } from '../auth/middleware.js';
+import { exigirLogin, exigirAdmin, exigirPermissao } from '../auth/middleware.js';
 import { idValido, texto, ErroHttp } from '../../util.js';
 import { abrirCanal, fecharCanais } from '../../tempoReal.js';
 import {
@@ -90,6 +90,23 @@ export default {
   register(app) {
     const r = Router();
     r.use(exigirLogin);
+
+    // Permissões: a lista de números e as fotos de perfil aparecem em outras telas (kanban), então ficam livres.
+    // O resto exige a tela WhatsApp; o que envia mensagem (ou fala com o contato) exige também "responder pelo WhatsApp".
+    const LIVRES = /^\/(numeros|fotos|qr)(\/|$)/;
+    const ENVIA = [
+      /^\/conversas\/[^/]+\/(mensagens|arquivo|figurinha|enquete|contato|localizacao|link-chamada|lead|temporarias)$/,
+      /^\/mensagens\/[^/]+\/(reacao|encaminhar|voto)$/,
+      /^\/chamadas\/[^/]+\/recusar$/,
+    ];
+    const precisaVer = exigirPermissao('whatsapp');
+    const precisaEnviar = exigirPermissao('whatsapp_enviar');
+    r.use((req, res, next) => (LIVRES.test(req.path) ? next() : precisaVer(req, res, next)));
+    r.use((req, res, next) => {
+      const envia = (req.method === 'POST' && ENVIA.some((re) => re.test(req.path)))
+        || (/^\/mensagens\/[^/]+$/.test(req.path) && (req.method === 'DELETE' || req.method === 'PATCH'));
+      return envia ? precisaEnviar(req, res, next) : next();
+    });
 
     // ------------------------------------------------------------ números
     r.get('/numeros', async (req, res) => {
@@ -455,7 +472,7 @@ export default {
     app.get('/api/eventos', exigirLogin, abrirCanal);
 
     // Conversa do lead (versão simples, mantida por compatibilidade)
-    app.get('/api/leads/:id/mensagens', exigirLogin, (req, res) => {
+    app.get('/api/leads/:id/mensagens', exigirLogin, exigirPermissao('whatsapp'), (req, res) => {
       const id = idValido(req.params.id);
       const mensagens = all(
         `SELECT * FROM (
@@ -475,7 +492,7 @@ export default {
       res.json({ mensagens, ultimo_numero: ultimoNumero });
     });
 
-    app.post('/api/leads/:id/mensagens', exigirLogin, async (req, res) => {
+    app.post('/api/leads/:id/mensagens', exigirLogin, exigirPermissao('whatsapp'), exigirPermissao('whatsapp_enviar'), async (req, res) => {
       const leadId = idValido(req.params.id);
       const numeroId = idValido(req.body?.numero_id);
       const conteudo = texto(req.body?.texto, 4000);

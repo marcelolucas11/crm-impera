@@ -4,6 +4,7 @@ import bcrypt from 'bcryptjs';
 import rateLimit from 'express-rate-limit';
 import { get, run, agora } from '../../db.js';
 import { exigirLogin } from './middleware.js';
+import { resolverPermissoes } from './permissoes.js';
 
 const limiteLogin = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -13,7 +14,8 @@ const limiteLogin = rateLimit({
   message: { erro: 'Muitas tentativas. Aguarde 15 minutos.' },
 });
 
-const publico = (u) => ({ id: u.id, name: u.name, email: u.email, role: u.role, foto: u.photo_at || null });
+// permissoes: telas e funções liberadas para a pessoa (a tela esconde o que não está liberado)
+const publico = (u) => ({ id: u.id, name: u.name, email: u.email, role: u.role, foto: u.photo_at || null, permissoes: resolverPermissoes(u) });
 
 export default {
   name: 'auth',

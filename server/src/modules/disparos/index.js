@@ -6,7 +6,7 @@
 import { Router } from 'express';
 import { get, all } from '../../db.js';
 import { lerJson } from '../../events.js';
-import { exigirLogin, exigirAdmin } from '../auth/middleware.js';
+import { exigirLogin, exigirAdmin, exigirPermissao } from '../auth/middleware.js';
 import { idValido, ErroHttp } from '../../util.js';
 import { listarContatos, identificarTelefone } from './contatos.js';
 import { variaveisDoContato, VARIAVEIS_PADRAO, FUSO } from './texto.js';
@@ -34,6 +34,10 @@ export default {
   register(app) {
     const r = Router();
     r.use(exigirLogin);
+    // Tela Disparos; criar, mudar e disparar exige também "criar e enviar disparos"
+    r.use(exigirPermissao('disparos'));
+    const podeEnviar = exigirPermissao('disparos_enviar');
+    r.use((req, res, next) => (req.method === 'GET' ? next() : podeEnviar(req, res, next)));
 
     // ------------------------------------------------------------ contatos
     r.get('/contatos', (req, res) => {

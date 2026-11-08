@@ -2,7 +2,7 @@
 // Telas: "IA → Organizador do kanban". Tirar este módulo da lista não quebra nada (o kanban continua manual).
 import { Router } from 'express';
 import { get, all } from '../../db.js';
-import { exigirLogin, exigirAdmin } from '../auth/middleware.js';
+import { exigirLogin, exigirAdmin, exigirPermissao } from '../auth/middleware.js';
 import { idValido, ErroHttp } from '../../util.js';
 import { ErroIA } from '../ia/cliente.js';
 import { meiaNoiteNoFuso } from '../ia/protecao.js';
@@ -82,6 +82,7 @@ export default {
   register(app) {
     const r = Router();
     r.use(exigirLogin);
+    r.use(exigirPermissao('ia'));
 
     r.get('/', rota((req, res) => res.json(estado())));
 

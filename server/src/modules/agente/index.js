@@ -9,7 +9,7 @@ import { pipeline } from 'node:stream/promises';
 import { Router } from 'express';
 import { get, all, run } from '../../db.js';
 import { config } from '../../config.js';
-import { exigirLogin, exigirAdmin } from '../auth/middleware.js';
+import { exigirLogin, exigirAdmin, exigirPermissao } from '../auth/middleware.js';
 import { aoAcontecer } from '../../ganchos.js';
 import { ErroHttp, idValido } from '../../util.js';
 import { ErroIA } from '../ia/cliente.js';
@@ -96,6 +96,7 @@ export default {
 
     const r = Router();
     r.use(exigirLogin);
+    r.use(exigirPermissao('agente'));
 
     // ------------------------------------------------------------ resumo e ajustes
     r.get('/', rota((req, res) => res.json(resumo(req.user))));

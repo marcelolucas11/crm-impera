@@ -3,7 +3,7 @@
 // Ouve os outros módulos pelos ganchos (src/ganchos.js) — se este módulo for retirado, nada mais quebra.
 import { Router } from 'express';
 import { get, all, run, agora } from '../../db.js';
-import { exigirLogin, exigirAdmin } from '../auth/middleware.js';
+import { exigirLogin, exigirAdmin, exigirPermissao } from '../auth/middleware.js';
 import { idValido, ErroHttp } from '../../util.js';
 import { aoAcontecer } from '../../ganchos.js';
 import { respostasProntas, configPublica, salvarConfig, guardarChave, guardarWorkspace, removerChave, lerConfig, chaveApi, versaoDoPlaybook, LIMITE_PLAYBOOK } from './config.js';
@@ -124,6 +124,11 @@ export default {
 
     const r = Router();
     r.use(exigirLogin);
+    // Tela IA; a faixa da IA dentro de cada conversa do WhatsApp (estado, pausar, aprovar sugestão) vale para quem usa o WhatsApp
+    const DA_CONVERSA = /^\/(conversa(\/estado)?|sugestoes\/[^/]+\/(aprovar|descartar))$/;
+    const precisaIa = exigirPermissao('ia');
+    const precisaConversa = exigirPermissao('ia', 'whatsapp');
+    r.use((req, res, next) => (DA_CONVERSA.test(req.path) ? precisaConversa(req, res, next) : precisaIa(req, res, next)));
 
     // ------------------------------------------------------------ configuração (tela "IA")
     r.get('/config', rota(async (req, res) => {

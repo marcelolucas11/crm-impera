@@ -3,7 +3,7 @@ import { Router } from 'express';
 import { get, all, run, tx, agora } from '../../db.js';
 import { config } from '../../config.js';
 import { registrarEvento, lerJson } from '../../events.js';
-import { exigirLogin, exigirAdmin } from '../auth/middleware.js';
+import { exigirLogin, exigirPermissao } from '../auth/middleware.js';
 import { normalizarTelefone, normalizarEmail, texto, idValido, ErroHttp } from '../../util.js';
 import { buscarLead, listarLeads, criarLead, registrarContatoLead, vincularConversasExistentes, alterarLeadsEmMassa } from './service.js';
 
@@ -24,6 +24,10 @@ export default {
   register(app) {
     const r = Router();
     r.use(exigirLogin);
+    // Ler leads é livre para a equipe (WhatsApp, Instagram e disparos mostram a ficha). Mudar exige "editar leads";
+    // excluir exige "excluir leads" (administrador sempre pode).
+    const podeEditar = exigirPermissao('leads_editar');
+    r.use((req, res, next) => (req.method === 'GET' || req.method === 'DELETE' ? next() : podeEditar(req, res, next)));
 
     // Lista para o kanban. Etapas finais (ganho/perdido) mostram só os últimos 30 dias, exceto em buscas.
     r.get('/', (req, res) => {
@@ -235,7 +239,7 @@ export default {
       res.status(201).json({ ok: true });
     });
 
-    r.delete('/:id', exigirAdmin, (req, res) => {
+    r.delete('/:id', exigirPermissao('leads_excluir'), (req, res) => {
       const id = idValido(req.params.id);
       const { changes } = run('DELETE FROM leads WHERE id = ?', [id]);
       if (!changes) return res.status(404).json({ erro: 'Lead não encontrado' });
