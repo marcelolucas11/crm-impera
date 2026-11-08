@@ -310,7 +310,7 @@ export default function LeadFicha({
             <div className="aviso-reuniao">
               <CalendarDays size={15} /> <b>{reuniaoFutura ? 'Reunião agendada' : 'Reunião que já passou'}</b> — {reuniao.event_name}
               <div><b>{dataHoraLonga(reuniao.start_time)}</b>{reuniaoFutura ? ` · ${dataCurta(reuniao.start_time)}` : ''}
-                {reuniao.join_url && <> · <a href={reuniao.join_url} target="_blank" rel="noreferrer">link da reunião</a></>}
+                {/^https?:\/\//i.test(reuniao.join_url || '') && <> · <a href={reuniao.join_url} target="_blank" rel="noreferrer">link da reunião</a></>}
               </div>
               {reuniao.booked_at && <small className="suave">Agendou em {dataHoraLonga(reuniao.booked_at)}</small>}
             </div>
