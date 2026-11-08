@@ -8,6 +8,7 @@ import { emitir } from '../../tempoReal.js';
 import { lerConfig, segredoApp } from './config.js';
 import { perfilPorIgId, perfilPorPagina, atualizarPerfil, registrar } from './perfis.js';
 import { processarEventoDoWebhook } from './direct.js';
+import { iguaisSeguro } from '../../util.js';
 
 const MAX_GUARDADOS = 300;
 const tratadores = { comentario: null, storyInsights: null, mencao: null };
@@ -27,7 +28,7 @@ export function assinaturaValida(corpo, cabecalho, segredo = segredoApp()) {
 
 export function verificar(req, res) {
   const cfg = lerConfig();
-  if (req.query['hub.mode'] === 'subscribe' && req.query['hub.verify_token'] === cfg.verify_token) {
+  if (req.query['hub.mode'] === 'subscribe' && iguaisSeguro(String(req.query['hub.verify_token'] || ''), String(cfg.verify_token || ''))) {
     registrar(null, 'webhook', 'URL do webhook verificada pela Meta');
     return res.status(200).type('text/plain').send(String(req.query['hub.challenge'] || ''));
   }

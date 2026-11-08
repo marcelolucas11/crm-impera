@@ -4,7 +4,7 @@
 import { Router } from 'express';
 import { get, all, run, agora } from '../../db.js';
 import { exigirLogin, exigirAdmin, exigirPermissao } from '../auth/middleware.js';
-import { idValido, ErroHttp } from '../../util.js';
+import { idValido, ErroHttp, criarRota } from '../../util.js';
 import { aoAcontecer } from '../../ganchos.js';
 import { respostasProntas, configPublica, salvarConfig, guardarChave, guardarWorkspace, removerChave, lerConfig, chaveApi, versaoDoPlaybook, LIMITE_PLAYBOOK } from './config.js';
 import { dentroDoHorario, saudacaoDoMomento } from './horario.js';
@@ -31,15 +31,7 @@ import { transcricaoPronta } from './midias.js';
 import { instalada as transcricaoInstalada } from '../agente/transcricao.js';
 
 // Converte erros da IA em respostas HTTP
-const rota = (fn) => async (req, res) => {
-  try {
-    await fn(req, res);
-  } catch (err) {
-    const status = err instanceof ErroHttp || err instanceof ErroIA ? err.status || 400 : 500;
-    if (status === 500) console.error('[ia]', err);
-    res.status(status).json({ erro: status === 500 ? 'Erro interno' : err.message });
-  }
-};
+const rota = criarRota('ia', [ErroIA], { mensagemSimples: false });
 
 // Chave da tela de WhatsApp (l:<lead>, t:<telefone>, j:<jid>) → dados para achar a conversa da IA
 async function contatoDaChave(chave) {
@@ -405,7 +397,8 @@ export default {
     }));
 
     // ------------------------------------------------------------ copiloto
-    r.post('/sugestoes/:id/aprovar', rota(async (req, res) => {
+    // Aprovar a sugestão manda a mensagem ao lead: exige a mesma permissão de enviar pelo WhatsApp
+    r.post('/sugestoes/:id/aprovar', exigirPermissao('whatsapp_enviar'), rota(async (req, res) => {
       const id = idValido(req.params.id);
       const mensagens = Array.isArray(req.body?.mensagens) ? req.body.mensagens.map((m) => String(m).slice(0, 2000)) : null;
       res.json(await aprovarSugestao(id, { mensagens, userId: req.user.id }));

@@ -1,4 +1,5 @@
 // Funções utilitárias compartilhadas pelos módulos
+import crypto from 'node:crypto';
 
 export class ErroHttp extends Error {
   constructor(status, mensagem) {
@@ -49,4 +50,38 @@ export function texto(valor, max = 500) {
 export function idValido(valor) {
   const n = Number(valor);
   return Number.isInteger(n) && n > 0 ? n : null;
+}
+
+// Compara dois textos secretos (tokens, assinaturas) sem vazar pelo tempo de resposta quantos caracteres bateram
+export function iguaisSeguro(a, b) {
+  if (typeof a !== 'string' || typeof b !== 'string' || !a || !b) return false;
+  const ba = crypto.createHash('sha256').update(a).digest();
+  const bb = crypto.createHash('sha256').update(b).digest();
+  return crypto.timingSafeEqual(ba, bb) && a.length === b.length;
+}
+
+export const esperar = (ms) => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * Embrulha uma rota assíncrona com o tratamento de erro padrão dos módulos:
+ *  - ErroHttp e os erros das integrações (classes em "conhecidos", com .status) voltam com a mensagem para a tela;
+ *  - Error simples (validações escritas para a pessoa ler) volta com a mensagem e status 400 ou 500, como antes;
+ *  - erros do sistema (banco, arquivos, falhas de programação) viram "Erro interno": o detalhe fica só no log,
+ *    para não mostrar caminhos de arquivo nem trechos de SQL na tela.
+ * mensagemSimples: false = Error simples também vira "Erro interno" (módulos que só usam ErroHttp para a tela).
+ */
+export function criarRota(modulo, conhecidos = [], { mensagemSimples = true, statusSimples = 500 } = {}) {
+  return (fn) => async (req, res) => {
+    try {
+      await fn(req, res);
+    } catch (err) {
+      const conhecido = err instanceof ErroHttp || conhecidos.some((C) => err instanceof C);
+      const simples = !conhecido && err?.constructor === Error && !err.code;
+      const status = conhecido ? Number(err.status) || 400 : simples ? statusSimples : 500;
+      if (status >= 500) console.error(`[${modulo}]`, err);
+      if (res.headersSent) return;
+      const mostrar = conhecido || (simples && mensagemSimples);
+      res.status(status).json({ erro: mostrar && err?.message ? err.message : 'Erro interno' });
+    }
+  };
 }

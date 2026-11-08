@@ -10,7 +10,7 @@ import { config } from '../../config.js';
 import { registrarEvento, lerJson } from '../../events.js';
 import { emitir } from '../../tempoReal.js';
 import { avisarGancho } from '../../ganchos.js';
-import { ErroHttp, normalizarTelefone } from '../../util.js';
+import { ErroHttp, normalizarTelefone, esperar } from '../../util.js';
 import { criarLead, encontrarExistente, registrarContatoLead } from '../leads/service.js';
 import { chamar, paginar, baixarArquivo, ErroMeta } from './graph.js';
 import { tokenDoPerfil, obterPerfil, atualizarPerfil, registrarErro, limparErro, registrar, perfilPausado } from './perfis.js';
@@ -118,7 +118,6 @@ function atualizarResumoDaConversa(conversaId) {
 
 // Envios pelo CRM em andamento: o "eco" do webhook pode chegar antes da resposta da Meta com o id da mensagem
 const enviando = new Map(); // conversaId → instante
-const esperar = (ms) => new Promise((r) => setTimeout(r, ms));
 
 /**
  * Grava uma mensagem (sem duplicar pelo mid). dados:

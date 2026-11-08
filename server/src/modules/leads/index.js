@@ -5,7 +5,8 @@ import { config } from '../../config.js';
 import { registrarEvento, lerJson } from '../../events.js';
 import { exigirLogin, exigirPermissao } from '../auth/middleware.js';
 import { normalizarTelefone, normalizarEmail, texto, idValido, ErroHttp } from '../../util.js';
-import { buscarLead, listarLeads, criarLead, registrarContatoLead, vincularConversasExistentes, alterarLeadsEmMassa } from './service.js';
+import { buscarLead, listarLeads, criarLead, registrarContatoLead, vincularConversasExistentes, alterarLeadsEmMassa, TABELAS_DO_KANBAN } from './service.js';
+import { responderJson } from '../../cache.js';
 
 const ROTULOS = { name: 'nome', phone: 'telefone', email: 'e-mail', company: 'empresa', notes: 'observações' };
 
@@ -54,7 +55,10 @@ export default {
         valores.push(req.user.id);
       }
 
-      res.json({ leads: listarLeads(filtros, valores), followup_horas: config.followupHours });
+      // Kanban: várias abas e a atualização automática pedem a mesma lista; o cálculo é reaproveitado até algo mudar
+      const chave = `leads|${JSON.stringify(filtros)}|${JSON.stringify(valores)}`;
+      responderJson(req, res, { chave, tabelas: TABELAS_DO_KANBAN, ttlMs: 20000 },
+        () => ({ leads: listarLeads(filtros, valores), followup_horas: config.followupHours }));
     });
 
     r.post('/', (req, res) => {
@@ -241,7 +245,13 @@ export default {
 
     r.delete('/:id', exigirPermissao('leads_excluir'), (req, res) => {
       const id = idValido(req.params.id);
-      const { changes } = run('DELETE FROM leads WHERE id = ?', [id]);
+      const changes = tx(() => {
+        // O banco apagaria junto as conversas do WhatsApp do lead (ligação antiga com "ON DELETE CASCADE").
+        // Excluir o lead tira só o cartão do kanban: as conversas voltam a aparecer como contato na tela de WhatsApp.
+        run('UPDATE wa_messages SET lead_id = NULL WHERE lead_id = ?', [id]);
+        run('UPDATE wa_contacts SET lead_id = NULL WHERE lead_id = ?', [id]);
+        return run('DELETE FROM leads WHERE id = ?', [id]).changes;
+      });
       if (!changes) return res.status(404).json({ erro: 'Lead não encontrado' });
       res.json({ ok: true });
     });

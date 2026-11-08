@@ -2,6 +2,8 @@
 // Arquivos ficam em ../arquivos/whatsapp/<número>/<AAAA-MM>/.
 import fs from 'node:fs';
 import path from 'node:path';
+import { Transform } from 'node:stream';
+import { pipeline } from 'node:stream/promises';
 import { get, run, agora } from '../../db.js';
 import { config } from '../../config.js';
 import { ErroHttp } from '../../util.js';
@@ -58,22 +60,29 @@ export function baixarMidia(linhaId) {
     const msg = desserializar(lib, linha.raw);
     if (!msg) throw new ErroHttp(404, 'Mídia não disponível');
     const e = algumConectado(linha.instance_id);
-    let buffer;
+    const rel = caminhoRelativo(linha.instance_id, linha.timestamp, `m${linha.id}`, extensaoDe(linha.media_mime, linha.media_name));
+    const destino = absoluto(rel);
+    fs.mkdirSync(path.dirname(destino), { recursive: true });
+    // Direto para o disco, em pedaços: um vídeo grande não ocupa a memória do servidor inteiro de uma vez
+    const temporario = `${destino}.baixando`;
+    let tamanho = 0;
     try {
-      buffer = await lib.downloadMediaMessage(msg, 'buffer', {}, e ? { reuploadRequest: e.sock.updateMediaMessage, logger: log } : { logger: log });
+      const fluxo = await lib.downloadMediaMessage(msg, 'stream', {}, e ? { reuploadRequest: e.sock.updateMediaMessage, logger: log } : { logger: log });
+      const contar = new Transform({ transform(p, _enc, cb) { tamanho += p.length; cb(null, p); } });
+      await pipeline(fluxo, contar, fs.createWriteStream(temporario));
+      if (!tamanho) throw new Error('mídia vazia');
+      fs.renameSync(temporario, destino);
     } catch (err) {
+      fs.rmSync(temporario, { force: true });
       run("UPDATE wa_messages SET media_status = 'erro' WHERE id = ?", [linhaId]);
       throw new ErroHttp(e ? 410 : 409, e
         ? 'O WhatsApp não tem mais esta mídia (pode ter expirado). Veja no celular.'
         : `Não consegui baixar a mídia (${err.message}). Conecte o número e tente de novo.`);
     }
-    const rel = caminhoRelativo(linha.instance_id, linha.timestamp, `m${linha.id}`, extensaoDe(linha.media_mime, linha.media_name));
-    fs.mkdirSync(path.dirname(absoluto(rel)), { recursive: true });
-    fs.writeFileSync(absoluto(rel), buffer);
-    run("UPDATE wa_messages SET media_path = ?, media_size = ?, media_status = 'ok' WHERE id = ?", [rel, buffer.length, linhaId]);
+    run("UPDATE wa_messages SET media_path = ?, media_size = ?, media_status = 'ok' WHERE id = ?", [rel, tamanho, linhaId]);
     if (linha.type === 'figurinha') {
       try {
-        registrarFigurinha({ buffer, caminho: rel, mime: linha.media_mime, largura: linha.media_w, altura: linha.media_h, origem: 'recebida', usadaEm: linha.timestamp });
+        registrarFigurinha({ buffer: fs.readFileSync(destino), caminho: rel, mime: linha.media_mime, largura: linha.media_w, altura: linha.media_h, origem: 'recebida', usadaEm: linha.timestamp });
       } catch { /* não é essencial */ }
     }
     avisar({ midia: linhaId });

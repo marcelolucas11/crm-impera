@@ -255,12 +255,25 @@ export function registrarFerramenta({ definicao, impl = null, acao = null, descr
   DEFINICOES.push(definicao);
 }
 
-/** Ferramentas que este usuário pode usar (as extensões respeitam as permissões dele) */
+// Ferramentas próprias que dependem de uma tela liberada para o usuário (Equipe e integrações → Permissões).
+// Sem isso, quem não tem acesso ao WhatsApp (ou às estatísticas) conseguia ler tudo pela assistente.
+const PERMISSAO_DA_FERRAMENTA = {
+  buscar_conversas: 'whatsapp', listar_grupos: 'whatsapp', ler_conversa: 'whatsapp', buscar_mensagens: 'whatsapp', ver_midia: 'whatsapp',
+  consultar_banco: 'whatsapp', estatisticas: 'estatisticas',
+  propor_mensagem: 'whatsapp_enviar', propor_mover_lead: 'leads_editar', propor_atualizar_lead: 'leads_editar',
+  propor_publico: 'disparos', propor_disparo: 'disparos', propor_modelo_disparo: 'disparos',
+};
+
+function liberada(nome, ctx) {
+  const extra = EXTRAS.get(nome);
+  if (extra) return !extra.permitido || extra.permitido(ctx);
+  const chave = PERMISSAO_DA_FERRAMENTA[nome];
+  return !chave || ctx?.papel === 'admin' || temPermissao(ctx?.userId, chave);
+}
+
+/** Ferramentas que este usuário pode usar (respeitam as permissões dele) */
 export function definicoesPara(ctx) {
-  return DEFINICOES.filter((d) => {
-    const extra = EXTRAS.get(d.name);
-    return !extra?.permitido || extra.permitido(ctx);
-  });
+  return DEFINICOES.filter((d) => liberada(d.name, ctx));
 }
 
 // Mensagens de progresso (aparecem na tela enquanto ela trabalha)
@@ -688,9 +701,9 @@ export function blocoDeArquivo(caminho, { mime = '', nome = '', legenda = null, 
  */
 export async function executarFerramenta(nome, entrada, ctx) {
   try {
+    if (!liberada(nome, ctx)) return { conteudo: 'Erro: este usuário não tem permissão para esta parte do CRM.', erro: true };
     const extra = EXTRAS.get(nome);
     if (extra) {
-      if (extra.permitido && !extra.permitido(ctx)) return { conteudo: 'Erro: este usuário não tem permissão para esta parte do CRM.', erro: true };
       if (extra.acao) {
         const acao = propor(extra.acao, entrada, ctx);
         ctx.acoes?.push(acao.id);

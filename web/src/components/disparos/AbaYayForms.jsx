@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Zap, Save, ScanSearch, Clock, ShieldCheck, Smartphone, CalendarClock, MousePointerClick } from 'lucide-react';
 import { api } from '../../api.js';
-import { useEvento } from '../../tempoReal.js';
+import { useEvento, itensDoAviso } from '../../tempoReal.js';
 import { dataHora } from '../../utils.js';
 import Modal from '../Modal.jsx';
 import ConstrutorFluxo from './ConstrutorFluxo.jsx';
@@ -113,7 +113,7 @@ export default function AbaYayForms({ numeros }) {
     })();
   }, [aviso, carregarEstado]);
 
-  useEvento('disparos', (d) => { if (!d?.campanha || d.campanha === campanhaId) carregarEstado(campanhaId); });
+  useEvento('disparos', (d) => { if (itensDoAviso(d).some((x) => !x?.campanha || x.campanha === campanhaId)) carregarEstado(campanhaId); });
 
   const mudar = (p) => { setCfg((c) => ({ ...c, ...p })); setAlterado(true); };
   const mudarBlocos = (b) => { setBlocos(typeof b === 'function' ? b(blocos) : b); setAlterado(true); };

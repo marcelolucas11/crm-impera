@@ -24,6 +24,11 @@ export function aoAtualizarPresenca(lib, { id, presences } = {}) {
     }
   }
   presencas.set(conversa, atual);
+  // Guarda só o que é recente (antes o mapa crescia com cada conversa que já mandou presença)
+  if (presencas.size > 1000) {
+    const limite = Date.now() - 12 * 3600000;
+    for (const [jid, p] of presencas) if (!p?.em || p.em < limite) presencas.delete(jid);
+  }
   emitir(`presenca`, { jid: conversa, ...publica(atual) });
 }
 

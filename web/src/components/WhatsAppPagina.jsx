@@ -387,6 +387,7 @@ export default function WhatsAppPagina({ user, stages, users, horas, aoMudarAlgo
               pedidoSelecao={pedidoSelecao}
               onNumeroAtivo={setNumeroAtivo}
               numeroPreferido={numeroFiltro}
+              jids={jidsAbertos}
               onEnviado={() => { carregar(); aoMudarAlgo(); }}
             />
           </>

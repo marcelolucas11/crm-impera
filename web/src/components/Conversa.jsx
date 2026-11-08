@@ -3,7 +3,7 @@ import IaConversa from './ia/IaConversa.jsx';
 import { Virtuoso } from 'react-virtuoso';
 import { X, Forward, Star, EyeOff, Copy, ChevronDown, Music, FileText, Video, Lock } from 'lucide-react';
 import { api } from '../api.js';
-import { useEvento } from '../tempoReal.js';
+import { useEvento, itensDoAviso } from '../tempoReal.js';
 import Avatar from './Avatar.jsx';
 import Mensagem, { tamanhoArquivo } from './chat/Mensagem.jsx';
 import Compositor from './chat/Compositor.jsx';
@@ -123,7 +123,7 @@ function PreviaArquivos({ selecao, onCancelar, onEnviar, onRemover }) {
  * painelPedido: { qual: 'emoji' | 'figurinhas' } — atalhos de teclado
  * numeroPreferido: id do WhatsApp escolhido na barra (kanban ou aba WhatsApp); vazio = o último número usado na conversa
  */
-export default function Conversa({ chave, nome = '', onEnviado, cheia = false, pularPara = null, painelPedido = null, pedidoSelecao = null, onNumeroAtivo, numeroPreferido = '' }) {
+export default function Conversa({ chave, nome = '', onEnviado, cheia = false, pularPara = null, painelPedido = null, pedidoSelecao = null, onNumeroAtivo, numeroPreferido = '', jids: jidsDaConversa = [] }) {
   const [mensagens, setMensagens] = useState([]);
   const [temMais, setTemMais] = useState(false);
   const [carregou, setCarregou] = useState(false);
@@ -214,8 +214,18 @@ export default function Conversa({ chave, nome = '', onEnviado, cheia = false, p
     api(`${url}/contato`).then((d) => setParticipantes(d.participantes || [])).catch(() => {});
   }, [grupo, url]);
 
+  // Só recarrega quando o aviso é desta conversa (antes, qualquer mensagem em qualquer conversa recarregava esta).
+  // Avisos sem conversa definida (contatos, histórico...) continuam recarregando, por segurança.
   useEvento('whatsapp', (d) => {
-    carregar();
+    const msgs = mensagensRef.current;
+    const jids = new Set(jidsDaConversa);
+    for (const m of msgs) if (m.chat_jid) jids.add(m.chat_jid);
+    const sobreEsta = d?.reconectou || d?.muitos || !jids.size || itensDoAviso(d).some((x) => {
+      if (x?.chat) return jids.has(x.chat);
+      if (x?.midia) return msgs.some((m) => m.id === x.midia);
+      return !(x?.numeros || x?.figurinhas || x?.fotos);
+    });
+    if (sobreEsta) carregar();
     if (d?.numeros || d?.reconectou) carregarNumeros();
     if (d?.historico && pedidoCelular) carregarAntigas(true);
   });

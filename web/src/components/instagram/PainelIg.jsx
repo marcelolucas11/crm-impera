@@ -5,7 +5,7 @@ import { X, ExternalLink, BadgeCheck, Megaphone, Camera as IconeInstagram, Spark
 import { api } from '../../api.js';
 import { rota } from '../../base.js';
 import { useT } from '../../i18n/index.jsx';
-import { useEvento } from '../../tempoReal.js';
+import { useEvento, avisoTem } from '../../tempoReal.js';
 import { pode } from '../../permissoes.js';
 import { dataHora } from '../../utils.js';
 import LeadFicha from '../LeadFicha.jsx';
@@ -17,7 +17,7 @@ function Entrevista({ conversaId, t }) {
   const [ia, setIa] = useState(null);
   const carregar = useCallback(() => api(`/instagram/conversas/${conversaId}/ia`).then(setIa).catch(() => {}), [conversaId]);
   useEffect(() => { carregar(); }, [carregar]);
-  useEvento('instagram', (d) => { if (d?.conversa === conversaId && d.ia) carregar(); });
+  useEvento('instagram', (d) => { if (avisoTem(d, 'conversa', conversaId) && d.ia) carregar(); });
   const dados = ia?.dados || {};
   const preenchidos = CAMPOS_ENTREVISTA.filter((k) => dados[k]);
   if (!ia?.status && !preenchidos.length) return null;
@@ -71,7 +71,7 @@ export default function PainelIg({ conversa, user, stages, users, horas, onFecha
   const [dados, setDados] = useState(null);
   const carregar = useCallback(() => api(`/instagram/conversas/${conversa.id}/contato`).then(setDados).catch(() => {}), [conversa.id]);
   useEffect(() => { setDados(null); carregar(); }, [carregar]);
-  useEvento('instagram', (d) => { if (d?.conversa === conversa.id || d?.contato) carregar(); });
+  useEvento('instagram', (d) => { if (avisoTem(d, 'conversa', conversa.id) || d?.contato) carregar(); });
 
   const k = dados?.contato;
   const c = dados?.conversa || conversa;

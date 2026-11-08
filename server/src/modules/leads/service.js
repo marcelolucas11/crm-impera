@@ -41,6 +41,9 @@ export const BASE_LEADS = `
   LEFT JOIN users wu ON wu.id = l.waiting_by
   LEFT JOIN users cu ON cu.id = l.closing_by`;
 
+// Tabelas que mudam o que aparece nos cartões do kanban (para o cache da lista saber quando recalcular)
+export const TABELAS_DO_KANBAN = ['leads', 'stages', 'users', 'wa_messages', 'calendly_events', 'ia_conversas'];
+
 // Notificação do cartão: o lead mandou mensagem depois da nossa última resposta
 // e depois da última vez que alguém limpou o aviso à mão. Responder pelo WhatsApp apaga sozinho.
 export function semResposta(row) {

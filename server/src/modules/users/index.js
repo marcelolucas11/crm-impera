@@ -6,6 +6,7 @@ import { exigirLogin, exigirAdmin } from '../auth/middleware.js';
 import { resolverPermissoes, validarPermissoes, PERMISSOES } from '../auth/permissoes.js';
 import { normalizarEmail, texto, idValido } from '../../util.js';
 import { salvarFoto, removerFoto, arquivoDaFoto, lerImagem } from './foto.js';
+import { encerrarSessoesDoUsuario } from '../../sessoes.js';
 
 // foto = versão da foto (data em que mudou) ou null; a imagem vem de /api/users/:id/foto?v=<foto>
 const CAMPOS = 'id, name, email, role, active, last_login_at, created_at, photo_at AS foto, permissoes';
@@ -38,6 +39,7 @@ export default {
       const name = texto(req.body?.name, 120);
       const email = normalizarEmail(req.body?.email);
       const senha = String(req.body?.senha || '');
+      if (senha.length > 200) return res.status(400).json({ erro: 'Senha longa demais (máximo 200 caracteres)' });
       const role = req.body?.role === 'admin' ? 'admin' : 'member';
       const permissoes = JSON.stringify(validarPermissoes(req.body?.permissoes));
       if (!name || !email) return res.status(400).json({ erro: 'Nome e e-mail válidos são obrigatórios' });
@@ -109,12 +111,15 @@ export default {
       }
       if (req.body?.senha !== undefined) {
         const senha = String(req.body.senha);
+        if (senha.length > 200) return res.status(400).json({ erro: 'Senha longa demais (máximo 200 caracteres)' });
         if (senha.length < 8) return res.status(400).json({ erro: 'A senha precisa ter pelo menos 8 caracteres' });
         add('password_hash', await bcrypt.hash(senha, 12));
       }
       if (!sets.length) return res.status(400).json({ erro: 'Nada para alterar' });
 
       run(`UPDATE users SET ${sets.join(', ')} WHERE id = ?`, [...vals, id]);
+      // Senha trocada ou acesso desligado: as sessões abertas dessa pessoa terminam na hora
+      if (req.body?.senha !== undefined || req.body?.active === false) encerrarSessoesDoUsuario(id, id === req.user.id ? req.sessionID : null);
       res.json({ user: buscar(id) });
     });
 

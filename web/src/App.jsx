@@ -1,18 +1,20 @@
-import { useCallback, useEffect, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { api, definirAoDeslogar } from './api.js';
 import { useEvento, encerrarTempoReal } from './tempoReal.js';
 import Login from './components/Login.jsx';
 import Topo from './components/Topo.jsx';
 import KanbanPagina from './components/KanbanPagina.jsx';
 import WhatsAppPagina from './components/WhatsAppPagina.jsx';
-import Estatisticas from './components/Estatisticas.jsx';
-import DisparosPagina from './components/disparos/DisparosPagina.jsx';
-import Equipe from './components/Equipe.jsx';
 import ChamadaRecebida from './components/ChamadaRecebida.jsx';
-import IaPagina from './components/ia/IaPagina.jsx';
 import AvisoPassagem from './components/ia/AvisoPassagem.jsx';
-import InstagramPagina from './components/instagram/InstagramPagina.jsx';
 import AvisoInstagram from './components/instagram/AvisoInstagram.jsx';
+
+// Telas menos usadas são baixadas só quando alguém abre: o CRM abre mais rápido e o navegador processa menos código
+const Estatisticas = lazy(() => import('./components/Estatisticas.jsx'));
+const DisparosPagina = lazy(() => import('./components/disparos/DisparosPagina.jsx'));
+const Equipe = lazy(() => import('./components/Equipe.jsx'));
+const IaPagina = lazy(() => import('./components/ia/IaPagina.jsx'));
+const InstagramPagina = lazy(() => import('./components/instagram/InstagramPagina.jsx'));
 import { pode, podeVer, primeiraPagina } from './permissoes.js';
 
 const PAGINAS = new Set(['kanban', 'whatsapp', 'instagram', 'disparos', 'ia', 'estatisticas', 'equipe']);
@@ -58,12 +60,25 @@ function Sistema({ user, aoMudarUser, aoSair }) {
     carregarEtapas();
     carregarUsuarios();
     carregarResumo();
-    const id = setInterval(() => { if (!document.hidden) carregarResumo(); }, 15000);
+    // O tempo real já avisa das mensagens novas; esta conferência é só a rede de segurança (e para o follow-up que vence com o tempo)
+    const id = setInterval(() => { if (!document.hidden) carregarResumo(); }, 30000);
     return () => clearInterval(id);
   }, [carregarEtapas, carregarResumo, carregarUsuarios]);
 
-  // Mensagem nova: atualiza o contador da aba WhatsApp
-  useEvento('whatsapp', (d) => { if (d?.chat || d?.reconectou) carregarResumo(); });
+  // Mensagem nova: atualiza o contador da aba WhatsApp (no máximo a cada 3 s, mesmo com muitas mensagens chegando)
+  const resumoAgendado = useRef(null);
+  const ultimoResumo = useRef(0);
+  useEvento('whatsapp', (d) => {
+    if (!d?.chat && !d?.reconectou) return;
+    if (resumoAgendado.current) return;
+    const espera = Math.max(0, 3000 - (Date.now() - ultimoResumo.current));
+    resumoAgendado.current = setTimeout(() => {
+      resumoAgendado.current = null;
+      ultimoResumo.current = Date.now();
+      carregarResumo();
+    }, espera);
+  });
+  useEffect(() => () => clearTimeout(resumoAgendado.current), []);
 
   // Abre uma conversa: WhatsApp (chamada recebida, aviso da IA, lista da tela IA) ou Instagram (chave ig:<id>)
   const abrirConversa = useCallback((chave) => {
@@ -102,15 +117,17 @@ function Sistema({ user, aoMudarUser, aoSair }) {
       {erro && <div className="faixa-erro" onClick={() => setErro('')}>{erro} <span>×</span></div>}
       {pagina === 'kanban' && <KanbanPagina {...comum} usarPublico={usarPublico} />}
       {pagina === 'whatsapp' && <WhatsAppPagina {...comum} />}
-      {pagina === 'instagram' && <InstagramPagina {...comum} aoAbrirConversa={abrirConversa} />}
-      {pagina === 'disparos' && <DisparosPagina pedidoLista={pedidoDisparo} aoConsumirPedido={() => setPedidoDisparo(null)} />}
-      {pagina === 'ia' && <IaPagina user={user} aoAbrirConversa={abrirConversa} />}
-      {pagina === 'estatisticas' && <Estatisticas {...comum} />}
-      {pagina === 'equipe' && <Equipe user={user} aoMudarMinhaFoto={aoMudarMinhaFoto} aoMudarUsuarios={(lista) => {
-        setUsers(lista);
-        const eu = lista.find((u) => u.id === user.id);
-        if (eu && eu.foto !== user.foto) aoMudarUser({ ...user, foto: eu.foto });
-      }} />}
+      <Suspense fallback={<div className="tela-cheia"><div className="carregando" /></div>}>
+        {pagina === 'instagram' && <InstagramPagina {...comum} aoAbrirConversa={abrirConversa} />}
+        {pagina === 'disparos' && <DisparosPagina pedidoLista={pedidoDisparo} aoConsumirPedido={() => setPedidoDisparo(null)} />}
+        {pagina === 'ia' && <IaPagina user={user} aoAbrirConversa={abrirConversa} />}
+        {pagina === 'estatisticas' && <Estatisticas {...comum} />}
+        {pagina === 'equipe' && <Equipe user={user} aoMudarMinhaFoto={aoMudarMinhaFoto} aoMudarUsuarios={(lista) => {
+          setUsers(lista);
+          const eu = lista.find((u) => u.id === user.id);
+          if (eu && eu.foto !== user.foto) aoMudarUser({ ...user, foto: eu.foto });
+        }} />}
+      </Suspense>
       {podeVer(user, 'whatsapp') && <ChamadaRecebida aoAbrirConversa={abrirConversa} />}
       <AvisoPassagem aoAbrir={abrirConversa} />
       {pode(user, 'instagram') && <AvisoInstagram aoAbrir={abrirConversa} />}
