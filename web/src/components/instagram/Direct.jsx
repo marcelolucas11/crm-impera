@@ -16,6 +16,7 @@ const gravar = (k, v) => { try { localStorage.setItem(k, v); } catch { /* sem ar
 
 
 function Janela({ janela, t }) {
+  if (janela?.sem_limite) return null; // Direct pelo login: sem prazo para responder
   if (!janela?.aberta) return <span className="ig-janela fechada" title={t('instagram.direct.janelaFechadaDica')}>{t('instagram.direct.janelaFechada')}</span>;
   const h = janela.horas_restantes;
   const texto = h < 1 ? t('instagram.direct.janelaMinutos', { n: Math.max(1, Math.round(h * 60)) })
@@ -73,6 +74,7 @@ function Item({ c, aberta, onAbrir, onEstado, varios, t }) {
           {c.sugestoes > 0 && <span className="tag tag-ia"><Bot size={10} /> {t('instagram.direct.sugestao')}</span>}
           {c.aguardando && <span className="tag tag-aguardando"><i className="led led-ambar" /> {t('instagram.direct.aguardando')}</span>}
           {c.anuncio_id && <span className="tag" title={c.anuncio_titulo || ''}><Megaphone size={10} /> {t('instagram.direct.anuncio')}</span>}
+          {c.pendente && <span className="tag" title={t('instagram.direct.solicitacaoDica')}>{t('instagram.direct.solicitacao')}</span>}
           {!c.ultima_minha && c.janela?.aberta && <Janela janela={c.janela} t={t} />}
         </span>
       </span>

@@ -1,5 +1,5 @@
 // Equipe e integrações → Instagram (só administrador): app da Meta, webhook, acesso (login do Facebook ou token de
-// usuário do sistema), contas disponíveis e perfis conectados (Alice no Direct, sincronizar, desconectar).
+// usuário do sistema), contas disponíveis e perfis conectados (Alice no Direct, Direct pelo login, sincronizar, desconectar).
 import { useCallback, useEffect, useState } from 'react';
 import { Camera as IconeInstagram, KeyRound, Webhook, Link2, RefreshCw, Unplug, Plug, Bot, AlertTriangle, CheckCircle2, ChevronDown, LogIn } from 'lucide-react';
 import { api } from '../../api.js';
@@ -9,6 +9,7 @@ import { useEvento } from '../../tempoReal.js';
 import { tempoDesde, dataHora } from '../../utils.js';
 import { TextoSecreto, CampoSecreto } from '../Segredo.jsx';
 import { Interruptor } from '../disparos/comum.jsx';
+import DirectLogin from './DirectLogin.jsx';
 import './instagram.css';
 
 const nf = new Intl.NumberFormat('pt-BR');
@@ -43,7 +44,7 @@ export default function InstagramConexao({ aoMensagem, aoErro }) {
     } catch (e) { aoErro?.(e.message); }
   }, [aoErro]);
   useEffect(() => { carregar(); }, [carregar]);
-  useEvento('instagram', (x) => { if (x?.perfis || x?.conexao || x?.erro) carregar(); });
+  useEvento('instagram', (x) => { if (x?.perfis || x?.conexao || x?.erro || x?.login) carregar(); });
 
   // Voltou do login do Facebook (?ig=ok ou ?ig=erro&msg=…)
   useEffect(() => {
@@ -252,6 +253,7 @@ export default function InstagramConexao({ aoMensagem, aoErro }) {
                   <input defaultValue={p.config?.utm_contem || ''} placeholder="instagram, ig"
                     onBlur={(e) => e.target.value !== (p.config?.utm_contem || '') && mudarPerfil(p, { config: { utm_contem: e.target.value } }, t('instagram.conexao.utmSalvo'))} />
                 </label>
+                <DirectLogin perfil={p} login={d.login?.perfis?.[p.id]} instalacao={d.login?.instalacao} executar={executar} ocupado={ocupado} />
                 <div className="acoes-linha">
                   <button type="button" className="btn btn-pequeno" onClick={() => executar(`sync-${p.id}`, () => api(`/instagram/perfis/${p.id}/sincronizar`, { method: 'POST' }), t('instagram.conexao.sincronizando'))}>
                     <RefreshCw size={13} /> {t('instagram.conexao.sincronizar')}

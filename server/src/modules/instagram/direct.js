@@ -3,6 +3,8 @@
 //
 // As mensagens chegam de dois jeitos: webhook (na hora, quando o app da Meta está Live) e busca periódica pela API de
 // conversas (rede de segurança: funciona mesmo sem webhook). As duas gravam pelo mesmo caminho, sem duplicar (mid).
+// Perfil com o Direct pelo login (privado/): a busca e o envio passam pelo motor de login, sem janela de 24 h; o
+// webhook e a busca oficial do Direct ficam de lado para não duplicar.
 import fs from 'node:fs';
 import path from 'node:path';
 import { get, all, run, tx, agora } from '../../db.js';
@@ -13,7 +15,7 @@ import { avisarGancho } from '../../ganchos.js';
 import { ErroHttp, normalizarTelefone, esperar } from '../../util.js';
 import { criarLead, encontrarExistente, registrarContatoLead } from '../leads/service.js';
 import { chamar, paginar, baixarArquivo, ErroMeta } from './graph.js';
-import { tokenDoPerfil, obterPerfil, atualizarPerfil, registrarErro, limparErro, registrar, perfilPausado } from './perfis.js';
+import { tokenDoPerfil, obterPerfil, atualizarPerfil, registrarErro, limparErro, registrar, perfilPausado, motorDoPerfil } from './perfis.js';
 import { linkPublico } from './publico.js';
 import { PASTA } from './conexao.js';
 
@@ -99,6 +101,8 @@ export function obterConversa(id) {
 
 /** Janela para responder: 24 h depois da última mensagem da pessoa (7 dias quando veio de anúncio click-to-Direct) */
 export function janelaDaConversa(c, agoraMs = Date.now()) {
+  // Direct pelo login: o Instagram não tem prazo para responder (só o app oficial da Meta tem)
+  if (c?.perfil_id && motorDoPerfil(c.perfil_id) === 'login') return { aberta: true, fecha_em: null, horas_restantes: null, sem_limite: true };
   if (!c?.ultima_dele_em) return { aberta: false, fecha_em: null, horas_restantes: 0 };
   const limiteMs = c.anuncio_id ? JANELA_ANUNCIO_DIAS * 86400000 : JANELA_HORAS * 3600000;
   const fecha = new Date(c.ultima_dele_em).getTime() + limiteMs;
@@ -193,6 +197,7 @@ export async function baixarMidiasDaMensagem(mensagemId) {
   let mudou = false;
   for (const [i, a] of anexos.entries()) {
     if (a.local || !a.url || a.erro) continue;
+    if (/^https:\/\/(www\.)?instagram\.com\//.test(a.url)) continue; // link de post/reel: a tela abre no Instagram
     try {
       const r = await baixarArquivo(a.url, path.join(pasta, `m${m.id}-${i}`), { maxBytes: MAX_ANEXO });
       a.local = path.relative(config.filesDir, r.caminho);
@@ -241,6 +246,8 @@ const CONTATO_VALIDO_MS = 3 * 86400000;
 
 export async function garantirContato(perfil, igsid, { forcar = false } = {}) {
   const atual = get('SELECT * FROM ig_contatos WHERE perfil_id = ? AND igsid = ?', [perfil.id, String(igsid)]);
+  // Direct pelo login: nome, @ e foto vêm do próprio motor (a API oficial não conhece essas pessoas)
+  if (motorDoPerfil(perfil) === 'login' && !forcar) return atual;
   if (!forcar && atual?.atualizado_em && Date.now() - new Date(atual.atualizado_em).getTime() < CONTATO_VALIDO_MS) return atual;
   if (!forcar && atual && !atual.atualizado_em) return atual; // busca em andamento
   run('INSERT INTO ig_contatos (perfil_id, igsid) VALUES (?, ?) ON CONFLICT(perfil_id, igsid) DO NOTHING', [perfil.id, String(igsid)]);
@@ -293,6 +300,7 @@ export function arquivoFotoContato(conversaId) {
  * Trata: message (texto, anexos, story, eco das nossas, apagada, não suportada), read, reaction, postback, referral, message_edit.
  */
 export async function processarEventoDoWebhook(perfil, ev) {
+  if (motorDoPerfil(perfil) === 'login') return null; // o Direct deste perfil vem pelo login (evita duplicar)
   const nossoId = String(perfil.ig_id);
   const remetente = String(ev?.sender?.id || '');
   const destinatario = String(ev?.recipient?.id || '');
@@ -409,6 +417,10 @@ function dadosDaMensagemApi(perfil, m, metaConversaId) {
  */
 export async function sincronizarDirect(perfilId, { historico = false } = {}) {
   const perfil = obterPerfil(perfilId);
+  if (perfil.ativo && motorDoPerfil(perfil) === 'login') {
+    const privado = await import('./privado/index.js');
+    return privado.sincronizar(perfilId, { historico });
+  }
   if (!perfil.ativo || perfilPausado(perfil)) return { conversas: 0, mensagens: 0 };
   const token = tokenDoPerfil(perfil);
   const desde = historico ? null : perfil.sync_direct_em;
@@ -491,8 +503,13 @@ let envioFalso = null;
 /** Testes: troca o envio real por fn({ perfil, igsid, mensagem }) => { message_id } */
 export function definirEnvioFalso(fn) { envioFalso = fn; }
 
-async function postarMensagem(perfil, igsid, mensagem) {
+async function postarMensagem(perfil, conversa, mensagem) {
+  const igsid = conversa.igsid;
   if (envioFalso) return envioFalso({ perfil, igsid, mensagem });
+  if (motorDoPerfil(perfil) === 'login') {
+    const privado = await import('./privado/index.js');
+    return privado.enviar(perfil, get('SELECT * FROM ig_conversas WHERE id = ?', [conversa.id]), mensagem);
+  }
   return chamar(`${perfil.page_id}/messages`, {
     metodo: 'POST', token: tokenDoPerfil(perfil),
     corpo: { recipient: { id: igsid }, messaging_type: 'RESPONSE', message: mensagem },
@@ -523,8 +540,9 @@ export async function enviar(conversaId, conteudo, { userId = null, origem = 'cr
     if (conteudo.arquivo) {
       const { caminho, mime, nome } = conteudo.arquivo;
       const tipo = tipoDeEnvio(mime);
-      const url = envioFalso ? 'https://exemplo.invalid/arquivo' : linkPublico(caminho, mime);
-      const r = await postarMensagem(perfil, conversa.igsid, { attachment: { type: tipo, payload: { url, is_reusable: false } } });
+      const r = motorDoPerfil(perfil) === 'login' && !envioFalso
+        ? await postarMensagem(perfil, conversa, { arquivo: { caminho, mime, nome } })
+        : await postarMensagem(perfil, conversa, { attachment: { type: tipo, payload: { url: envioFalso ? 'https://exemplo.invalid/arquivo' : linkPublico(caminho, mime), is_reusable: false } } });
       // Guarda uma cópia na pasta da conversa (o arquivo enviado aparece no chat)
       const pasta = path.join(PASTA(), 'dm', String(conversa.id));
       fs.mkdirSync(pasta, { recursive: true });
@@ -540,7 +558,7 @@ export async function enviar(conversaId, conteudo, { userId = null, origem = 'cr
       gravadas.push(mensagem);
     }
     for (const parte of dividirTexto(conteudo.texto || '')) {
-      const r = await postarMensagem(perfil, conversa.igsid, { text: parte });
+      const r = await postarMensagem(perfil, conversa, { text: parte });
       const { mensagem } = registrarMensagem(perfil, {
         igsid: conversa.igsid, mid: r?.message_id || null, deMim: true, timestamp: agora(), texto: parte, origem, enviadoPor: userId, status: 2,
       }, { aoVivo: true });
@@ -621,7 +639,7 @@ export function conversaParaTela(c) {
     ultima_em: c.ultima_em, ultima_previa: c.ultima_previa, ultima_minha: Boolean(c.ultima_minha), ultima_dele_em: c.ultima_dele_em,
     nao_lidas: c.nao_lidas, marcada_nao_lida: Boolean(c.marcada_nao_lida), arquivada: Boolean(c.arquivada), fixada: Boolean(c.fixada),
     aguardando: Boolean(c.aguardando_desde) || c.ia_status === 'aguardando_humano', aguardando_nota: c.aguardando_nota,
-    anuncio_id: c.anuncio_id, anuncio_titulo: c.anuncio_titulo, origem: c.origem,
+    anuncio_id: c.anuncio_id, anuncio_titulo: c.anuncio_titulo, origem: c.origem, pendente: Boolean(c.pendente),
     janela, ia_status: c.ia_status || null, ia_motivo: c.ia_motivo || null, sugestoes: c.sugestoes || 0,
   };
 }

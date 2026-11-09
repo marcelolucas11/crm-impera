@@ -22,8 +22,9 @@ import { MODELOS } from '../ia/config.js';
 import { lerConfig, configPublica, salvarApp, salvarAjustes, removerSegredo, fuso } from './config.js';
 import { ErroMeta } from './graph.js';
 import {
-  perfisAtivos, perfilPublico, obterPerfil, atualizarPerfil, ultimosRegistros, perfilPausado, configDoPerfil, registrar,
+  perfisAtivos, perfilPublico, obterPerfil, atualizarPerfil, ultimosRegistros, perfilPausado, configDoPerfil, registrar, motorDoPerfil,
 } from './perfis.js';
+import * as privado from './privado/index.js';
 import * as conexao from './conexao.js';
 import * as direct from './direct.js';
 import * as sdr from './sdr.js';
@@ -102,7 +103,8 @@ export async function ciclo() {
     if (perfilPausado(p)) continue;
     if (!get('SELECT 1 AS ok FROM ig_credenciais WHERE chave = ?', [`pagina:${p.page_id}`])) continue;
     // Direct: busca pela API (rede de segurança). Com webhook chegando, só a cada 10 minutos.
-    if (cfg.direct_ativo) {
+    // (perfil com o Direct pelo login: quem busca é o relógio do privado/, a cada ~45 s)
+    if (cfg.direct_ativo && motorDoPerfil(p) !== 'login') {
       if (!p.historico_direct_em) tarefa(`${p.id}:historico`, () => direct.sincronizarDirect(p.id, { historico: true }));
       else {
         const webhookVivo = p.webhook_em && Date.now() - new Date(p.webhook_em).getTime() < 15 * 60000;
@@ -147,6 +149,15 @@ export async function ciclo() {
     salvarEstado('instagram', { limpeza_em: agora() });
     try { limparVencidos(); } catch { /* tenta na próxima */ }
   }
+}
+
+/** Direct pelo login: instalação do motor e situação de cada perfil (para a tela de conexão) */
+function loginParaTela() {
+  return {
+    instalacao: privado.estadoInstalacao(),
+    perfis: Object.fromEntries(all('SELECT id FROM ig_perfis WHERE ativo = 1').map((p) => [p.id, privado.estadoParaTela(p.id)])),
+    intervalo_padrao: privado.INTERVALO_PADRAO_SEG,
+  };
 }
 
 // ------------------------------------------------------------------ rotas
@@ -201,6 +212,7 @@ export default {
         perfis: all('SELECT * FROM ig_perfis ORDER BY ativo DESC, id').map(perfilPublico),
         registro: ultimosRegistros(40).filter((x) => x.tipo !== 'webhook_bruto'),
         escopos: conexao.ESCOPOS,
+        login: loginParaTela(),
       });
     }));
     r.put('/app', exigirAdmin, rota((req, res) => res.json({ config: salvarApp(req.body || {}) })));
@@ -238,6 +250,17 @@ export default {
       tarefa(`${pid}:coleta`, () => metricas.coletarTudo(pid, { tudo: true }));
       res.status(202).json({ ok: true });
     }));
+    // ---------------------------------------------------------------- Direct pelo login (plugin privado/, não oficial)
+    r.get('/login', exigirAdmin, rota((req, res) => res.json(loginParaTela())));
+    r.post('/login/instalar', exigirAdmin, rota((req, res) => { privado.instalar(); res.status(202).json(loginParaTela()); }));
+    r.post('/perfis/:id/login', exigirAdmin, rota(async (req, res) => {
+      const b = req.body || {};
+      const estado = await privado.conectar(id(req), { sessionid: b.sessionid || null, proxy: b.proxy === undefined ? undefined : String(b.proxy || '') });
+      res.json({ login: estado });
+    }));
+    r.patch('/perfis/:id/login', exigirAdmin, rota((req, res) => res.json({ login: privado.definirIntervalo(id(req), req.body?.intervalo_seg) })));
+    r.delete('/perfis/:id/login', exigirAdmin, rota(async (req, res) => res.json({ login: await privado.desligar(id(req), { apagarCookie: req.query.manter !== '1' }) })));
+    r.post('/perfis/:id/login/buscar', exigirAdmin, rota((req, res) => { privado.buscarAgora(obterPerfil(id(req)).id); res.status(202).json({ ok: true }); }));
     r.post('/perfis/:id/inscrever', exigirAdmin, rota(async (req, res) => res.json({ ok: await conexao.inscreverPagina(id(req)) })));
     r.put('/ajustes', exigirAdmin, rota((req, res) => res.json({ config: salvarAjustes(req.body || {}) })));
     r.post('/anuncios/sincronizar', exigirAdmin, rota((req, res) => {
@@ -351,6 +374,7 @@ export default {
   },
 
   start() {
+    privado.iniciarRelogio();
     relatorios.soltarPresos();
     sdr.iniciarRelogioSdr();
     relogio = setInterval(() => { ciclo().catch((err) => console.error('[instagram] ciclo:', err.message)); }, 30000);
@@ -360,6 +384,7 @@ export default {
   },
 
   stop() {
+    privado.pararRelogio();
     sdr.pararRelogioSdr();
     if (relogio) clearInterval(relogio);
     relogio = null;

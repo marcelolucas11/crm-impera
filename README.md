@@ -4,7 +4,9 @@ CRM da agência: leads do Yay! Forms caindo direto num kanban, alerta de follow-
 Roda direto no Mac, a partir do SSD externo, sem Docker e sem instalar nada no sistema.
 A mesma pasta funciona depois na VPS da Contabo.
 
-**Versão atual: 0.27.0** — o número fica no arquivo `VERSAO` e é o que aparece em **Equipe e integrações → Atualização do CRM**.
+**Versão atual: 0.28.0** — o número fica no arquivo `VERSAO` e é o que aparece em **Equipe e integrações → Atualização do CRM**.
+
+**Versão 0.28.0:** **Direct pelo login do Instagram** (plugin não oficial, motor [instagrapi](https://github.com/subzeroid/instagrapi)). Com o acesso padrão da Meta, o webhook e a API de conversas só entregam o Direct de quem tem função no app; sem a Análise do app, as mensagens dos leads não chegavam. Agora cada perfil pode ligar o Direct pelo login: o CRM entra no perfil com o cookie `sessionid` (como o app do celular), busca a caixa de entrada a cada ~45 s e as **solicitações de mensagem** a cada ~3 min, e responde **sem o prazo de 24 h** (texto, foto, vídeo e áudio). Tela, Alice, leads e assistente continuam iguais; **desempenho, publicações, comentários e anúncios seguem pela API oficial**. Quem já falou pela API oficial continua na mesma conversa (o CRM liga pelo @). O motor é instalado por um botão (Python numa pasta própria, que as atualizações não apagam), confere que o cookie é do mesmo @, para sozinho quando o Instagram pede verificação ou derruba a sessão e espera 30–60 min quando avisa de limite. Desligar volta o Direct para a API oficial.
 
 **Versão 0.27.0:** Revisão de segurança e de desempenho (nenhuma tela muda de visual). **Segurança:** a consulta ao banco da **assistente pessoal** tinha um furo — um nome entre aspas duplas com uma aspa simples dentro fazia a conferência pular o resto da consulta e permitia ler chaves de API, senhas (hash) e sessões; agora a consulta é lida pedaço por pedaço como o próprio SQLite lê, e as conversas particulares da assistente de cada pessoa também ficam de fora. A assistente passa a respeitar as **permissões** de cada pessoa (quem não tem WhatsApp liberado não lê conversas por ela; enviar mensagem, mover lead e criar disparo pela assistente exigem a mesma permissão da tela), e aprovar a sugestão da IA de primeiro contato exige a permissão de enviar no WhatsApp. Pedidos que mudam algo no CRM só são aceitos se vierem da própria tela do CRM (bloqueia ataques de outros sites, inclusive de outros subdomínios). **Trocar a senha** (ou desativar alguém) encerra as sessões abertas nos outros aparelhos. O login não revela mais pelo tempo de resposta quais e-mails têm conta, tem limite também por conta e não bloqueia mais a equipe inteira de um escritório (só tentativas erradas contam). Webhooks e links públicos bloqueiam quem erra token ou assinatura muitas vezes. Arquivos que vieram de fora (mídias do WhatsApp e do Instagram, anexos da assistente, arquivos dos disparos) só abrem na tela isolados e o resto é sempre baixado. Downloads por link (disparos) passam pela mesma proteção da prévia de links contra endereços internos, conferida em cada redirecionamento. Banco, sessões do WhatsApp, mídias e backups ficam legíveis só pelo usuário que roda o CRM. Mensagens de erro do git na tela de atualização não mostram mais token. **Correção:** **excluir um lead apagava junto as conversas do WhatsApp** dele; agora só o cartão sai do kanban e a conversa continua na tela de WhatsApp como contato. **Desempenho:** o kanban, a lista de conversas do WhatsApp, os contadores do topo e as estatísticas são calculados uma vez e reaproveitados por todas as abas até algo mudar no banco (antes cada atualização automática relia todas as mensagens); a tela recebe "nada mudou" (304) em vez da lista inteira quando nada mudou. A conversa aberta só recarrega quando chega mensagem **nela** (antes recarregava a cada mensagem de qualquer conversa) e o aviso em tempo real não perde mais mensagens que chegam juntas em conversas diferentes. Sessões de login não gravam mais no disco a cada clique. Mídias do WhatsApp são baixadas direto para o disco, sem ocupar a memória. A interface abre mais leve: as telas de IA, Instagram, Disparos, Estatísticas e Equipe só são baixadas quando alguém abre, os arquivos vão compactados (~4x menores) e ficam guardados no navegador entre versões. O `crm.log` não cresce mais para sempre (passou de 20 MB, vira `crm.log.1`). Índices novos no banco para os contadores.
 
@@ -515,9 +517,12 @@ os áudios dos últimos 3 dias (leads, contatos e grupos) são transcritos em se
 
 ## Instagram
 
-Só os perfis **da Impera** (contas profissionais ligadas a uma Página do Facebook do Gerenciador de Negócios da Impera). Como o app
-é usado só pelas contas da própria empresa, **não precisa de App Review** da Meta: o acesso padrão basta. Tudo é configurado em
-**Equipe e integrações → Instagram** (administrador) e o dia a dia fica na aba **Instagram**.
+Só os perfis **da Impera** (contas profissionais ligadas a uma Página do Facebook do Gerenciador de Negócios da Impera). Tudo é
+configurado em **Equipe e integrações → Instagram** (administrador) e o dia a dia fica na aba **Instagram**.
+
+**Atenção ao Direct:** com o acesso padrão (sem Análise do app), a Meta só entrega pelo webhook e pela API as mensagens de contas que
+têm função no app. Desempenho, publicações, comentários e anúncios funcionam normalmente; para receber o Direct de qualquer pessoa,
+use o **Direct pelo login** (abaixo) ou peça o acesso avançado de `instagram_manage_messages` na Análise do app.
 
 ### Ligar (uma vez)
 
@@ -542,6 +547,32 @@ Só os perfis **da Impera** (contas profissionais ligadas a uma Página do Faceb
    webhook), busca o histórico do Direct, as publicações, os números da conta (até 2 anos para trás, aos poucos), o público e os
    anúncios. Em cada perfil dá para ligar a **Alice no Direct** e informar as palavras da UTM que identificam o perfil nos formulários
    do Yay! Forms (padrão: `instagram, ig`).
+
+### Direct pelo login (não oficial)
+
+Plugin que lê e responde o Direct entrando no perfil como o app do Instagram (biblioteca open source
+[instagrapi](https://github.com/subzeroid/instagrapi), versão fixada em `server/src/modules/instagram/privado/index.js`). Liga por
+perfil, no cartão do perfil em **Equipe e integrações → Instagram → 4. Perfis**:
+
+1. **Instalar motor** (uma vez, 1 a 3 min): cria um Python próprio em `dados/instagram-login/venv` com a biblioteca. Usa o `python3`
+   da VPS; se ele não tiver o `venv`, baixa o [uv](https://docs.astral.sh/uv/) e um Python para dentro da pasta (não precisa de root).
+2. **Cookie `sessionid`**: no computador, abra instagram.com no Chrome **com o perfil certo**, F12 → Application → Cookies →
+   `https://www.instagram.com` → copie o valor de `sessionid` e cole no CRM. Não clique em "Sair" nesse navegador depois (derruba o
+   cookie). O CRM confere se o cookie é do mesmo @ do perfil.
+3. **Proxy (opcional, recomendado)**: um proxy residencial do Brasil (`http://usuario:senha@host:porta`). Sem proxy, o Instagram vê o
+   IP da Contabo (datacenter), o que aumenta a chance de pedido de verificação.
+4. **Ligar**: o CRM importa as conversas recentes (até 60, com as 20 mensagens mais recentes de cada) e passa a buscar a cada ~45 s
+   (ajustável de 30 s a 5 min, sempre com variação para parecer gente) e as solicitações de mensagem a cada ~3 min.
+
+Como fica: sem prazo de 24 h para responder (o selo some), conversas em **Solicitações** aparecem com a etiqueta e responder pelo CRM
+aceita a conversa, grupos ficam só no app, fotos/vídeos temporários aparecem como aviso. Arquivos: foto, vídeo e áudio (áudio vira
+`.m4a`; PDF e outros não são aceitos pelo Direct). O cookie e o proxy ficam só no banco (`ig_credenciais`, nunca na tela); a sessão do
+motor fica em `dados/instagram-login/sessoes` (só o usuário do CRM lê).
+
+**Riscos (não é oficial):** o Instagram pode pedir verificação, bloquear ações por algumas horas ou, raramente, restringir a conta.
+O CRM para sozinho quando a sessão cai ou vem verificação (aparece **Parado** no cartão: confirme no app e cole um cookie novo) e espera
+30 min (limite) ou 1 h (bloqueio) quando o Instagram pede calma. Use só em perfis da Impera, com o ok do dono. **Desligar** volta o
+Direct para a API oficial e apaga o cookie; as conversas guardadas continuam.
 
 ### No dia a dia
 

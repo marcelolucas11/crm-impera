@@ -53,10 +53,26 @@ export function atualizarPerfil(id, campos) {
   const chaves = Object.keys(campos);
   if (!chaves.length) return;
   run(`UPDATE ig_perfis SET ${chaves.map((k) => `${k} = ?`).join(', ')}, atualizado_em = ? WHERE id = ?`, [...chaves.map((k) => campos[k]), agora(), id]);
+  motores.delete(Number(id));
 }
 
 export function configDoPerfil(perfil) {
   return lerJson(perfil?.config, {}) || {};
+}
+
+/**
+ * Motor do Direct do perfil: 'oficial' (API da Meta, janela de 24 h) ou 'login' (entra como o app do Instagram,
+ * plugin privado/). Métricas, publicações, comentários e anúncios seguem sempre pela API oficial.
+ */
+const motores = new Map(); // perfilId → { motor, em } (a lista de conversas pergunta isto para cada linha)
+export function motorDoPerfil(perfil) {
+  if (typeof perfil === 'object' && perfil) return configDoPerfil(perfil).direct_motor === 'login' ? 'login' : 'oficial';
+  const guardado = motores.get(perfil);
+  if (guardado && Date.now() - guardado.em < 5000) return guardado.motor;
+  const p = get('SELECT config FROM ig_perfis WHERE id = ?', [perfil]);
+  const motor = configDoPerfil(p).direct_motor === 'login' ? 'login' : 'oficial';
+  motores.set(perfil, { motor, em: Date.now() });
+  return motor;
 }
 
 /** Pausa um perfil depois de bater no limite de chamadas da Meta (os relógios pulam ele até lá) */
@@ -81,6 +97,7 @@ export function perfilPublico(p) {
     sync_stories_em: p.sync_stories_em, sync_comentarios_em: p.sync_comentarios_em, historico_direct_em: p.historico_direct_em,
     conta_desde: p.conta_desde, conta_backfill_ok: Boolean(p.conta_backfill_ok),
     config: configDoPerfil(p),
+    direct_motor: motorDoPerfil(p),
   };
 }
 
