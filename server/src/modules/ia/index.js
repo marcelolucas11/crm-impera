@@ -25,7 +25,9 @@ import { emitir } from '../../tempoReal.js';
 import {
   aoReceberMensagem, aoMensagemHumana, aoReceberLeadFormulario, acharConversa, aprovarSugestao, descartarSugestao,
   iniciarRelogio, pararRelogio, passarParaHumano, leadsPendentes, enfileirarPendentes, iaJaFalou, emAtendimento,
+  aoAgendarReuniao, esperandoFormulario,
 } from './motor.js';
+import { estudarEsperaFormulario } from './estudoFormulario.js';
 import { estadoRevisao, revisarAtendimentos, iniciarRevisao, pararRevisao } from './revisao.js';
 import { transcricaoPronta } from './midias.js';
 import { instalada as transcricaoInstalada } from '../agente/transcricao.js';
@@ -89,6 +91,8 @@ function esperaDaConversa(cfg, c) {
   const hora = (ms) => new Date(ms).toLocaleTimeString('pt-BR', { timeZone: cfg.fuso, hour: '2-digit', minute: '2-digit' });
   if (!cfg.ativo) return 'IA desligada';
   if (['fila', 'fila_whatsapp'].includes(c.origem) && !dentroDoHorario(cfg)) return 'Espera o horário comercial';
+  const formulario = esperandoFormulario(c);
+  if (formulario) return `Esperando o lead terminar o formulário e agendar · ~${hora(formulario)}`;
   const automatico = cfg.modo === 'automatico' || (!dentroDoHorario(cfg) && cfg.automatico_fora_horario);
   const trava = automatico ? bloqueioAgora(cfg, c) : null;
   if (trava) return `${trava.motivo} · libera ~${hora(trava.ate)}`;
@@ -105,6 +109,7 @@ export default {
     // Ganchos dos outros módulos
     aoAcontecer('whatsapp:recebida', (d) => aoReceberMensagem(d));
     aoAcontecer('whatsapp:humana', (d) => aoMensagemHumana(d));
+    aoAcontecer('calendly:agendou', (d) => aoAgendarReuniao(d));
     aoAcontecer('yayforms:lead', async (d) => {
       let saudacaoDisparosAtiva = false;
       try {
@@ -130,6 +135,12 @@ export default {
       // O que a IA entende além de texto: áudio depende da transcrição (Whisper na VPS, em Agente → Ajustes)
       const midias = { transcricao_pronta: transcricaoPronta(), transcricao_instalada: transcricaoInstalada() };
       res.json({ config: configPublica(), resumo: resumoGeral(), numeros, saudacao_disparos_ativa: saudacaoDisparos, protecao: statusProtecao(lerConfig()), midias });
+    }));
+
+    // Estudo: quanto tempo o lead leva do 1º aviso do Yay! Forms até agendar no Calendly (e até a reunião aparecer no CRM)
+    r.get('/estudo-formulario', rota((req, res) => {
+      const dias = Math.min(365, Math.max(7, Math.round(Number(req.query.dias) || 60)));
+      res.json(estudarEsperaFormulario({ dias, esperaAtualMin: lerConfig().espera_formulario_min }));
     }));
 
     // Fila: leads da janela de "lead novo" que chegaram antes de a IA ligar e ninguém chamou
@@ -335,7 +346,7 @@ export default {
       const where = !status ? "c.status <> 'ignorada'" : filtros[status] || 'c.status = ?';
       const lista = all(
         `SELECT c.id, c.chave, c.lead_id, c.phone, c.jid, c.origem, c.status, c.motivo, c.resumo, c.mensagens_ia, c.iniciada_em, c.atualizada_em,
-                c.proxima_em, l.name AS lead_nome, COALESCE(wc.name, wc.push_name) AS contato_nome,
+                c.proxima_em, c.espera_formulario_ate, l.name AS lead_nome, COALESCE(wc.name, wc.push_name) AS contato_nome,
                 (SELECT count(*) FROM ia_sugestoes s WHERE s.conversa_id = c.id AND s.status = 'pendente') AS sugestoes_pendentes
            FROM ia_conversas c
            LEFT JOIN leads l ON l.id = c.lead_id

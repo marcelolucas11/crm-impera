@@ -6,6 +6,8 @@ import { lerEstado, salvarEstado } from '../../estado.js';
 import { normalizarTelefone, normalizarEmail, texto } from '../../util.js';
 import { criarLead, encontrarExistente, encontrarPorRespostaYay, avancarEtapa, vincularConversasExistentes } from '../leads/service.js';
 import { chamar, listarTudo } from './cliente.js';
+import { tokenCalendly } from './token.js';
+import { avisarGancho } from '../../ganchos.js';
 
 const DIAS_PARA_TRAS = 7;
 // Primeira sincronização (ou "buscar reuniões antigas"): olha mais para trás para que quem agendou
@@ -77,8 +79,10 @@ export function aplicarEvento(ev, convidado) {
     }
 
     const dadosEvento = { evento: ev.name, inicio: ev.start_time, link: ev.location?.join_url || null };
+    let agendou = false;
     if (leadId) {
       if ((!anterior || religado) && ev.status === 'active') {
+        agendou = true;
         registrarEvento({ leadId, type: 'meeting_scheduled', data: dadosEvento });
         const etapa = etapaReuniao();
         if (etapa) avancarEtapa(leadId, etapa);
@@ -107,15 +111,33 @@ export function aplicarEvento(ev, convidado) {
         convidado?.agendadoEm || ev.created_at || null, convidado?.respostaId || null,
       ]
     );
-    return { novo: !anterior, novoLead, religado };
+    return { novo: !anterior, novoLead, religado, leadId, agendou };
   });
 }
 
 let rodando = false;
+let emAndamento = null;
+
+/**
+ * Sincroniza só se a última sincronização tiver mais de maxIdadeMs (ou espera a que já está rodando). Usado pela IA logo
+ * antes da 1ª mensagem a quem veio do formulário, para não dizer "você não agendou" a quem acabou de agendar.
+ */
+export async function sincronizarSeAntigo({ maxIdadeMs = 60 * 1000 } = {}) {
+  if (!tokenCalendly()) return { sem_token: true };
+  if (emAndamento) return emAndamento;
+  const ultima = new Date(lerEstado('calendly').ultima_sincronizacao || 0).getTime();
+  if (Date.now() - ultima < maxIdadeMs) return { recente: true };
+  return sincronizarCalendly();
+}
 
 // dias: quantos dias para trás buscar (omitido = 7, ou 90 na primeira sincronização)
-export async function sincronizarCalendly({ dias } = {}) {
-  if (rodando) return { ignorado: true };
+export function sincronizarCalendly(opcoes = {}) {
+  if (rodando) return Promise.resolve({ ignorado: true });
+  emAndamento = sincronizar(opcoes).finally(() => { emAndamento = null; });
+  return emAndamento;
+}
+
+async function sincronizar({ dias } = {}) {
   rodando = true;
   const inicio = Date.now();
   try {
@@ -147,6 +169,8 @@ export async function sincronizarCalendly({ dias } = {}) {
       if (!forcar && salvo && salvo.remote_updated_at === ev.updated_at && salvo.status === ev.status) continue;
       const convidados = await listarTudo(`${ev.uri}/invitees`, {}, 2);
       const r = aplicarEvento(ev, dadosDoConvidado(convidados));
+      // Reunião nova ligada a um lead: a IA que esperava para a 1ª mensagem chama já sabendo da reunião
+      if (r.agendou && r.leadId) avisarGancho('calendly:agendou', { leadId: r.leadId });
       if (r.novo) novos++; else if (r.religado) religados++; else atualizados++;
       if (r.novoLead) leadsCriados++;
     }

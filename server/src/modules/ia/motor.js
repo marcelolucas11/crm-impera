@@ -60,6 +60,12 @@ const deps = {
     const { transformarEmLead } = await import('../whatsapp/conversas.js');
     return transformarEmLead(chave, null);
   },
+  // Busca no Calendly as reuniões novas (no máximo uma vez por minuto) antes da 1ª mensagem a quem veio do formulário
+  async conferirCalendly() {
+    const { sincronizarSeAntigo } = await import('../calendly/sincronizar.js');
+    return sincronizarSeAntigo({ maxIdadeMs: 60 * 1000 });
+  },
+  prazoCalendlyMs: 25 * 1000,
   esperar: (ms) => new Promise((r) => setTimeout(r, ms)),
   aleatorio: Math.random,
   prazoEnvioMs: PRAZO_ENVIO_MS,
@@ -235,30 +241,96 @@ export function aoMensagemHumana({ jid = null, leadId = null }) {
   return conversa;
 }
 
-/** Lead novo do Yay! Forms: a IA manda a primeira mensagem. resultado: { leadId, novo, tipo } */
-export function aoReceberLeadFormulario({ leadId, novo } = {}, { saudacaoDisparosAtiva = false } = {}) {
-  const cfg = lerConfig();
-  if (!cfg.ativo || !cfg.iniciar_formulario || !leadId || !novo) return null;
-  if (saudacaoDisparosAtiva) {
-    console.log('[ia] lead do formulário não recebeu a primeira mensagem da IA: a saudação automática dos Disparos está ligada');
-    return null;
+// ------------------------------------------------------------------ espera do formulário (Yay! Forms → Calendly)
+//
+// Quem preenche o Yay! Forms chega no CRM no 1º aviso do formulário (às vezes ainda parcial), termina as perguntas e só
+// depois agenda no Calendly — e o CRM só fica sabendo da reunião na sincronização seguinte. Se a IA chamasse 1 a 2 min
+// depois do cadastro, ela dizia "você preencheu e não agendou" para quem estava agendando. Por isso a 1ª mensagem
+// espera "espera_formulario_min" (configurável na tela IA); o tempo recomeça quando o formulário é atualizado; se o lead
+// agendar no meio da espera, a IA chama em 1 a 2 min; e logo antes de enviar o CRM confere o Calendly mais uma vez.
+
+const MINUTO = 60000;
+const sorteioAte = (ms) => Math.round(deps.aleatorio() * ms);
+
+/** Horário (ms) até quando a 1ª mensagem espera, contando de agora. 0 = sem espera (comportamento antigo: 1 a 2 min). */
+export function fimDaEsperaFormulario(cfg, agoraMs = Date.now()) {
+  const min = Math.max(0, Number(cfg.espera_formulario_min) || 0);
+  return min ? agoraMs + min * MINUTO : 0;
+}
+
+/** A conversa está segurando a 1ª mensagem esperando o formulário/Calendly? Devolve o horário (ms) ou 0. */
+export function esperandoFormulario(conversa, agoraMs = Date.now()) {
+  const ate = conversa?.espera_formulario_ate ? new Date(conversa.espera_formulario_ate).getTime() : 0;
+  return ate > agoraMs ? ate : 0;
+}
+
+/** Formulário do lead foi atualizado (parcial → completo, mais respostas): a espera recomeça a partir de agora. */
+function aoAtualizarFormulario(leadId, cfg) {
+  const conversa = acharConversa({ leadId });
+  if (!conversa) {
+    // Resposta parcial que chegou sem telefone e agora ganhou um: a IA ainda não tinha como chamar, entra agora
+    return criarConversaDoFormulario(leadId, cfg, { guardarIgnorada: false });
   }
+  if (conversa.status !== 'ativa' || !conversa.espera_formulario_ate || iaJaFalou(conversa)) return null;
+  const fim = fimDaEsperaFormulario(cfg);
+  if (!fim) return null;
+  const ate = Math.max(fim, new Date(conversa.espera_formulario_ate).getTime());
+  atualizar(conversa.id, { espera_formulario_ate: new Date(ate).toISOString(), proxima_em: new Date(ate + sorteioAte(MINUTO)).toISOString() });
+  registrar(conversa.id, 'espera_formulario', `Formulário atualizado: 1ª mensagem espera até ~${Math.round((ate - Date.now()) / MINUTO)} min`);
+  avisarTela(conversa);
+  return conversa;
+}
+
+function criarConversaDoFormulario(leadId, cfg, { guardarIgnorada = true } = {}) {
   const lead = get('SELECT id, phone FROM leads WHERE id = ?', [leadId]);
   if (!lead?.phone) return null;
   if (acharConversa({ leadId, phone: lead.phone })) return null;
   const contato = { leadId, phone: lead.phone, jid: null, jids: jidsDoContato({ leadId, phone: lead.phone }) };
   const motivo = motivoParaNaoAtuar(cfg, contato, { leadId });
-  // Espera um pouco, como uma pessoa que viu o cadastro chegar (1 a 2 minutos)
-  const atraso = 60000 + Math.round(deps.aleatorio() * 60000);
+  if (motivo && !guardarIgnorada) return null;
+  // Espera o lead terminar o formulário e agendar no Calendly (configurável). Sem espera: 1 a 2 min, como uma pessoa
+  // que viu o cadastro chegar.
+  const fim = fimDaEsperaFormulario(cfg);
+  const proxima = fim ? fim + sorteioAte(MINUTO) : Date.now() + MINUTO + sorteioAte(MINUTO);
   const conversa = criarConversa({
     leadId, phone: lead.phone, jid: null, instanciaId: cfg.numero_ids[0] || null, origem: 'yayforms',
-    status: motivo ? 'ignorada' : 'ativa', motivo, proximaEm: motivo ? null : daquiA(atraso),
+    status: motivo ? 'ignorada' : 'ativa', motivo, proximaEm: motivo ? null : new Date(proxima).toISOString(),
   });
   if (!motivo) {
-    registrar(conversa.id, 'inicio', 'Yay! Forms');
-    console.log(`[ia] primeira mensagem para o lead #${leadId} (formulário) em ~${Math.round(atraso / 1000)}s`);
+    if (fim) atualizar(conversa.id, { espera_formulario_ate: new Date(fim).toISOString() });
+    registrar(conversa.id, 'inicio', fim ? `Yay! Forms — espera ${cfg.espera_formulario_min} min o lead terminar o formulário e agendar` : 'Yay! Forms');
+    console.log(`[ia] primeira mensagem para o lead #${leadId} (formulário) em ~${Math.round((proxima - Date.now()) / 1000)}s`);
     avisarTela(conversa);
   }
+  return conversa;
+}
+
+/** Lead do Yay! Forms (novo ou atualizado). resultado: { leadId, novo, tipo } */
+export function aoReceberLeadFormulario({ leadId, novo } = {}, { saudacaoDisparosAtiva = false } = {}) {
+  const cfg = lerConfig();
+  if (!cfg.ativo || !cfg.iniciar_formulario || !leadId) return null;
+  if (saudacaoDisparosAtiva) {
+    if (novo) console.log('[ia] lead do formulário não recebeu a primeira mensagem da IA: a saudação automática dos Disparos está ligada');
+    return null;
+  }
+  if (!novo) return aoAtualizarFormulario(leadId, cfg);
+  return criarConversaDoFormulario(leadId, cfg);
+}
+
+/** O Calendly ligou uma reunião a este lead: se a IA estava esperando para a 1ª mensagem, chama em 1 a 2 min. */
+export function aoAgendarReuniao({ leadId } = {}) {
+  const cfg = lerConfig();
+  if (!cfg.ativo || !leadId) return null;
+  const conversa = acharConversa({ leadId });
+  if (!conversa || conversa.status !== 'ativa' || !esperandoFormulario(conversa) || iaJaFalou(conversa)) return null;
+  if (!cfg.atender_ao_agendar) {
+    registrar(conversa.id, 'espera_formulario', 'Lead agendou no Calendly; a IA continua esperando o tempo configurado');
+    return null;
+  }
+  const quando = Date.now() + MINUTO + sorteioAte(MINUTO);
+  atualizar(conversa.id, { espera_formulario_ate: agora(), proxima_em: new Date(quando).toISOString() });
+  registrar(conversa.id, 'espera_formulario', 'Lead agendou no Calendly: a IA chama em 1 a 2 min já sabendo da reunião');
+  avisarTela(conversa);
   return conversa;
 }
 
@@ -281,6 +353,14 @@ export function aoReceberLeadInstagram({ leadId } = {}) {
     avisarTela(conversa);
   }
   return conversa;
+}
+
+function reuniaoLigada(leadId) {
+  try {
+    return Boolean(get("SELECT 1 AS ok FROM calendly_events WHERE lead_id = ? AND status = 'active' LIMIT 1", [leadId]));
+  } catch {
+    return false;
+  }
 }
 
 // ------------------------------------------------------------------ fila: leads que chegaram antes de a IA ligar
@@ -479,6 +559,15 @@ export async function processarConversa(id) {
   const primeiroContato = conversa.origem === 'manual' ? !historico.some((m) => m.from_me) : iaNuncaFalou;
   if (!novas.length && !(conversa.origem !== 'manual' && iaNuncaFalou)) return { feito: 'sem_novidade' };
 
+  // Lead do formulário: a 1ª mensagem espera o tempo de terminar o formulário e agendar no Calendly. Se o lead escreveu
+  // no WhatsApp nesse meio-tempo, ele está ativo agora e a IA responde. (Fica aqui, e não só no proxima_em, para que
+  // nenhuma outra rotina — revisão, travas reavaliadas — faça a IA chamar antes da hora.)
+  const esperaAte = iaNuncaFalou ? esperandoFormulario(conversa) : 0;
+  if (esperaAte && !novas.length) {
+    atualizar(id, { proxima_em: new Date(esperaAte + 1000).toISOString() });
+    return { feito: 'aguardando_formulario', ate: esperaAte };
+  }
+
   const foraDoHorario = !dentroDoHorario(cfg);
 
   // Lead da fila (chegou antes de a IA ligar): o primeiro contato só sai dentro do horário comercial, a não ser que o
@@ -503,6 +592,17 @@ export async function processarConversa(id) {
       if (ultimo !== trava.tipo) registrar(id, trava.tipo, trava.motivo);
       return { feito: trava.tipo, ate: trava.ate };
     }
+  }
+
+  // Logo antes da 1ª mensagem a quem veio do formulário: confere o Calendly agora (a sincronização normal roda a cada
+  // poucos minutos e quem acabou de agendar ainda não estaria no CRM)
+  if (iaNuncaFalou && conversa.lead_id && ['yayforms', 'fila'].includes(conversa.origem) && !reuniaoLigada(conversa.lead_id)) {
+    try {
+      await comPrazo(deps.conferirCalendly(), deps.prazoCalendlyMs, 'O Calendly não respondeu a tempo');
+    } catch (err) {
+      console.error(`[ia] conversa ${conversa.chave}: não consegui conferir o Calendly antes da 1ª mensagem: ${err.message}`);
+    }
+    if (get('SELECT status FROM ia_conversas WHERE id = ?', [id])?.status !== 'ativa') return { feito: 'interrompida' };
   }
 
   if (novas.length) atualizar(id, { ultima_lida_id: Math.max(...novas.map((m) => m.id)) });

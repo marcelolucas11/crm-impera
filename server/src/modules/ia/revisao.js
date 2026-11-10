@@ -23,7 +23,7 @@ import { dentroDoHorario } from './horario.js';
 import { bloqueioAgora } from './protecao.js';
 import {
   contatoDaConversa, historicoDaConversa, teveContatoHumano, atualizar, passarParaHumano, emAtendimento, soltarAtendimento,
-  iaJaFalou, verificarPendentes,
+  iaJaFalou, verificarPendentes, esperandoFormulario,
 } from './motor.js';
 
 const DA_FILA = ['fila', 'fila_whatsapp'];
@@ -64,6 +64,8 @@ function semResposta(conversa) {
 function motivoDaEspera(cfg, c) {
   if (!cfg.ativo) return 'A IA está desligada';
   if (DA_FILA.includes(c.origem) && !c.mensagens_ia && !dentroDoHorario(cfg)) return 'Lead da fila: a 1ª mensagem espera o horário comercial';
+  const formulario = esperandoFormulario(c);
+  if (formulario) return `Lead do formulário: a 1ª mensagem espera ele terminar e agendar — por volta de ${new Date(formulario).toLocaleTimeString('pt-BR', { timeZone: cfg.fuso, hour: '2-digit', minute: '2-digit' })}`;
   const automatico = cfg.modo === 'automatico' || (!dentroDoHorario(cfg) && cfg.automatico_fora_horario);
   if (!automatico) return null;
   const trava = bloqueioAgora(cfg, c);

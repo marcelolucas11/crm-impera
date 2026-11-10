@@ -74,6 +74,12 @@ export const PADRAO = {
   max_mensagens_ia: 6,
   // Lead novo do Yay! Forms: a IA manda a primeira mensagem (se a saudação automática dos Disparos estiver desligada)
   iniciar_formulario: true,
+  // Quanto a IA espera depois que o lead chega pelo Yay! Forms antes da 1ª mensagem (minutos). O tempo recomeça quando o
+  // formulário é atualizado (parcial → completo), para dar tempo de terminar e agendar no Calendly. Antes de enviar, o CRM
+  // ainda confere o Calendly na hora. Valor sugerido pelo estudo da tela "IA" (1º aviso do formulário → reunião no CRM).
+  espera_formulario_min: 10,
+  // Se o lead agendar no Calendly durante a espera, a IA não espera o resto: chama em 1 a 2 min já sabendo da reunião
+  atender_ao_agendar: true,
   // Proteção do número: no máximo N mensagens da IA por hora (somando todas as conversas)
   limite_por_hora: 30,
   // Espera o lead terminar de mandar mensagens antes de responder (segundos)
@@ -225,6 +231,8 @@ export function salvarConfig(entrada = {}) {
     janela_lead_novo_horas: inteiro(v('janela_lead_novo_horas'), 1, 24 * 30, 72),
     max_mensagens_ia: inteiro(v('max_mensagens_ia'), 1, 20, 6),
     iniciar_formulario: Boolean(v('iniciar_formulario')),
+    espera_formulario_min: inteiro(v('espera_formulario_min'), 0, 240, 10),
+    atender_ao_agendar: Boolean(v('atender_ao_agendar')),
     limite_por_hora: inteiro(v('limite_por_hora'), 1, 200, 30),
     espera_agrupar_seg: inteiro(v('espera_agrupar_seg'), 3, 120, 15),
     intervalo_blocos_seg: inteiro(v('intervalo_blocos_seg'), 0, 15, 2),

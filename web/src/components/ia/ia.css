@@ -274,3 +274,15 @@
 .ia-midias ul { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 3px; color: var(--suave); }
 .ia-midias li.ok::marker { content: '✓  '; color: #4ade80; }
 .ia-midias li.falta::marker { content: '!  '; color: #fbbf24; }
+
+/* Espera depois do Yay! Forms (dar tempo de agendar no Calendly) e o estudo dos tempos */
+.ia-espera-form { display: flex; flex-direction: column; gap: 6px; }
+.ia-espera-icone { vertical-align: -2px; opacity: 0.8; }
+.ia-espera-estudo { display: flex; flex-direction: column; gap: 8px; margin-top: 6px; padding: 10px 12px; border-radius: 10px; background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.08); }
+.ia-espera-tabela { width: 100%; border-collapse: collapse; font-size: 12.5px; font-variant-numeric: tabular-nums; }
+.ia-espera-tabela th { text-align: left; font-weight: 500; color: var(--suave); padding: 4px 6px; border-bottom: 1px solid rgba(255, 255, 255, 0.08); }
+.ia-espera-tabela td { padding: 4px 6px; border-bottom: 1px solid rgba(255, 255, 255, 0.04); }
+.ia-espera-tabela th:not(:first-child), .ia-espera-tabela td:not(:first-child) { text-align: right; white-space: nowrap; }
+.ia-espera-tabela tr.destaque td { color: var(--ouro, #e3c06b); font-weight: 600; }
+.ia-espera-alerta { color: #f0b35a; }
+.ia-espera-sugestao { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }

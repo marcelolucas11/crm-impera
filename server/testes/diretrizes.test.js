@@ -132,7 +132,7 @@ test('na conversa real, o motor manda as diretrizes ativas e o formulário do le
   limparDiretrizes();
   exec('DELETE FROM ia_sugestoes; DELETE FROM ia_registro; DELETE FROM ia_conversas; DELETE FROM wa_instances; DELETE FROM calendly_events;');
   run("INSERT INTO wa_instances (id, name) VALUES (1, 'Comercial')");
-  salvarConfig({ ativo: true, modo: 'automatico', horario: SEMPRE, espera_agrupar_seg: 3 });
+  salvarConfig({ ativo: true, modo: 'automatico', horario: SEMPRE, espera_agrupar_seg: 3, espera_formulario_min: 0 });
   d.criarDiretriz({ titulo: 'SDR', conteudo: 'Se o lead tiver contrato em aberto, pergunte quando termina.' });
 
   const leadId = await criarLeadDireto({ nome: 'Elisa', telefone: '5511944445555' });

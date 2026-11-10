@@ -1,6 +1,6 @@
 // Módulo Calendly: sincroniza as reuniões a cada CALENDLY_INTERVALO_MIN minutos (padrão 5).
 // Não precisa de endereço público nem de plano pago: o CRM consulta a API com o token pessoal.
-import { all } from '../../db.js';
+import { all, get } from '../../db.js';
 import { config } from '../../config.js';
 import { exigirLogin, exigirAdmin } from '../auth/middleware.js';
 import { idValido } from '../../util.js';
@@ -56,9 +56,25 @@ export default {
 
   start() {
     // O token pode ser colado na tela depois que o CRM já está ligado: o relógio roda sempre e só trabalha com token
-    const rodar = () => (tokenCalendly() ? sincronizarCalendly().catch(() => {}) : undefined);
-    setTimeout(rodar, 5000).unref();
-    timer = setInterval(rodar, config.calendly.intervaloMin * 60 * 1000);
+    // Roda a cada CALENDLY_INTERVALO_MIN; enquanto a IA estiver segurando a 1ª mensagem de algum lead do formulário
+    // (esperando ele agendar), olha a cada minuto para a reunião aparecer no CRM o quanto antes.
+    let ultimaVolta = 0;
+    const iaEsperandoAgendamento = () => {
+      try {
+        return Boolean(get("SELECT 1 AS ok FROM ia_conversas WHERE status = 'ativa' AND espera_formulario_ate > ? LIMIT 1", [new Date().toISOString()]));
+      } catch {
+        return false;
+      }
+    };
+    const rodar = (forcar = false) => {
+      if (!tokenCalendly()) return;
+      const venceu = Date.now() - ultimaVolta >= config.calendly.intervaloMin * 60 * 1000 - 5000;
+      if (!forcar && !venceu && !iaEsperandoAgendamento()) return;
+      ultimaVolta = Date.now();
+      sincronizarCalendly().catch(() => {});
+    };
+    setTimeout(() => rodar(true), 5000).unref();
+    timer = setInterval(() => rodar(), 60 * 1000);
     timer.unref();
     console.log(tokenCalendly()
       ? `[calendly] sincronizando a cada ${config.calendly.intervaloMin} min`

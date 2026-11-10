@@ -11,6 +11,7 @@ import { ProvedorAvisos, useAviso, Interruptor } from '../disparos/comum.jsx';
 import '../disparos/disparos.css';
 import DiretrizesIa from './DiretrizesIa.jsx';
 import FilaPendentes from './FilaPendentes.jsx';
+import EsperaFormulario from './EsperaFormulario.jsx';
 import RevisaoAtendimento from './RevisaoAtendimento.jsx';
 import OrganizadorKanban from './OrganizadorKanban.jsx';
 import AgentePagina from './agente/AgentePagina.jsx';
@@ -468,10 +469,7 @@ function Conteudo({ user, aoAbrirConversa }) {
                   <span className="dp-config-titulo">Quem é lead novo</span>
                   <span className="pequeno">Ninguém da equipe falou com ele e a conversa tem menos de
                     <input className="dp-inline-num" type="number" min={1} value={cfg.janela_lead_novo_horas} disabled={!admin} onChange={(e) => mudar({ janela_lead_novo_horas: Number(e.target.value) })} /> horas.</span>
-                  <label className="dp-check">
-                    <input type="checkbox" checked={cfg.iniciar_formulario} disabled={!admin} onChange={(e) => mudar({ iniciar_formulario: e.target.checked })} />
-                    <span>Lead novo do Yay! Forms: a IA manda a primeira mensagem (1 a 2 min depois do cadastro)</span>
-                  </label>
+                  <EsperaFormulario cfg={cfg} mudar={mudar} admin={admin} />
                   <FilaPendentes admin={admin} alterado={alterado} />
                 </div>
                 <div className="dp-config-item">

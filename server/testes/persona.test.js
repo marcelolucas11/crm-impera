@@ -36,7 +36,7 @@ async function preparar(extra = {}) {
   await limparBanco();
   exec('DELETE FROM ia_sugestoes; DELETE FROM ia_registro; DELETE FROM ia_conversas; DELETE FROM wa_instances;');
   run("INSERT INTO wa_instances (id, name) VALUES (1, 'Comercial')");
-  salvarConfig({ ativo: true, modo: 'automatico', horario: SEMPRE, espera_agrupar_seg: 3, ...extra });
+  salvarConfig({ ativo: true, modo: 'automatico', horario: SEMPRE, espera_agrupar_seg: 3, espera_formulario_min: 0, ...extra });
   linhaDoTempo = [];
 }
 
