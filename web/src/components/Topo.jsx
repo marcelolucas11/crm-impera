@@ -71,7 +71,7 @@ export default function Topo({ user, pagina, setPagina, resumo, sair }) {
           <FotoUsuario usuario={user} tamanho={34} titulo="" />
         </button>
         {menu && (
-          <div className="menu" onMouseLeave={() => setMenu(false)}>
+          <div className="menu menu-conta" onMouseLeave={() => setMenu(false)}>
             <div className="menu-nome">{user.name}<small>{user.email}</small></div>
             {/* Foto e senha ficam na aba Equipe e integrações (seção "Minha conta"); quem não é admin vê só essa seção */}
             <button onClick={() => { setMenu(false); setPagina('equipe'); }}>

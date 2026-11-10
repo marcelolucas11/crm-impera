@@ -138,7 +138,7 @@ export default function Equipe({ user, aoMudarUsuarios, aoMudarMinhaFoto }) {
 
         <MinhaConta user={user} aoMudarFoto={(u) => { aoMudarMinhaFoto?.(u); carregar(); }} aoMensagem={setMsg} aoErro={setErro} />
 
-        <ConfigModoLive />
+        {!admin && <ConfigModoLive />}
 
         {admin && <>
         <Atualizacao />
@@ -194,6 +194,8 @@ export default function Equipe({ user, aoMudarUsuarios, aoMudarMinhaFoto }) {
             <button className="btn btn-ouro">Adicionar</button>
           </form>
         </section>
+
+        <ConfigModoLive />
 
         <WhatsAppNumeros aoMensagem={setMsg} aoErro={setErro} />
         <InstagramConexao aoMensagem={setMsg} aoErro={setErro} />
