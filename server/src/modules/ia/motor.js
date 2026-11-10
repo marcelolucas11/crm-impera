@@ -24,7 +24,7 @@ import { tentativaDeComando, pedeHumano, validarSaida } from './seguranca.js';
 import { textoDoSistema, montarPedido, primeiroNome } from './prompt.js';
 import { diretrizesAtivas } from './diretrizes.js';
 import { dadosDoFormulario } from './formulario.js';
-import { perguntarModelo, lerJsonDaResposta, registrar, ErroIA, perguntarNoFormato } from './cliente.js';
+import { perguntarModelo, lerJsonDaResposta, registrar, ErroIA, perguntarNoFormato, explicarFalha } from './cliente.js';
 import { bloqueioAgora, depoisDeEnviar, falhaDeEnvio } from './protecao.js';
 import { prepararMidias, guardarDescricoes, resumoDasMidias } from './midias.js';
 
@@ -665,7 +665,7 @@ export async function processarConversa(id) {
   // 4) Pergunta ao modelo
   let resposta;
   try {
-    const { resposta: lida, uso, tentativas, parada } = await perguntarNoFormato({
+    const { resposta: lida, uso, tentativas, parada, texto: bruto } = await perguntarNoFormato({
       sistema: textoDoSistema(cfg, diretrizesAtivas()),
       mensagens: montarPedido({
         cfg, lead: { primeiroNome: nome }, historico, foraDoHorario, saudacao, primeiroContato,
@@ -678,7 +678,7 @@ export async function processarConversa(id) {
     registrar(id, 'chamada_modelo', tentativas > 1 ? `2ª tentativa (a 1ª veio fora do formato)` : null, uso);
     resposta = lida;
     if (resposta) guardarDescricoes(anexos, resposta.midias);
-    if (!resposta) throw new ErroIA(parada === 'max_tokens' ? 'A resposta do modelo veio cortada (longa demais), mesmo na 2ª tentativa' : 'O modelo não respondeu no formato combinado, mesmo na 2ª tentativa');
+    if (!resposta) throw new ErroIA(explicarFalha(parada, bruto));
   } catch (err) {
     registrar(id, 'erro', err.message);
     console.error(`[ia] conversa ${conversa.chave}: ${err.message}`);

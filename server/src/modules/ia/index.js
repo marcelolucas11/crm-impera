@@ -10,7 +10,7 @@ import { respostasProntas, configPublica, salvarConfig, guardarChave, guardarWor
 import { dentroDoHorario, saudacaoDoMomento } from './horario.js';
 import { tentativaDeComando, pedeHumano, validarSaida } from './seguranca.js';
 import { textoDoSistema, montarPedido } from './prompt.js';
-import { perguntarModelo, perguntarNoFormato, registrar, ErroIA } from './cliente.js';
+import { perguntarModelo, perguntarNoFormato, registrar, ErroIA, explicarFalha } from './cliente.js';
 import { iniciarTarefa, estadoTarefa, dispensarTarefa, iniciarRelogioPlaybook, pararRelogioPlaybook } from './playbook.js';
 import { statusProtecao, retomarAgora, zerarLeadsNovos, bloqueioAgora, reavaliarEspera } from './protecao.js';
 
@@ -326,9 +326,13 @@ export default {
       if (!resposta) {
         return res.json({
           erro_formato: true, cortada: parada === 'max_tokens', bruto: String(texto || '').slice(0, 1500),
-          motivo: parada === 'max_tokens'
-            ? 'A resposta ficou longa demais e veio cortada, mesmo na 2ª tentativa. Peça respostas mais curtas na diretriz.'
-            : 'A IA não respondeu no formato que o CRM lê, mesmo na 2ª tentativa. Veja abaixo o que ela escreveu.',
+          motivo: parada === 'max_tokens' && !String(texto || '').trim()
+            ? `${explicarFalha(parada, texto)}.`
+            : parada === 'max_tokens'
+              ? 'A resposta ficou longa demais e veio cortada, mesmo na 2ª tentativa. Peça respostas mais curtas na diretriz.'
+              : parada === 'refusal'
+                ? `${explicarFalha(parada, texto)}.`
+                : 'A IA não respondeu no formato que o CRM lê, mesmo na 2ª tentativa. Veja abaixo o que ela escreveu.',
         });
       }
       const conferida = validarSaida(Array.isArray(resposta.mensagens) ? resposta.mensagens : [resposta.mensagens], cfg);

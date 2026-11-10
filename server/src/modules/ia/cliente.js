@@ -40,6 +40,68 @@ export function traduzirErro(status, msg = '', modelo = null) {
 let chamadaFalsa = null;
 export function definirChamadaFalsa(fn) {
   chamadaFalsa = fn;
+  recusaramDesligar.clear();
+  recusaramEsforco.clear();
+}
+
+// Erro "cru" da API (antes de virar mensagem em português), para perguntarModelo poder ajustar o pedido e tentar de novo
+export class RecusaDaApi extends Error {
+  constructor(status, mensagem = '') {
+    super(mensagem || `erro ${status}`);
+    this.status = status;
+    this.mensagemApi = mensagem;
+  }
+}
+
+// Raciocínio (thinking) dos modelos 5.x: vem LIGADO por padrão e os tokens que o modelo gasta pensando contam no
+// max_tokens. Com limite curto (900 nas respostas aos leads), uma mensagem que faz o modelo pensar mais — um áudio
+// transcrito, por exemplo — esgotava o limite ANTES de ele escrever a resposta e voltava "cortada", nas duas tentativas.
+// Nas respostas rápidas (pensar = false):
+//  - Haiku 5.5, Opus 5 e Sonnet 5 aceitam desligar o raciocínio: vai thinking "disabled" e o limite fica o mesmo;
+//  - Opus 5.5, Sonnet 5.5 e Fable não deixam desligar: vai esforço baixo e o limite ganha uma folga para o raciocínio
+//    (só se paga o que o modelo realmente usa).
+// Se a API recusar um desses ajustes para algum modelo, ele é tirado do pedido e lembrado (não tenta de novo).
+const DESLIGA_RACIOCINIO = /^claude-(haiku-5-5|opus-5|sonnet-5)(-\d{8})?$/;
+export const FOLGA_RACIOCINIO = 3000;
+const recusaramDesligar = new Set();
+const recusaramEsforco = new Set();
+
+function ajustarRaciocinio(corpo, maxTokens) {
+  if (DESLIGA_RACIOCINIO.test(corpo.model) && !recusaramDesligar.has(corpo.model)) {
+    corpo.thinking = { type: 'disabled' };
+    corpo.max_tokens = maxTokens;
+    return;
+  }
+  delete corpo.thinking;
+  corpo.max_tokens = maxTokens + FOLGA_RACIOCINIO;
+  if (!recusaramEsforco.has(corpo.model)) corpo.output_config = { effort: 'low' };
+  else delete corpo.output_config;
+}
+
+async function enviar(corpo, tempoMs) {
+  if (chamadaFalsa) return chamadaFalsa(corpo);
+  const chave = chaveApi();
+  if (!chave) throw new ErroIA('A chave da API da Anthropic não está configurada', { status: 400 });
+  let resposta;
+  try {
+    resposta = await fetch(`${API_URL}/v1/messages`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json', 'x-api-key': chave, 'anthropic-version': '2023-06-01',
+        ...(workspaceApi() ? { 'anthropic-workspace-id': workspaceApi() } : {}),
+      },
+      body: JSON.stringify(corpo),
+      signal: AbortSignal.timeout(tempoMs),
+    });
+  } catch (err) {
+    const tempo = err?.name === 'TimeoutError' ? 'a Anthropic demorou demais para responder' : err.message;
+    throw new ErroIA(`O servidor do CRM não conseguiu falar com a API da Anthropic (${tempo}). Confira se a VPS tem acesso à internet.`, { status: 422, temporario: true, tipo: 'rede' });
+  }
+  let dados = null;
+  try { dados = await resposta.json(); } catch { /* sem corpo */ }
+  if (!resposta.ok) throw new RecusaDaApi(resposta.status, dados?.error?.message || '');
+  const texto = (dados?.content || []).filter((b) => b.type === 'text').map((b) => b.text).join('').trim();
+  return { texto, uso: dados?.usage || null, parada: dados?.stop_reason || null };
 }
 
 export function registrar(conversaId, tipo, detalhe = null, uso = null) {
@@ -70,31 +132,40 @@ export async function perguntarModelo({ sistema, mensagens, maxTokens = 500, mod
   if (pensar) {
     corpo.thinking = { type: 'adaptive' };
     corpo.output_config = { effort: 'high' };
+  } else {
+    ajustarRaciocinio(corpo, maxTokens);
   }
-  if (chamadaFalsa) return chamadaFalsa(corpo);
 
-  const chave = chaveApi();
-  if (!chave) throw new ErroIA('A chave da API da Anthropic não está configurada', { status: 400 });
-  let resposta;
-  try {
-    resposta = await fetch(`${API_URL}/v1/messages`, {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json', 'x-api-key': chave, 'anthropic-version': '2023-06-01',
-        ...(workspaceApi() ? { 'anthropic-workspace-id': workspaceApi() } : {}),
-      },
-      body: JSON.stringify(corpo),
-      signal: AbortSignal.timeout(tempoMs),
-    });
-  } catch (err) {
-    const tempo = err?.name === 'TimeoutError' ? 'a Anthropic demorou demais para responder' : err.message;
-    throw new ErroIA(`O servidor do CRM não conseguiu falar com a API da Anthropic (${tempo}). Confira se a VPS tem acesso à internet.`, { status: 422, temporario: true, tipo: 'rede' });
+  for (let volta = 0; ; volta++) {
+    try {
+      return await enviar(corpo, tempoMs);
+    } catch (err) {
+      if (!(err instanceof RecusaDaApi)) throw err;
+      const msg = err.mensagemApi;
+      // Resposta rápida em que a API recusou um dos ajustes de raciocínio: tira o ajuste, lembra e tenta de novo
+      if (!pensar && err.status === 400 && volta < 2) {
+        if (corpo.thinking?.type === 'disabled' && /thinking/i.test(msg)) {
+          recusaramDesligar.add(corpo.model);
+          ajustarRaciocinio(corpo, maxTokens);
+          continue;
+        }
+        if (corpo.output_config && /effort|output_config/i.test(msg)) {
+          recusaramEsforco.add(corpo.model);
+          ajustarRaciocinio(corpo, maxTokens);
+          continue;
+        }
+      }
+      throw traduzirErro(err.status, msg, corpo.model);
+    }
   }
-  let dados = null;
-  try { dados = await resposta.json(); } catch { /* sem corpo */ }
-  if (!resposta.ok) throw traduzirErro(resposta.status, dados?.error?.message || '', corpo.model);
-  const texto = (dados?.content || []).filter((b) => b.type === 'text').map((b) => b.text).join('').trim();
-  return { texto, uso: dados?.usage || null, parada: dados?.stop_reason || null };
+}
+
+/** Frase para a equipe quando o modelo não devolveu uma resposta legível nem na 2ª tentativa */
+export function explicarFalha(parada, texto) {
+  if (parada === 'refusal') return 'O modelo se recusou a responder (filtro de segurança da Anthropic), mesmo na 2ª tentativa';
+  if (parada === 'max_tokens' && !String(texto || '').trim()) return 'O modelo gastou o limite de tokens raciocinando e não escreveu a resposta, mesmo na 2ª tentativa';
+  if (parada === 'max_tokens') return 'A resposta do modelo veio cortada (longa demais), mesmo na 2ª tentativa';
+  return 'O modelo não respondeu no formato combinado, mesmo na 2ª tentativa';
 }
 
 // Lê o objeto JSON da resposta. Tolera o que o modelo às vezes faz: texto em volta, bloco ```json,
@@ -146,17 +217,22 @@ export async function perguntarNoFormato({ sistema, mensagens, maxTokens = LIMIT
   const resposta = lerJsonDaResposta(primeira.texto);
   if (resposta) return { ...primeira, resposta, tentativas: 1 };
 
-  const motivo = primeira.parada === 'max_tokens'
-    ? 'Sua resposta anterior ficou longa demais e foi cortada.'
-    : 'Sua resposta anterior não veio no formato combinado.';
+  // Parou no limite sem escrever nada: o limite foi todo para o raciocínio. A 2ª tentativa ganha mais espaço.
+  const semTexto = !String(primeira.texto || '').trim();
+  const esgotouPensando = primeira.parada === 'max_tokens' && semTexto;
+  const motivo = esgotouPensando
+    ? 'Sua resposta anterior veio vazia.'
+    : primeira.parada === 'max_tokens'
+      ? 'Sua resposta anterior ficou longa demais e foi cortada.'
+      : 'Sua resposta anterior não veio no formato combinado.';
   const segunda = await perguntarModelo({
     sistema,
     mensagens: [
       ...mensagens,
-      { role: 'assistant', content: primeira.texto.slice(0, 4000) || '(vazio)' },
+      { role: 'assistant', content: String(primeira.texto || '').slice(0, 4000) || '(vazio)' },
       { role: 'user', content: `${motivo} Responda de novo SOMENTE com o objeto JSON combinado, sem texto antes ou depois, com mensagens curtas e resumo de no máximo 2 frases.` },
     ],
-    maxTokens,
+    maxTokens: esgotouPensando ? maxTokens + FOLGA_RACIOCINIO : maxTokens,
   });
   const uso = somarUso(primeira.uso, segunda.uso);
   return { ...segunda, uso, resposta: lerJsonDaResposta(segunda.texto), tentativas: 2, primeiraParada: primeira.parada };
