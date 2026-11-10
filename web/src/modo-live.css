@@ -1,0 +1,40 @@
+/* ---------- Modo Live (compartilhar tela sem expor os leads) ---------- */
+
+/* Selo AO VIVO no topo */
+.selo-live {
+  display: inline-flex; align-items: center; gap: 7px; margin-right: 12px; padding: 6px 12px;
+  border-radius: 10px; border: 1px solid rgba(229, 99, 75, .55); background: rgba(229, 99, 75, .16);
+  color: #ff8f7a; font: 600 11.5px/1 Montserrat, sans-serif; letter-spacing: .12em; cursor: pointer;
+  backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+}
+.selo-live:hover { background: rgba(229, 99, 75, .26); }
+.selo-live-ponto { width: 8px; height: 8px; border-radius: 50%; background: #ff5a3f; box-shadow: 0 0 0 0 rgba(255, 90, 63, .6); animation: live-pulso 1.6s infinite; }
+@keyframes live-pulso {
+  0% { box-shadow: 0 0 0 0 rgba(255, 90, 63, .55); }
+  70% { box-shadow: 0 0 0 8px rgba(255, 90, 63, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(255, 90, 63, 0); }
+}
+
+/* Seção nas configurações */
+.live-secao h2 { display: flex; align-items: center; gap: 8px; }
+.live-chave { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin: 12px 0; }
+.btn-live-ligado { background: rgba(229, 99, 75, .2); border-color: rgba(229, 99, 75, .6); color: #ff8f7a; }
+.live-exemplo { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 12px; }
+.live-exemplo code { padding: 3px 8px; border-radius: 7px; background: rgba(255, 255, 255, .06); }
+.live-secao .dp-check { display: flex; gap: 8px; align-items: center; margin: 6px 0; cursor: pointer; }
+
+/* Campos de digitação com dado de lead: texto embaçado (o valor real continua lá) */
+.modo-live .live-campo-oculto { color: transparent !important; text-shadow: 0 0 9px rgba(230, 230, 235, .8); caret-color: var(--ouro, #d4af37); }
+
+/* Fotos de perfil dos leads/contatos */
+.modo-live-fotos .foto-perfil img,
+.modo-live-fotos .ig-foto-contato img { filter: blur(8px) saturate(.6); transform: scale(1.15); }
+
+/* Opcional: texto e mídia das mensagens e prévias das conversas */
+.modo-live-mensagens .bolha-texto,
+.modo-live-mensagens .bolha img,
+.modo-live-mensagens .bolha video,
+.modo-live-mensagens .ig-midia,
+.modo-live-mensagens .texto-previa,
+.modo-live-mensagens .autor-previa,
+.modo-live-mensagens .citacao { filter: blur(6px); user-select: none; }

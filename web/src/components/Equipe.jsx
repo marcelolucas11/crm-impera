@@ -11,6 +11,7 @@ import { TextoSecreto } from './Segredo.jsx';
 import TrocarSenha from './TrocarSenha.jsx';
 import Permissoes from './Permissoes.jsx';
 import InstagramConexao from './instagram/InstagramConexao.jsx';
+import { ConfigModoLive } from './ModoLive.jsx';
 import { useT } from '../i18n/index.jsx';
 import { Camera, Trash2, KeyRound, ShieldCheck } from 'lucide-react';
 
@@ -136,6 +137,8 @@ export default function Equipe({ user, aoMudarUsuarios, aoMudarMinhaFoto }) {
         {msg && <div className="sucesso">{msg}</div>}
 
         <MinhaConta user={user} aoMudarFoto={(u) => { aoMudarMinhaFoto?.(u); carregar(); }} aoMensagem={setMsg} aoErro={setErro} />
+
+        <ConfigModoLive />
 
         {admin && <>
         <Atualizacao />

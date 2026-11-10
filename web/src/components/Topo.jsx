@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
 import { FotoUsuario } from './FotoUsuario.jsx';
 import logo from '../assets/logo-impera.png';
-import { Users, UserRound, LogOut } from 'lucide-react';
+import { Users, UserRound, LogOut, Radio } from 'lucide-react';
+import { SeloModoLive } from './ModoLive.jsx';
+import { useModoLive, alternarModoLive } from '../modoLive.js';
 import { useT } from '../i18n/index.jsx';
 import { api } from '../api.js';
 import { useEvento } from '../tempoReal.js';
@@ -10,6 +12,7 @@ import SeletorIdioma from './SeletorIdioma.jsx';
 
 export default function Topo({ user, pagina, setPagina, resumo, sair }) {
   const [menu, setMenu] = useState(false);
+  const { ativo: live } = useModoLive();
   const [instagram, setInstagram] = useState(null);
   const t = useT();
   const abas = ORDEM_TELAS.filter((id) => podeVer(user, id));
@@ -62,6 +65,7 @@ export default function Topo({ user, pagina, setPagina, resumo, sair }) {
         ))}
       </nav>
 
+      <SeloModoLive />
       <div className="usuario">
         <button className={`avatar ${user.foto ? 'avatar-com-foto' : ''}`} onClick={() => setMenu(!menu)} title={user.name}>
           <FotoUsuario usuario={user} tamanho={34} titulo="" />
@@ -73,6 +77,7 @@ export default function Topo({ user, pagina, setPagina, resumo, sair }) {
             <button onClick={() => { setMenu(false); setPagina('equipe'); }}>
               {user.role === 'admin' ? <><Users size={15} /> {t('topo.equipe')}</> : <><UserRound size={15} /> {t('topo.minhaConta')}</>}
             </button>
+            <button onClick={() => { alternarModoLive(); setMenu(false); }}><Radio size={15} /> {live ? t('live.desligar') : t('live.ligar')}</button>
             <button onClick={sair}><LogOut size={15} /> {t('topo.sair')}</button>
             <SeletorIdioma />
           </div>

@@ -2,6 +2,7 @@
 // O servidor só avisa "mudou algo em X"; quem escuta busca os dados de novo.
 import { useEffect, useRef } from 'react';
 import { rota } from './base.js';
+import { coletarSensiveis } from './modoLive.js';
 
 let fonte = null;
 const ouvintes = new Map(); // tipo → Set(funções)
@@ -9,6 +10,7 @@ const anexados = new Set();
 let caiu = false;
 
 function despachar(tipo, dados) {
+  coletarSensiveis(dados); // Modo Live: avisos também podem trazer nome/telefone de lead
   for (const fn of ouvintes.get(tipo) || []) {
     try { fn(dados); } catch { /* um ouvinte com erro não derruba os outros */ }
   }

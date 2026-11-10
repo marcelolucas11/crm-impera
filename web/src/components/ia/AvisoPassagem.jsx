@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import { BellRing } from 'lucide-react';
 import { useEvento } from '../../tempoReal.js';
+import { textoParaExibir } from '../../modoLive.js';
 import './ia.css';
 
 export default function AvisoPassagem({ aoAbrir }) {
@@ -11,7 +12,7 @@ export default function AvisoPassagem({ aoAbrir }) {
     setAviso(d);
     try {
       if (document.hidden && 'Notification' in window && Notification.permission === 'granted') {
-        new Notification('IA passou um lead para você', { body: d.motivo || 'Abra o CRM para continuar o atendimento.' });
+        new Notification('IA passou um lead para você', { body: textoParaExibir(d.motivo) || 'Abra o CRM para continuar o atendimento.' });
       }
     } catch { /* sem notificação do navegador */ }
   });

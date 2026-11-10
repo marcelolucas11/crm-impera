@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Camera as IconeInstagram } from 'lucide-react';
 import { useT } from '../../i18n/index.jsx';
 import { useEvento } from '../../tempoReal.js';
+import { textoParaExibir } from '../../modoLive.js';
 import '../ia/ia.css';
 
 export default function AvisoInstagram({ aoAbrir }) {
@@ -14,7 +15,7 @@ export default function AvisoInstagram({ aoAbrir }) {
     setAviso(d);
     try {
       if (document.hidden && 'Notification' in window && Notification.permission === 'granted') {
-        new Notification(t('instagram.aviso.titulo'), { body: d.motivo || t('instagram.aviso.corpo') });
+        new Notification(t('instagram.aviso.titulo'), { body: textoParaExibir(d.motivo) || t('instagram.aviso.corpo') });
       }
     } catch { /* sem notificação do navegador */ }
   });

@@ -11,6 +11,8 @@ import './styles.css';
 import './whatsapp.css';
 import './design.css';
 import './liquid-glass.css';
+import './modo-live.css';
+import './modoLive.js'; // liga o Modo Live antes do 1º desenho, se ficou ligado
 import App from './App.jsx';
 import { IdiomaProvider } from './i18n/index.jsx';
 import LiquidGlassFx from './components/LiquidGlassFx.jsx';
