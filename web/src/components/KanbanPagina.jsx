@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../api.js';
 import { useEvento } from '../tempoReal.js';
-import { SlidersHorizontal, Eye, Plus, Columns3, BellRing, ArrowDownWideNarrow, SquareCheckBig, Bot } from 'lucide-react';
+import { SlidersHorizontal, Eye, Plus, Columns3, BellRing, ArrowDownWideNarrow, SquareCheckBig, Bot, CalendarDays } from 'lucide-react';
 import Kanban, { ORDENS } from './Kanban.jsx';
 import FundoLogo3D from './FundoLogo3D.jsx';
 import CamposVisiveis from './CamposVisiveis.jsx';
@@ -11,12 +11,28 @@ import EditorEtapas from './EditorEtapas.jsx';
 import PainelFiltros, { FILTROS_VAZIOS, aplicarFiltros, contarFiltros } from './Filtros.jsx';
 import { ChipResponsavel, ChipWhatsApp } from './SeletoresRapidos.jsx';
 import { BarraSelecao, CriarPublico } from './SelecaoKanban.jsx';
+import ListaReunioes from './reunioes/ListaReunioes.jsx';
+import { useT } from '../i18n/index.jsx';
 
 const ATUALIZAR_A_CADA_MS = 30000;
 const CHAVE_FILTROS = 'crm.filtros.kanban';
 const CHAVE_ORDEM = 'crm.ordem.kanban';
 // WhatsApp escolhido na barra do kanban: é o número que manda mensagem pela conversa dentro do cartão
 const CHAVE_WHATSAPP = 'crm.whatsapp.kanban';
+
+// Endereço #kanban/reunioes ou #kanban/reuniao/<lead> (toque na notificação, atalho do app): abre a lista de reuniões
+// e, com o id, a ficha do lead por cima. Também aceita o pedido deixado em window.__crmReuniao pela tela principal.
+function pedidoDeReuniao() {
+  const pendente = window.__crmReuniao;
+  if (pendente !== undefined) {
+    window.__crmReuniao = undefined;
+    return { lista: true, lead: Number(pendente) || null };
+  }
+  const m = /^#kanban\/reuni(?:ao|oes)(?:\/(\d+))?/.exec(window.location.hash);
+  if (!m) return null;
+  window.history.replaceState(window.history.state, '', `${window.location.pathname}#kanban`);
+  return { lista: true, lead: m[1] ? Number(m[1]) : null };
+}
 
 function lerFiltrosSalvos() {
   try {
@@ -40,6 +56,24 @@ export default function KanbanPagina({ user, stages, users, carregarEtapas, aoMu
   });
   const setOrdem = (o) => { setOrdemEstado(o); try { localStorage.setItem(CHAVE_ORDEM, o); } catch { /* sem armazenamento */ } };
   const [aberto, setAberto] = useState(null);
+  const t = useT();
+  // Lista rápida de reuniões (botão "Reuniões"): a ficha aberta a partir dela fica por cima da lista
+  const [reunioesAbertas, setReunioesAbertas] = useState(false);
+  useEffect(() => {
+    const atender = () => {
+      const p = pedidoDeReuniao();
+      if (!p) return;
+      setReunioesAbertas(true);
+      if (p.lead) setAberto(p.lead);
+    };
+    atender();
+    window.addEventListener('crm-abrir-reuniao', atender);
+    window.addEventListener('hashchange', atender);
+    return () => {
+      window.removeEventListener('crm-abrir-reuniao', atender);
+      window.removeEventListener('hashchange', atender);
+    };
+  }, []);
   const [criando, setCriando] = useState(false);
   const [editandoEtapas, setEditandoEtapas] = useState(false);
   const buscaRef = useRef(busca);
@@ -125,6 +159,11 @@ export default function KanbanPagina({ user, stages, users, carregarEtapas, aoMu
   const fechando = useMemo(() => leads.filter((l) => l.closing_since).length, [leads]);
   const semResposta = useMemo(() => leads.filter((l) => l.sem_resposta).length, [leads]);
   const iaChamou = useMemo(() => leads.filter((l) => l.ia_aguardando).length, [leads]);
+  // Reuniões que ainda vão acontecer hoje (para o número no botão "Reuniões")
+  const reunioesHoje = useMemo(() => {
+    const hoje = new Date().toDateString();
+    return leads.filter((l) => l.next_meeting_at && new Date(l.next_meeting_at).toDateString() === hoje).length;
+  }, [leads]);
   const qtdFiltros = contarFiltros(filtros);
 
   // Quantos leads de cada responsável (para a lista do chip "Responsável")
@@ -234,13 +273,27 @@ export default function KanbanPagina({ user, stages, users, carregarEtapas, aoMu
     <>
       <FundoLogo3D modo="kanban" />
       <div className="barra-ferramentas">
-        <input
-          className="busca"
-          type="search"
-          placeholder="Buscar nome, telefone, e-mail ou formulário…"
-          value={busca}
-          onChange={(e) => setBusca(e.target.value)}
-        />
+        {/* No computador estes dois grupos somem (display: contents) e tudo fica numa linha só, como antes.
+            No celular: busca + Reuniões + Novo lead em cima; os filtros numa faixa que rola para o lado. */}
+        <div className="barra-principal">
+          <input
+            className="busca"
+            type="search"
+            enterKeyHint="search"
+            placeholder="Buscar nome, telefone, e-mail ou formulário…"
+            value={busca}
+            onChange={(e) => setBusca(e.target.value)}
+          />
+          <button type="button" className={`chip chip-reunioes ${reunioesAbertas ? 'ativo' : ''}`} onClick={() => setReunioesAbertas(true)}
+            title={t('kanban.reunioes.botaoDica')}>
+            <CalendarDays size={14} strokeWidth={2.2} /> <span className="chip-reunioes-texto">{t('kanban.reunioes.botao')}</span>
+            {reunioesHoje > 0 && <span className="chip-reunioes-contador" title={t('kanban.reunioes.hojeDica', { n: reunioesHoje })}>{reunioesHoje}</span>}
+          </button>
+          <button className="btn btn-ouro so-celular botao-novo-lead-celular" onClick={() => setCriando(true)} aria-label="Novo lead" title="Novo lead">
+            <Plus size={18} strokeWidth={2.4} />
+          </button>
+        </div>
+        <div className="barra-chips">
         <button className={`chip ${mostrarFiltros || qtdFiltros ? 'ativo' : ''}`} onClick={() => setMostrarFiltros(!mostrarFiltros)}>
           <SlidersHorizontal size={14} /> Filtros{qtdFiltros ? ` (${qtdFiltros})` : ''}
         </button>
@@ -287,7 +340,8 @@ export default function KanbanPagina({ user, stages, users, carregarEtapas, aoMu
           <SquareCheckBig size={14} /> {selecionados ? 'Selecionando' : 'Selecionar'}
         </button>
         {user.role === 'admin' && <button className="btn" onClick={() => setEditandoEtapas(true)}><Columns3 size={15} /> Editar etapas</button>}
-        <button className="btn btn-ouro" onClick={() => setCriando(true)}><Plus size={16} strokeWidth={2.2} /> Novo lead</button>
+        <button className="btn btn-ouro so-computador" onClick={() => setCriando(true)}><Plus size={16} strokeWidth={2.2} /> Novo lead</button>
+        </div>
       </div>
 
       {mostrarFiltros && (
@@ -328,8 +382,18 @@ export default function KanbanPagina({ user, stages, users, carregarEtapas, aoMu
         <CriarPublico leads={leadsSelecionados} onFechar={() => setCriandoPublico(false)} usarPublico={usarPublico} />
       )}
 
+      {reunioesAbertas && (
+        <ListaReunioes
+          onFechar={() => setReunioesAbertas(false)}
+          onAbrirLead={(id) => setAberto(id)}
+          fichaAberta={Boolean(aberto)}
+        />
+      )}
+
       {aberto && (
         <LeadPanel
+          key={aberto}
+          sobreLista={reunioesAbertas}
           leadId={aberto}
           numeroPreferido={numeroWa}
           stages={stages}

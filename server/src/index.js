@@ -194,6 +194,9 @@ function iniciar() {
     maxAge: '1h',
     setHeaders: (res, arquivo) => {
       if (arquivo.includes(`${path.sep}assets${path.sep}`)) res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+      // App instalado (PWA): o service worker e o manifesto são conferidos a cada abertura, para a versão nova entrar logo
+      const nome = path.basename(arquivo);
+      if (nome === 'sw.js' || nome === 'manifest.webmanifest' || nome === 'offline.html') res.setHeader('Cache-Control', 'no-cache');
     },
   });
   // /index.html direto sairia sem o caminho base (a tela abriria quebrada em /interno): vai para a página montada abaixo

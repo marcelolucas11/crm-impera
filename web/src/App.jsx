@@ -8,6 +8,7 @@ import WhatsAppPagina from './components/WhatsAppPagina.jsx';
 import ChamadaRecebida from './components/ChamadaRecebida.jsx';
 import AvisoPassagem from './components/ia/AvisoPassagem.jsx';
 import AvisoInstagram from './components/instagram/AvisoInstagram.jsx';
+import { renovarInscricao } from './pwa.js';
 
 // Telas menos usadas são baixadas só quando alguém abre: o CRM abre mais rápido e o navegador processa menos código
 const Estatisticas = lazy(() => import('./components/Estatisticas.jsx'));
@@ -92,6 +93,22 @@ function Sistema({ user, aoMudarUser, aoSair }) {
     setPagina('whatsapp');
     setTimeout(() => window.dispatchEvent(new CustomEvent('wa-abrir', { detail: chave })), 50);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // App no celular: confere a inscrição das notificações deste aparelho ao entrar (renova se o servidor perdeu)
+  useEffect(() => { renovarInscricao(); }, []);
+
+  // Toque numa notificação com o CRM aberto: vai para o kanban e abre a lista de reuniões com a ficha do lead
+  useEffect(() => {
+    const ouvir = (e) => {
+      const leadId = Number(e.detail?.lead_id) || null;
+      if (!podeVer(user, 'kanban')) return;
+      window.__crmReuniao = leadId || 0;
+      setPagina('kanban');
+      setTimeout(() => window.dispatchEvent(new CustomEvent('crm-abrir-reuniao')), 60);
+    };
+    window.addEventListener('crm-notificacao', ouvir);
+    return () => window.removeEventListener('crm-notificacao', ouvir);
+  }, [user]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Outras telas (ficha do lead no kanban) pedem para abrir uma conversa
   useEffect(() => {

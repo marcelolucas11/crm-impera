@@ -1,0 +1,26 @@
+{
+  "id": "./",
+  "name": "CRM-IMPERA",
+  "short_name": "CRM-IMPERA",
+  "description": "CRM da Impera Services: kanban de leads, WhatsApp, reuniões e notificações.",
+  "lang": "pt-BR",
+  "dir": "ltr",
+  "start_url": "./#kanban",
+  "scope": "./",
+  "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
+  "orientation": "any",
+  "background_color": "#0b0b0c",
+  "theme_color": "#0b0b0c",
+  "categories": ["business", "productivity"],
+  "icons": [
+    { "src": "icones/icone-96.png", "sizes": "96x96", "type": "image/png", "purpose": "any" },
+    { "src": "icones/icone-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icones/icone-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icones/icone-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Reuniões", "short_name": "Reuniões", "url": "./#kanban/reunioes", "icons": [{ "src": "icones/icone-96.png", "sizes": "96x96" }] },
+    { "name": "WhatsApp", "short_name": "WhatsApp", "url": "./#whatsapp", "icons": [{ "src": "icones/icone-96.png", "sizes": "96x96" }] }
+  ]
+}

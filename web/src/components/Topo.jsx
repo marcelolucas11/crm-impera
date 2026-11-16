@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import { FotoUsuario } from './FotoUsuario.jsx';
 import logo from '../assets/logo-impera.png';
-import { Users, UserRound, LogOut, Radio } from 'lucide-react';
+import { Users, UserRound, LogOut, Radio, SquareKanban, MessageCircle, Camera, Send, Bot, ChartColumn, BellRing, Download } from 'lucide-react';
+import { useInstalacao } from '../pwa.js';
 import { SeloModoLive } from './ModoLive.jsx';
 import { useModoLive, alternarModoLive } from '../modoLive.js';
 import { useT } from '../i18n/index.jsx';
@@ -10,11 +11,15 @@ import { useEvento } from '../tempoReal.js';
 import { ORDEM_TELAS, podeVer, pode } from '../permissoes.js';
 import SeletorIdioma from './SeletorIdioma.jsx';
 
+// Ícones das abas (aparecem na barra de baixo do celular)
+const ICONES = { kanban: SquareKanban, whatsapp: MessageCircle, instagram: Camera, disparos: Send, ia: Bot, estatisticas: ChartColumn };
+
 export default function Topo({ user, pagina, setPagina, resumo, sair }) {
   const [menu, setMenu] = useState(false);
   const { ativo: live } = useModoLive();
   const [instagram, setInstagram] = useState(null);
   const t = useT();
+  const instalacao = useInstalacao();
   const abas = ORDEM_TELAS.filter((id) => podeVer(user, id));
 
   // Contador da aba Instagram: conversas do Direct não lidas (e comentários novos, para quem vê comentários)
@@ -55,7 +60,9 @@ export default function Topo({ user, pagina, setPagina, resumo, sair }) {
             onClick={() => setPagina(a.id)}
             aria-current={pagina === a.id ? 'page' : undefined}
           >
-            {a.rotulo}
+            {ICONES[a.id] && <span className="aba-icone" aria-hidden="true">{(() => { const I = ICONES[a.id]; return <I size={21} strokeWidth={1.9} />; })()}</span>}
+            <span className="aba-rotulo">{a.rotulo}</span>
+            <span className="aba-rotulo-curto" aria-hidden="true">{t(`topo.abaCurta.${a.id}`)}</span>
             {contador(a.id) > 0 && (
               <span className={`aba-contador ${a.id === 'kanban' ? 'aviso' : ''} ${a.id === 'instagram' ? 'aba-contador-ig' : ''}`} title={dicaContador(a.id)}>
                 {contador(a.id)}
@@ -77,6 +84,12 @@ export default function Topo({ user, pagina, setPagina, resumo, sair }) {
             <button onClick={() => { setMenu(false); setPagina('equipe'); }}>
               {user.role === 'admin' ? <><Users size={15} /> {t('topo.equipe')}</> : <><UserRound size={15} /> {t('topo.minhaConta')}</>}
             </button>
+            <button onClick={() => { setMenu(false); window.__crmEquipeAba = 'notificacoes'; setPagina('equipe'); window.dispatchEvent(new CustomEvent('crm-equipe-aba', { detail: 'notificacoes' })); }}>
+              <BellRing size={15} /> {t('topo.notificacoes')}
+            </button>
+            {instalacao.podeInstalar && !instalacao.instalado && (
+              <button onClick={() => { setMenu(false); instalacao.instalar(); }}><Download size={15} /> {t('topo.instalarApp')}</button>
+            )}
             <button onClick={() => { alternarModoLive(); setMenu(false); }}><Radio size={15} /> {live ? t('live.desligar') : t('live.ligar')}</button>
             <button onClick={sair}><LogOut size={15} /> {t('topo.sair')}</button>
             <SeletorIdioma />

@@ -1,0 +1,319 @@
+/* ============================================================
+   App no celular, tablet e iPad (PWA) + lista de reuniões + notificações do app
+   Carregado por último: só acrescenta e ajusta, sem mudar o visual do computador.
+   ============================================================ */
+
+/* ---------- Base do app instalado ---------- */
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+body { overscroll-behavior-y: none; -webkit-tap-highlight-color: transparent; }
+/* iPhone com o app instalado: o conteúdo começa abaixo do relógio/ilha e termina acima da barra de gestos */
+.app {
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-left: env(safe-area-inset-left, 0px);
+  padding-right: env(safe-area-inset-right, 0px);
+}
+button, a, .cartao, .chip { touch-action: manipulation; }
+
+/* No computador os grupos da barra do kanban não existem (tudo segue numa linha, como antes) */
+.barra-principal, .barra-chips { display: contents; }
+.so-celular { display: none !important; }
+.aba-icone, .aba-rotulo-curto { display: none; }
+
+/* ---------- Botão "Reuniões" do kanban ---------- */
+.chip-reunioes { display: inline-flex; align-items: center; gap: 6px; color: #ffe7ad; position: relative; }
+.chip-reunioes svg { color: var(--ouro); }
+.chip-reunioes-contador {
+  min-width: 18px; height: 18px; padding: 0 5px; border-radius: 999px; display: inline-flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 700; color: #1a1408; background: linear-gradient(180deg, #ffd98a, #e0a640);
+  box-shadow: 0 0 10px rgba(242, 180, 70, .55), inset 0 1px 0 rgba(255, 255, 255, .55);
+}
+
+/* ---------- Lista de reuniões ---------- */
+.fundo-reunioes { z-index: 40; }
+.reunioes-painel { width: min(460px, 100%); display: flex; flex-direction: column; }
+.reunioes-topo h2 { display: flex; align-items: center; gap: 9px; }
+.reunioes-topo h2 svg { color: var(--ouro); }
+.reunioes-topo-acoes { display: flex; align-items: center; gap: 8px; }
+.botao-icone-vidro {
+  width: 34px; height: 34px; border-radius: 50%; border: 0; cursor: pointer; display: inline-flex; align-items: center; justify-content: center;
+  color: var(--suave); background: var(--lg-fill, rgba(255, 255, 255, .06)); box-shadow: var(--lg-borda, inset 0 0 0 1px rgba(255, 255, 255, .1));
+}
+.botao-icone-vidro:hover { color: var(--texto); }
+.botao-icone-vidro.girando svg { animation: gira .9s linear infinite; }
+
+.reunioes-corpo {
+  flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch;
+  padding: 10px 16px calc(28px + env(safe-area-inset-bottom, 0px)); display: flex; flex-direction: column; gap: 20px;
+}
+.reunioes-secao { display: flex; flex-direction: column; }
+.reunioes-secao > h3 { font-size: 13px; font-weight: 600; color: #d8dbe6; margin: 4px 4px 10px; }
+.reunioes-vazio { margin: 4px; font-size: 13px; }
+.reunioes-dia-rotulo { font-size: 12.5px; color: var(--suave); margin: 10px 4px 8px; }
+.reunioes-dia-rotulo b { color: var(--ouro); font-weight: 600; }
+
+.reuniao-item {
+  position: relative; display: flex; align-items: center; gap: 8px; margin-bottom: 9px; border-radius: 18px;
+  background: linear-gradient(135deg, rgba(255, 255, 255, .07), rgba(255, 255, 255, .025)), rgba(12, 14, 22, .35);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .08), inset 0 10px 18px -16px rgba(255, 255, 255, .4), 0 8px 22px -14px rgba(0, 0, 0, .7);
+  transition: transform .25s var(--lg-mola, ease), background .2s;
+}
+.reuniao-item:not(.sem-lead):hover { background: linear-gradient(135deg, rgba(255, 255, 255, .1), rgba(255, 255, 255, .04)), rgba(12, 14, 22, .35); }
+.reuniao-item:not(.sem-lead):active { transform: scale(.985); }
+.reuniao-item.passada { background: rgba(255, 255, 255, .035); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .06); }
+.reuniao-item.passada .reuniao-nome { color: #cfd2dc; }
+.reuniao-item.agora {
+  background: linear-gradient(135deg, rgba(255, 222, 140, .26), rgba(224, 190, 108, .08) 70%), rgba(12, 14, 22, .35);
+  box-shadow: inset 0 0 0 1px rgba(224, 190, 108, .55), inset 0 12px 20px -16px rgba(255, 240, 200, .6), 0 10px 28px -12px rgba(224, 170, 70, .45);
+}
+/* Anteriores fechadas: um "cartão atrás do cartão", como na agenda do Google */
+.reuniao-item.empilhada { margin-top: 8px; }
+.reuniao-item.empilhada::before {
+  content: ''; position: absolute; left: 16px; right: 16px; top: -7px; height: 14px; border-radius: 14px 14px 0 0; pointer-events: none;
+  background: rgba(255, 255, 255, .04); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .08), inset 0 0 0 1px rgba(255, 255, 255, .05);
+}
+.reuniao-abrir {
+  flex: 1; min-width: 0; text-align: left; background: none; border: 0; padding: 13px 14px 13px 16px; cursor: pointer; color: inherit;
+  display: flex; flex-direction: column; gap: 5px; border-radius: 18px;
+}
+.reuniao-abrir:disabled { cursor: default; }
+.reuniao-abrir:focus-visible { outline: 2px solid var(--ouro); outline-offset: -2px; }
+.reuniao-linha1 { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 12.5px; font-weight: 600; color: var(--suave); font-variant-numeric: tabular-nums; }
+.reuniao-item.agora .reuniao-linha1 { color: #ffe3a3; }
+.reuniao-selo-agora, .reuniao-selo-breve, .reuniao-selo-noshow {
+  border-radius: 999px; padding: 1px 8px; font-size: 11px; font-weight: 600; line-height: 1.5;
+}
+.reuniao-selo-agora { color: #ffe3a3; box-shadow: inset 0 0 0 1px rgba(255, 220, 140, .7); }
+.reuniao-selo-breve { color: #ffd39a; background: rgba(242, 165, 58, .14); }
+.reuniao-selo-noshow { color: #ffb4a8; background: rgba(255, 90, 71, .14); }
+.reuniao-nome { font-size: 17px; font-weight: 600; color: var(--texto); line-height: 1.25; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.reuniao-linha3 { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 8px; font-size: 12px; }
+.reuniao-nicho {
+  color: #f1dca2; background: rgba(224, 190, 108, .13); box-shadow: inset 0 0 0 1px rgba(224, 190, 108, .22);
+  border-radius: 999px; padding: 2px 9px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.reuniao-nicho.vazio { color: var(--suave); background: rgba(255, 255, 255, .05); box-shadow: none; font-style: italic; }
+.reuniao-etapa { display: inline-flex; align-items: center; gap: 5px; color: var(--suave); }
+.reuniao-etapa::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: var(--cor-etapa, var(--suave)); }
+.reuniao-resp { display: inline-flex; align-items: center; gap: 3px; color: var(--suave); }
+.reuniao-participar {
+  flex: none; margin-right: 12px; display: inline-flex; align-items: center; gap: 6px; padding: 10px 15px; border-radius: 999px;
+  font-size: 13px; font-weight: 600; text-decoration: none; color: #17130a;
+  background: linear-gradient(180deg, #ffe39f, #d9ad55); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .6), 0 6px 16px -6px rgba(224, 170, 70, .7);
+}
+.reuniao-participar:active { transform: scale(.96); }
+.reunioes-mais {
+  align-self: center; display: inline-flex; align-items: center; gap: 6px; margin-top: 2px; padding: 8px 14px; border: 0; border-radius: 999px;
+  background: none; color: #d8dbe6; cursor: pointer; font-size: 13px; font-weight: 500;
+}
+.reunioes-mais:hover { background: rgba(255, 255, 255, .06); }
+.reunioes-faixa-notif {
+  display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 14px; font-size: 13px;
+  background: rgba(224, 190, 108, .08); box-shadow: inset 0 0 0 1px rgba(224, 190, 108, .25); color: #eadfc0;
+}
+.reunioes-faixa-notif > svg { color: var(--ouro); flex: none; }
+.reunioes-faixa-texto { flex: 1; display: flex; flex-direction: column; gap: 4px; line-height: 1.4; }
+
+/* Ficha aberta a partir da lista: fica por cima dela, sem escurecer de novo o fundo */
+.fundo-painel.fundo-sobre-lista { z-index: 41; background: rgba(0, 0, 0, .18); -webkit-backdrop-filter: none; backdrop-filter: none; animation: none; }
+.fundo-sobre-lista .painel { background: var(--lg-fill, none), rgba(9, 11, 19, .84); }
+
+/* ---------- Equipe e integrações: abas da página ---------- */
+.abas-pagina {
+  display: flex; gap: 4px; padding: 4px; margin: 16px auto 0; width: fit-content; max-width: calc(100% - 24px); border-radius: 14px;
+  background: rgba(0, 0, 0, .28); box-shadow: inset 0 2px 6px rgba(0, 0, 0, .5), inset 0 0 0 1px rgba(255, 255, 255, .07);
+}
+.abas-pagina button {
+  display: inline-flex; align-items: center; gap: 7px; padding: 8px 16px; border: 0; border-radius: 11px; cursor: pointer;
+  background: none; color: #c4c8d6; font-size: 13.5px; white-space: nowrap;
+}
+.abas-pagina button.ativa {
+  color: #fff3d2; background: var(--lg-fill-forte, rgba(255, 255, 255, .1)), rgba(224, 190, 108, .16);
+  box-shadow: var(--lg-borda, none), 0 4px 14px -2px rgba(0, 0, 0, .55), 0 0 18px -4px rgba(224, 190, 108, .45);
+}
+
+/* ---------- Notificações do app ---------- */
+.notif-pagina { display: flex; flex-direction: column; gap: 18px; }
+.notif-pagina h2 { display: flex; align-items: center; gap: 8px; }
+.notif-pagina h2 svg { color: var(--ouro); }
+.notif-intro { gap: 12px; }
+.notif-grade { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 18px; }
+.notif-estado { display: flex; align-items: flex-start; gap: 8px; margin: 10px 0 12px; line-height: 1.45; }
+.notif-estado svg { flex: none; margin-top: 2px; }
+.notif-estado-ligado { color: var(--verde); }
+.notif-estado-bloqueado, .notif-estado-sem-suporte { color: #ffb4a8; }
+.notif-estado-precisa-instalar { color: #ffd39a; }
+.notif-passos { margin: 12px 0 0; padding-left: 18px; display: flex; flex-direction: column; gap: 6px; color: var(--suave); font-size: 13px; line-height: 1.45; }
+.notif-passos li.destaque { color: var(--texto); }
+.notif-interruptor { flex-direction: row; align-items: flex-start; gap: 12px; cursor: pointer; color: var(--texto); font-size: 14px; margin-bottom: 14px; }
+.notif-interruptor input { width: 20px; height: 20px; flex: none; margin-top: 1px; accent-color: var(--ouro); }
+.notif-interruptor span { display: flex; flex-direction: column; gap: 3px; }
+.notif-pagina h3 { margin: 6px 0 4px; font-size: 14px; }
+.notif-teste-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; align-items: end; margin-top: 12px; }
+.notif-teste-form > .btn { justify-self: start; }
+.notif-teste-previa { grid-column: 1 / -1; display: flex; flex-direction: column; gap: 6px; }
+.notif-resultado { margin-top: 14px; display: flex; flex-direction: column; gap: 8px; }
+.notif-resultado ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.notif-resultado li { display: flex; align-items: flex-start; gap: 8px; font-size: 13px; line-height: 1.4; }
+.notif-resultado li svg { flex: none; margin-top: 1px; }
+.notif-resultado li.ok svg { color: var(--verde); }
+.notif-resultado li.falhou svg { color: var(--alerta); }
+.notif-aparelhos { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+.notif-aparelho {
+  display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 14px;
+  background: rgba(255, 255, 255, .035); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .07);
+}
+.notif-aparelho-icone { color: var(--ouro); flex: none; }
+.notif-aparelho-textos { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.notif-aparelho-textos small { overflow-wrap: anywhere; }
+.notif-historico { list-style: none; margin: 10px 0 0; padding: 0; display: flex; flex-direction: column; gap: 8px; font-size: 13px; }
+.notif-historico li { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; padding-bottom: 8px; border-bottom: 1px solid rgba(255, 255, 255, .06); }
+.notif-historico-erros { flex-basis: 100%; overflow-wrap: anywhere; }
+
+/* Prévia da notificação (como aparece na tela de bloqueio) */
+.previa-notif {
+  display: flex; gap: 11px; align-items: flex-start; max-width: 380px; padding: 12px 14px; border-radius: 22px;
+  background: rgba(60, 62, 72, .55); -webkit-backdrop-filter: blur(20px) saturate(180%); backdrop-filter: blur(20px) saturate(180%);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .1), 0 10px 30px -10px rgba(0, 0, 0, .6); color: #fff;
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, sans-serif;
+}
+.previa-notif-icone { width: 38px; height: 38px; border-radius: 9px; flex: none; }
+.previa-notif-textos { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; font-size: 14px; line-height: 1.32; }
+.previa-notif-app { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; color: rgba(255, 255, 255, .62); text-transform: uppercase; letter-spacing: .02em; }
+.previa-notif-app small { text-transform: none; font-size: 12px; }
+.previa-notif-corpo { white-space: pre-line; color: rgba(255, 255, 255, .92); }
+
+/* ============================================================
+   Tablet e iPad (telas médias)
+   ============================================================ */
+@media (min-width: 721px) and (max-width: 1100px) {
+  /* Topo numa linha só: as abas rolam para o lado se não couberem */
+  .topo { flex-wrap: nowrap; }
+  .topo .abas { flex: 1 1 auto; min-width: 0; overflow-x: auto; scrollbar-width: none; }
+  .topo .abas::-webkit-scrollbar { display: none; }
+  .aba { padding: 8px 12px; flex: none; }
+  .usuario { flex: none; }
+  /* Barra do kanban: busca + Reuniões em cima; filtros numa faixa que rola para o lado */
+  .barra-ferramentas { flex-direction: column; align-items: stretch; flex-wrap: nowrap; gap: 8px; }
+  .barra-principal { display: flex; align-items: center; gap: 10px; }
+  .barra-principal .busca { flex: 1 1 auto; max-width: none; }
+  .barra-chips {
+    display: flex; align-items: center; gap: 8px; flex-wrap: nowrap; overflow-x: auto; overflow-y: hidden; scrollbar-width: none;
+    margin: 0 -14px; padding: 4px 14px 8px; overscroll-behavior-x: contain;
+    -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 14px, #000 calc(100% - 24px), transparent 100%);
+    mask-image: linear-gradient(90deg, transparent 0, #000 14px, #000 calc(100% - 24px), transparent 100%);
+  }
+  .barra-chips::-webkit-scrollbar { display: none; }
+  .barra-chips > * { flex: 0 0 auto; }
+  .barra-chips .espaco { display: none; }
+  .kanban { scroll-snap-type: x proximity; }
+  .coluna { scroll-snap-align: start; }
+}
+
+/* ============================================================
+   Celular
+   ============================================================ */
+@media (max-width: 720px) {
+  .so-computador { display: none !important; }
+  .so-celular { display: inline-flex !important; }
+
+  /* Campos com letra de 16px: o iPhone não dá zoom ao tocar para digitar */
+  input, select, textarea { font-size: 16px; }
+
+  /* Espaço para a barra de abas de baixo */
+  .app { padding-bottom: calc(74px + env(safe-area-inset-bottom, 0px)); }
+
+  /* Topo enxuto: logo, nome e conta */
+  /* Sem desfoque no topo: o desfoque "prenderia" a barra de abas de baixo dentro dele (elemento fixo) */
+  .topo {
+    margin: 6px 8px 0; padding: 7px 8px 7px 12px; flex-wrap: nowrap;
+    -webkit-backdrop-filter: none; backdrop-filter: none; filter: none; transform: none;
+    background: linear-gradient(135deg, rgba(255, 255, 255, .09), rgba(255, 255, 255, .02)), rgba(10, 12, 20, .55);
+  }
+  .marca-topo .marca { font-size: 13px; letter-spacing: .14em; }
+
+  /* Abas viram a barra de baixo, como num app (vidro flutuante, no estilo do iOS) */
+  .abas {
+    position: fixed; z-index: 30; left: 10px; right: 10px; bottom: max(10px, calc(env(safe-area-inset-bottom, 0px) - 6px));
+    display: flex; justify-content: space-between; gap: 2px; padding: 5px; border-radius: 22px; overflow-x: auto; scrollbar-width: none;
+    background: linear-gradient(135deg, rgba(255, 255, 255, .1), rgba(255, 255, 255, .03)), rgba(10, 12, 20, .62);
+    -webkit-backdrop-filter: blur(18px) saturate(180%); backdrop-filter: blur(18px) saturate(180%);
+    box-shadow: var(--lg-borda, inset 0 0 0 1px rgba(255, 255, 255, .12)), 0 14px 34px -10px rgba(0, 0, 0, .8);
+  }
+  .abas::-webkit-scrollbar { display: none; }
+  .aba {
+    flex: 1 0 auto; min-width: 54px; position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 2px; padding: 6px 4px 5px; border-radius: 17px; font-size: 10.5px; font-weight: 600; letter-spacing: .01em;
+  }
+  .aba-icone { display: flex; }
+  .aba-rotulo { display: none; }
+  .aba-rotulo-curto { display: block; white-space: nowrap; }
+  .aba-contador { position: absolute; top: 1px; left: calc(50% + 6px); margin: 0; min-width: 17px; height: 17px; font-size: 10px; padding: 0 4px; }
+
+  /* Conversa aberta no WhatsApp ou digitando: a barra de baixo sai do caminho */
+  .app:has(.whatsapp-tela .chat-topo) { padding-bottom: env(safe-area-inset-bottom, 0px); }
+  .app:has(.whatsapp-tela .chat-topo) .abas { display: none; }
+
+  /* Barra do kanban: busca + Reuniões + Novo lead; os filtros rolam para o lado numa faixa */
+  .barra-ferramentas { flex-direction: column; align-items: stretch; flex-wrap: nowrap; gap: 8px; padding: 10px 10px 2px; }
+  .barra-principal { display: flex; align-items: center; gap: 8px; }
+  .barra-principal .busca { flex: 1 1 auto; min-width: 0; max-width: none; flex-basis: auto; }
+  .chip-reunioes { padding: 9px 12px; }
+  .botao-novo-lead-celular { width: 42px; height: 42px; padding: 0; border-radius: 14px; flex: none; }
+  .barra-chips {
+    display: flex; align-items: center; gap: 8px; flex-wrap: nowrap; overflow-x: auto; overflow-y: hidden; scrollbar-width: none;
+    margin: 0 -10px; padding: 4px 10px 8px; overscroll-behavior-x: contain; -webkit-overflow-scrolling: touch;
+    -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 10px, #000 calc(100% - 22px), transparent 100%);
+    mask-image: linear-gradient(90deg, transparent 0, #000 10px, #000 calc(100% - 22px), transparent 100%);
+  }
+  .barra-chips::-webkit-scrollbar { display: none; }
+  .barra-chips > * { flex: 0 0 auto; }
+  .barra-chips .espaco { display: none; }
+  .barra-chips .chip, .barra-chips .btn { padding-top: 8px; padding-bottom: 8px; }
+  .chip:hover, .btn:hover:not(:disabled) { transform: none; }
+
+  /* Colunas do kanban: uma por vez, encaixando ao arrastar para o lado */
+  .kanban { scroll-snap-type: x mandatory; scroll-padding-inline: 10px; gap: 10px; padding: 10px 10px 12px; overscroll-behavior-x: contain; }
+  .coluna { flex-basis: calc(100vw - 46px); max-width: 420px; scroll-snap-align: start; }
+
+  /* Seleção em massa acima da barra de baixo */
+  .barra-selecao { bottom: calc(82px + env(safe-area-inset-bottom, 0px)); }
+
+  /* Ficha do lead, lista de reuniões e janelas: tela cheia, respeitando o relógio e a barra de gestos */
+  .painel, .reunioes-painel {
+    width: 100%; margin: 0; height: 100%; border-radius: 0;
+    padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px);
+    animation: sobe-celular .32s var(--lg-suave, ease-out);
+  }
+  .fundo-painel.fundo-sobre-lista { background: transparent; }
+  /* Tela cheia no celular: vidro mais escuro para o texto não brigar com o que fica atrás */
+  .painel, .reunioes-painel {
+    background: linear-gradient(180deg, rgba(255, 255, 255, .05), rgba(255, 255, 255, .01)), rgba(8, 10, 18, .88);
+    -webkit-backdrop-filter: blur(18px) saturate(160%); backdrop-filter: blur(18px) saturate(160%);
+  }
+  .fundo-modal { padding: calc(10px + env(safe-area-inset-top, 0px)) 10px calc(10px + env(safe-area-inset-bottom, 0px)); }
+  .modal { max-height: 100%; }
+  .reunioes-corpo { padding-left: 12px; padding-right: 12px; }
+  .reuniao-participar { padding: 10px 12px; }
+  .reuniao-participar span { display: none; }
+
+  /* Equipe e integrações / Notificações */
+  .abas-pagina { margin-top: 10px; }
+  .abas-pagina button { padding: 8px 12px; font-size: 13px; }
+  .notif-teste-form > .btn { justify-self: stretch; }
+  .notif-pagina .acoes-linha { flex-wrap: wrap; }
+  .notif-pagina .acoes-linha .btn, .notif-pagina section > .btn { flex: 1 1 100%; white-space: normal; text-align: center; }
+  .notif-aparelho { flex-wrap: wrap; }
+  .pagina { padding: 12px 10px 20px; }
+  .cartao-secao { padding: 16px 14px; }
+}
+@keyframes sobe-celular { from { transform: translateY(24px); opacity: 0; } }
+
+@media (max-width: 380px) {
+  .chip-reunioes-texto { display: none; }
+  .aba { min-width: 48px; font-size: 10px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .painel, .reunioes-painel { animation: none; }
+  .botao-icone-vidro.girando svg { animation: none; }
+}

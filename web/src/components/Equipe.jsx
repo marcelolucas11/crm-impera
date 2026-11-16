@@ -13,7 +13,8 @@ import Permissoes from './Permissoes.jsx';
 import InstagramConexao from './instagram/InstagramConexao.jsx';
 import { ConfigModoLive } from './ModoLive.jsx';
 import { useT } from '../i18n/index.jsx';
-import { Camera, Trash2, KeyRound, ShieldCheck } from 'lucide-react';
+import { Camera, Trash2, KeyRound, ShieldCheck, Settings, BellRing } from 'lucide-react';
+import NotificacoesApp from './notificacoes/NotificacoesApp.jsx';
 
 const NOVO_VAZIO = { name: '', email: '', senha: '', role: 'member', foto: '' };
 
@@ -86,7 +87,38 @@ function MinhaConta({ user, aoMudarFoto, aoMensagem, aoErro }) {
   );
 }
 
-export default function Equipe({ user, aoMudarUsuarios, aoMudarMinhaFoto }) {
+// Aba pedida por outra tela (menu da conta → Notificações do app) ou pelo endereço #equipe/notificacoes
+function abaInicial() {
+  const pedida = window.__crmEquipeAba;
+  window.__crmEquipeAba = undefined;
+  if (pedida) return pedida;
+  return window.location.hash.startsWith('#equipe/notificacoes') ? 'notificacoes' : 'geral';
+}
+
+export default function Equipe(props) {
+  const t = useT();
+  const [aba, setAba] = useState(abaInicial);
+  useEffect(() => {
+    const ouvir = (e) => { window.__crmEquipeAba = undefined; setAba(e.detail || 'geral'); };
+    window.addEventListener('crm-equipe-aba', ouvir);
+    return () => window.removeEventListener('crm-equipe-aba', ouvir);
+  }, []);
+  return (
+    <>
+      <div className="abas-pagina" role="tablist">
+        <button type="button" role="tab" aria-selected={aba === 'geral'} className={aba === 'geral' ? 'ativa' : ''} onClick={() => setAba('geral')}>
+          <Settings size={15} /> {props.user?.role === 'admin' ? t('notif.aba.geral') : t('topo.minhaConta')}
+        </button>
+        <button type="button" role="tab" aria-selected={aba === 'notificacoes'} className={aba === 'notificacoes' ? 'ativa' : ''} onClick={() => setAba('notificacoes')}>
+          <BellRing size={15} /> {t('notif.aba.notificacoes')}
+        </button>
+      </div>
+      {aba === 'notificacoes' ? <div className="pagina"><NotificacoesApp user={props.user} /></div> : <EquipeGeral {...props} />}
+    </>
+  );
+}
+
+function EquipeGeral({ user, aoMudarUsuarios, aoMudarMinhaFoto }) {
   const admin = user?.role === 'admin';
   const t = useT();
   const [users, setUsers] = useState([]);

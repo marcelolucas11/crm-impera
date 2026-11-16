@@ -196,7 +196,7 @@ trocar_servidor() {
 # Recompila a interface só se algo nela mudou
 compilar_interface() {
   local atual salvo
-  atual=$( (cd "$APP_DIR/web" && cat package-lock.json index.html vite.config.js && find src -type f | LC_ALL=C sort | xargs cat) | hash_de )
+  atual=$( (cd "$APP_DIR/web" && cat package-lock.json index.html vite.config.js && find src public -type f 2>/dev/null | LC_ALL=C sort | xargs cat) | hash_de )
   salvo=$(cat "$APP_DIR/server/public/.hash-interface" 2>/dev/null || true)
   if [ "$atual" = "$salvo" ] && [ "${1:-}" != "--forcar" ]; then
     echo "  interface sem mudanças"

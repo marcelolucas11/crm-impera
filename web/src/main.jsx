@@ -12,10 +12,15 @@ import './whatsapp.css';
 import './design.css';
 import './liquid-glass.css';
 import './modo-live.css';
+import './celular.css'; // app no celular/tablet (PWA), lista de reuniões e notificações
 import './modoLive.js'; // liga o Modo Live antes do 1º desenho, se ficou ligado
 import App from './App.jsx';
 import { IdiomaProvider } from './i18n/index.jsx';
 import LiquidGlassFx from './components/LiquidGlassFx.jsx';
+import { registrarServiceWorker } from './pwa.js';
+
+// App instalado (PWA): service worker das notificações e da página sem internet
+registrarServiceWorker();
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>

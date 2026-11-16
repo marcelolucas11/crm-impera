@@ -181,7 +181,8 @@ async function sincronizar({ dias } = {}) {
       const convidados = await listarTudo(`${ev.uri}/invitees`, {}, 2);
       const r = aplicarEvento(ev, dadosDoConvidado(convidados));
       // Reunião nova ligada a um lead: a IA que esperava para a 1ª mensagem chama já sabendo da reunião
-      if (r.agendou && r.leadId) avisarGancho('calendly:agendou', { leadId: r.leadId });
+      // e os celulares com o app instalado recebem a notificação
+      if (r.agendou && r.leadId) avisarGancho('calendly:agendou', { leadId: r.leadId, uri: ev.uri, inicio: ev.start_time });
       if (r.novo) novos++; else if (r.religado) religados++; else atualizados++;
       if (r.novoLead) leadsCriados++;
     }

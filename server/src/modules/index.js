@@ -16,5 +16,7 @@ import ia from './ia/index.js';
 import organizador from './organizador/index.js';
 import agente from './agente/index.js';
 import instagram from './instagram/index.js';
+import reunioes from './reunioes/index.js';
+import notificacoes from './notificacoes/index.js';
 
-export const modulos = [auth, users, stages, leads, followup, yayforms, calendly, whatsapp, instagram, disparos, estatisticas, ia, organizador, agente, sistema];
+export const modulos = [auth, users, stages, leads, followup, yayforms, calendly, whatsapp, instagram, disparos, estatisticas, ia, organizador, agente, reunioes, notificacoes, sistema];
