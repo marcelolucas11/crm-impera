@@ -4,6 +4,7 @@ import { CalendarDays, MessageCircle, CircleDashed, BellRing, X, Check, Minus, U
 import Avatar from './Avatar.jsx';
 import { FotoUsuario } from './FotoUsuario.jsx';
 import MenuFlutuante, { OpcaoMenu, TituloMenu } from './MenuFlutuante.jsx';
+import { useT } from '../i18n/index.jsx';
 
 const ORIGENS = { yayforms: 'Yay! Forms', whatsapp: 'WhatsApp', instagram: 'Instagram', calendly: 'Calendly', manual: 'Manual' };
 
@@ -156,6 +157,7 @@ function Responsavel({ lead, users, onMudar }) {
 }
 
 const Cartao = memo(function Cartao({ lead, onAbrir, onLimparNotificacao, oculto, users, onMudarResponsavel, modoSelecao, selecionado, onAlternarSelecao }) {
+  const tr = useT();
   const ver = (k) => !oculto.has(k);
   const titulo = lead.name || formatarTelefone(lead.phone) || lead.email || `Lead #${lead.id}`;
   // Quem ocultou uma pergunta quando ela ainda aparecia como código continua com ela oculta (q:<código>)
@@ -203,8 +205,13 @@ const Cartao = memo(function Cartao({ lead, onAbrir, onLimparNotificacao, oculto
           </button>
         </div>
       )}
-      {(lead.closing_since || lead.waiting_since || lead.followup_overdue || !lead.first_contact_at) && (
+      {(lead.noshow_since || lead.closing_since || lead.waiting_since || lead.followup_overdue || !lead.first_contact_at) && (
         <div className="cartao-status">
+          {lead.noshow_since && (
+            <span className="selo selo-vermelho" title={tr('kanban.cartao.noShowDica')}>
+              <i className="led led-vermelho" /> {tr('kanban.cartao.noShow')} · {tempoDesde(lead.noshow_since).replace('há ', '')}
+            </span>
+          )}
           {lead.closing_since && (
             <span className="selo selo-verde" title={lead.closing_note || 'Vai fechar — aguardando a decisão do lead'}>
               <i className="led led-verde" /> Aguardando fechar · {tempoDesde(lead.closing_since).replace('há ', '')}

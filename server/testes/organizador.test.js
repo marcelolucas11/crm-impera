@@ -51,10 +51,10 @@ async function preparar(cfg = {}) {
   cfgMod.salvarConfig({ ativo: true, limite_diario_usd: 2, ...cfg }, { maxMsgId: motor.maxMsgId() });
 }
 
-test('migração: "Aguardando proposta" entra logo depois de "Reunião agendada" e as etapas ganham papéis', () => {
+test('migração: "No-show" e "Aguardando proposta" entram logo depois de "Reunião agendada" e as etapas ganham papéis', () => {
   const ordem = all("SELECT name, role FROM stages WHERE kind = 'open' ORDER BY position").map((s) => s.name);
-  assert.deepEqual(ordem, ['Novo lead', 'Em contato', 'Qualificado', 'Reunião agendada', 'Aguardando proposta', 'Proposta enviada']);
-  for (const p of ['entrada', 'contato', 'qualificado', 'reuniao', 'aguardando_proposta', 'proposta']) assert.ok(etapa(p), `sem papel ${p}`);
+  assert.deepEqual(ordem, ['Novo lead', 'Em contato', 'Qualificado', 'Reunião agendada', 'No-show', 'Aguardando proposta', 'Proposta enviada']);
+  for (const p of ['entrada', 'contato', 'qualificado', 'reuniao', 'no_show', 'aguardando_proposta', 'proposta']) assert.ok(etapa(p), `sem papel ${p}`);
 });
 
 test('nome do PDF: só "Proposta comercial…" conta como proposta', () => {

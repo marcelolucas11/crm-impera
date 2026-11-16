@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '../api.js';
 import { formatarTelefone, linkWhatsApp, tempoDesde, dataHora, dataCurta } from '../utils.js';
 import Conversa from './Conversa.jsx';
-import { Hourglass, Handshake, Check, TriangleAlert, CalendarDays, CircleDashed, PhoneCall, Camera as IconeInstagram, ExternalLink } from 'lucide-react';
+import { Hourglass, Handshake, Check, TriangleAlert, CalendarDays, CircleDashed, PhoneCall, Camera as IconeInstagram, ExternalLink, CalendarX2, Undo2 } from 'lucide-react';
 import Avatar from './Avatar.jsx';
 import { useT } from '../i18n/index.jsx';
 import { pode } from '../permissoes.js';
@@ -26,6 +26,8 @@ const DESCRICAO = {
   waiting_off: () => 'Aguardando resposta resolvido',
   closing_on: (d) => `Marcado como aguardando para fechar${d.nota ? `: ${d.nota}` : ''}`,
   closing_off: () => 'Aguardando para fechar removido',
+  no_show_on: (d, t) => (d.evento ? t('kanban.ficha.evento.noShowOnReuniao', { evento: d.evento, quando: dataHora(d.inicio) }) : t('kanban.ficha.evento.noShowOn')),
+  no_show_off: (d, t) => (d.motivo === 'reagendou' && d.inicio ? t('kanban.ficha.evento.noShowReagendou', { quando: dataHora(d.inicio) }) : t('kanban.ficha.evento.noShowOff')),
   whatsapp_duplicado: (d) => `Outro lead tem o mesmo telefone (${(d.outros || []).map((i) => `#${i}`).join(', ')}). A conversa de WhatsApp foi ligada a este, o mais recente.`,
   whatsapp_call: (d) => {
     const tipo = d.video ? 'Chamada de vídeo' : 'Chamada de voz';
@@ -231,6 +233,7 @@ export default function LeadFicha({
       setNotaAguardando('');
     }
   };
+  const alternarNoShow = (ativo) => aplicar(`/leads/${leadId}/noshow`, { method: 'POST', body: { ativo } });
   const alternarFechando = async (ativo) => {
     if (await aplicar(`/leads/${leadId}/fechando`, { method: 'POST', body: { ativo, nota: notaFechando } })) {
       setMarcandoFechando(false);
@@ -302,13 +305,30 @@ export default function LeadFicha({
             <button className="btn btn-verde-leve" onClick={() => setMarcandoFechando(true)}><Handshake size={15} /> Aguardando para fechar</button>
           )}
 
+          {lead.noshow_since ? (
+            <div className="aviso-noshow">
+              <div>
+                <i className="led led-vermelho" /> <b>{t('kanban.ficha.noShow.titulo')}</b> {t('kanban.ficha.noShow.ha', { tempo: tempoDesde(lead.noshow_since).replace('há ', '') })}
+                <small className="suave"> · {t('kanban.ficha.noShow.marcadoPor', { nome: lead.noshow_by_name || '—' })}</small>
+                <div><small className="suave">{t('kanban.ficha.noShow.reagendar')}</small></div>
+              </div>
+              <button className="btn btn-pequeno" onClick={() => alternarNoShow(false)} disabled={salvando} title={t('kanban.ficha.noShow.desfazerDica')}>
+                <Undo2 size={14} /> {t('kanban.ficha.noShow.desfazer')}
+              </button>
+            </div>
+          ) : (
+            <button className="btn btn-noshow-leve" onClick={() => alternarNoShow(true)} disabled={salvando} title={t('kanban.ficha.noShow.botaoDica')}>
+              <CalendarX2 size={15} /> {t('kanban.ficha.noShow.botao')}
+            </button>
+          )}
+
           {lead.followup_overdue && (
             <div className="aviso-followup"><TriangleAlert size={15} /> Sem contato {tempoDesde(lead.last_activity_at)} — limite é {horas} h.</div>
           )}
 
           {reuniao && (
             <div className="aviso-reuniao">
-              <CalendarDays size={15} /> <b>{reuniaoFutura ? 'Reunião agendada' : 'Reunião que já passou'}</b> — {reuniao.event_name}
+              <CalendarDays size={15} /> <b>{reuniaoFutura ? 'Reunião agendada' : reuniao.no_show ? t('kanban.ficha.noShow.reuniaoPerdida') : 'Reunião que já passou'}</b> — {reuniao.event_name}
               <div><b>{dataHoraLonga(reuniao.start_time)}</b>{reuniaoFutura ? ` · ${dataCurta(reuniao.start_time)}` : ''}
                 {/^https?:\/\//i.test(reuniao.join_url || '') && <> · <a href={reuniao.join_url} target="_blank" rel="noreferrer">link da reunião</a></>}
               </div>

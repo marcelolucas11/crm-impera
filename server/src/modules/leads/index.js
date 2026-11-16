@@ -5,7 +5,7 @@ import { config } from '../../config.js';
 import { registrarEvento, lerJson } from '../../events.js';
 import { exigirLogin, exigirPermissao } from '../auth/middleware.js';
 import { normalizarTelefone, normalizarEmail, texto, idValido, ErroHttp } from '../../util.js';
-import { buscarLead, listarLeads, criarLead, registrarContatoLead, vincularConversasExistentes, alterarLeadsEmMassa, TABELAS_DO_KANBAN } from './service.js';
+import { buscarLead, listarLeads, criarLead, registrarContatoLead, vincularConversasExistentes, alterarLeadsEmMassa, marcarNoShow, sairDoNoShow, TABELAS_DO_KANBAN } from './service.js';
 import { responderJson } from '../../cache.js';
 
 const ROTULOS = { name: 'nome', phone: 'telefone', email: 'e-mail', company: 'empresa', notes: 'observações' };
@@ -230,6 +230,16 @@ export default {
         }
         return true;
       });
+      if (!ok) return res.status(404).json({ erro: 'Lead não encontrado' });
+      res.json({ lead: buscarLead(id) });
+    });
+
+    // Liga/desliga o no-show: o lead agendou a reunião e não apareceu. Ligar leva o lead para a coluna "No-show";
+    // desligar (marcado por engano) devolve o lead para a etapa de onde saiu.
+    r.post('/:id/noshow', (req, res) => {
+      const id = idValido(req.params.id);
+      const ativo = Boolean(req.body?.ativo);
+      const ok = tx(() => (ativo ? marcarNoShow(id, req.user.id) : sairDoNoShow(id, { userId: req.user.id, motivo: 'desfeito' })));
       if (!ok) return res.status(404).json({ erro: 'Lead não encontrado' });
       res.json({ lead: buscarLead(id) });
     });

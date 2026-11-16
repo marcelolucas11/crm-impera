@@ -4,7 +4,7 @@ import { get, tx, run, agora } from '../../db.js';
 import { registrarEvento } from '../../events.js';
 import { lerEstado, salvarEstado } from '../../estado.js';
 import { normalizarTelefone, normalizarEmail, texto } from '../../util.js';
-import { criarLead, encontrarExistente, encontrarPorRespostaYay, avancarEtapa, vincularConversasExistentes } from '../leads/service.js';
+import { criarLead, encontrarExistente, encontrarPorRespostaYay, avancarEtapa, vincularConversasExistentes, sairDoNoShow } from '../leads/service.js';
 import { chamar, listarTudo } from './cliente.js';
 import { tokenCalendly } from './token.js';
 import { avisarGancho } from '../../ganchos.js';
@@ -80,16 +80,22 @@ export function aplicarEvento(ev, convidado) {
 
     const dadosEvento = { evento: ev.name, inicio: ev.start_time, link: ev.location?.join_url || null };
     let agendou = false;
+    // Lead em no-show que marcou (ou remarcou) uma reunião para depois da que perdeu: sai do no-show e volta para as reuniões
+    let sairNoShow = false;
     if (leadId) {
+      const noShow = get('SELECT noshow_since FROM leads WHERE id = ?', [leadId])?.noshow_since;
+      const depoisDoNoShow = noShow && ev.status === 'active' && Date.parse(ev.start_time) > Date.parse(noShow);
       if ((!anterior || religado) && ev.status === 'active') {
         agendou = true;
         registrarEvento({ leadId, type: 'meeting_scheduled', data: dadosEvento });
         const etapa = etapaReuniao();
-        if (etapa) avancarEtapa(leadId, etapa);
+        if (depoisDoNoShow) sairNoShow = true;
+        else if (etapa) avancarEtapa(leadId, etapa);
       } else if (anterior && anterior.status === 'active' && ev.status === 'canceled') {
         registrarEvento({ leadId, type: 'meeting_canceled', data: { ...dadosEvento, motivo: ev.cancellation?.reason || null } });
       } else if (anterior && ev.status === 'active' && anterior.start_time !== ev.start_time) {
         registrarEvento({ leadId, type: 'meeting_rescheduled', data: { ...dadosEvento, antes: anterior.start_time } });
+        if (depoisDoNoShow) sairNoShow = true;
       }
     }
 
@@ -111,6 +117,11 @@ export function aplicarEvento(ev, convidado) {
         convidado?.agendadoEm || ev.created_at || null, convidado?.respostaId || null,
       ]
     );
+    if (sairNoShow) {
+      // Reunião remarcada no mesmo evento: deixa de ser a reunião perdida
+      run('UPDATE calendly_events SET no_show = 0 WHERE uri = ?', [ev.uri]);
+      sairDoNoShow(leadId, { motivo: 'reagendou', etapaReuniaoId: etapaReuniao(), dados: { inicio: ev.start_time } });
+    }
     return { novo: !anterior, novoLead, religado, leadId, agendou };
   });
 }

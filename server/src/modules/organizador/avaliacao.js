@@ -115,6 +115,7 @@ function textoDoSistema(criterios) {
     '- Lead SEM conversa ainda: avalie pelo que ele marcou no <formulario> (situação parcial/completo e cada resposta) e pela reunião no Calendly. Dê a temperatura e diga se atende aos critérios só pelo que estiver ali; "reuniao_realizada" e "proposta_escrita" ficam "nao".',
     '- "reuniao_agendada": ficou combinada uma reunião/ligação/videochamada com dia e hora (fora ou dentro do Calendly).',
     '- "reuniao_realizada": a reunião já aconteceu (ex.: "como falamos na call", "conforme conversamos na reunião", combinaram e o horário já passou e a conversa continuou depois).',
+    '- Reunião marcada como "NÃO COMPARECEU (no-show)" não aconteceu: ela nunca vale como "reuniao_realizada". Só marque "sim" se a conversa provar outra reunião/chamada feita depois dela.',
     '- "proposta_escrita": a EQUIPE mandou por escrito uma proposta com valores, escopo ou condições do serviço (não vale só dizer "vou mandar a proposta").',
     '- "temperatura": 0 a 100, o quanto o lead está perto de fechar (0 = frio/sumiu, 100 = pronto para fechar). Se um critério trouxer uma régua de TEMPERATURA, use essa régua.',
     '- "resumo": no máximo 2 frases sobre a situação do lead.',
@@ -143,9 +144,14 @@ function textoDoLead(lead, conversa, fuso) {
   const form = textoDoFormulario(dadosDoFormulario(lead.id, { fuso }));
   if (form) partes.push(form);
   try {
-    const evs = all('SELECT start_time, status FROM calendly_events WHERE lead_id = ? ORDER BY start_time', [lead.id]);
-    if (evs.length) partes.push(`Reuniões no Calendly: ${evs.map((e) => `${quando(e.start_time, fuso)} (${e.status === 'active' ? 'ativa' : 'cancelada'})`).join('; ')}`);
+    const evs = all('SELECT start_time, status, no_show FROM calendly_events WHERE lead_id = ? ORDER BY start_time', [lead.id]);
+    if (evs.length) {
+      const situacao = (e) => (e.status !== 'active' ? 'cancelada' : e.no_show ? 'NÃO COMPARECEU (no-show)' : 'ativa');
+      partes.push(`Reuniões no Calendly: ${evs.map((e) => `${quando(e.start_time, fuso)} (${situacao(e)})`).join('; ')}`);
+    }
   } catch { /* sem Calendly */ }
+  const noShow = get('SELECT noshow_since FROM leads WHERE id = ?', [lead.id])?.noshow_since;
+  if (noShow) partes.push(`A equipe marcou em ${quando(noShow, fuso)} que o lead NÃO COMPARECEU (no-show) à reunião agendada.`);
   partes.push(textoDoEngajamento(engajamentoDoLead(lead.id)));
   partes.push(`<conversa>\n${conversa.texto || '(ainda não há conversa no WhatsApp: avalie pelo formulário e pelo Calendly)'}\n</conversa>`);
   return partes.join('\n\n');

@@ -480,6 +480,25 @@ export default {
   'equipe.permissoes.disparos_enviar': 'Disparar campanhas',
   'equipe.permissoes.disparos_enviar.dica': 'Iniciar, pausar e programar disparos',
 
+  // ---------- Kanban → no-show (o lead agendou a reunião e não apareceu)
+  'kanban.ficha.noShow.botao': 'Não compareceu (no-show)',
+  'kanban.ficha.noShow.botaoDica': 'O lead agendou e não apareceu: vai para a coluna No-show e a reunião não conta como feita',
+  'kanban.ficha.noShow.titulo': 'Não compareceu à reunião',
+  'kanban.ficha.noShow.ha': 'há {tempo}',
+  'kanban.ficha.noShow.marcadoPor': 'marcado por {nome}',
+  'kanban.ficha.noShow.desfazer': 'Desfazer',
+  'kanban.ficha.noShow.desfazerDica': 'Marcado por engano: o lead volta para a etapa em que estava e a reunião volta a contar',
+  'kanban.ficha.noShow.reagendar': 'Se ele agendar de novo no Calendly, volta sozinho para "Reunião agendada".',
+  'kanban.ficha.noShow.reuniaoPerdida': 'Reunião que ele perdeu',
+  'kanban.ficha.evento.noShowOn': 'Não compareceu à reunião (no-show)',
+  'kanban.ficha.evento.noShowOnReuniao': 'Não compareceu a “{evento}” de {quando} (no-show)',
+  'kanban.ficha.evento.noShowOff': 'No-show desfeito',
+  'kanban.ficha.evento.noShowReagendou': 'Saiu do no-show: reagendou para {quando}',
+  'kanban.cartao.noShow': 'No-show',
+  'kanban.cartao.noShowDica': 'Não compareceu à reunião',
+  'kanban.etapas.papel.noShow': 'No-show (botão "Não compareceu" da ficha)',
+  'ia.organizador.papel.no_show': 'No-show (não compareceu)',
+
   // ---------- Kanban → ficha do lead (Instagram)
   'kanban.ficha.evento.instagramLigado': 'Conversa do Instagram ligada a este lead ({username} no @{perfil})',
   'kanban.ficha.evento.iaHandoff': 'A IA passou o atendimento para a equipe: {motivo}',

@@ -5,7 +5,8 @@ import { get, all, run, tx } from '../../db.js';
 import { registrarEvento, lerJson } from '../../events.js';
 
 // Marcos do funil, na ordem natural. O "qualificado" e os critérios personalizados vêm da leitura da IA.
-export const PAPEIS = ['entrada', 'contato', 'qualificado', 'reuniao', 'aguardando_proposta', 'proposta'];
+// no_show só vem do botão "Não compareceu" da ficha (a IA não marca no-show sozinha).
+export const PAPEIS = ['entrada', 'contato', 'qualificado', 'reuniao', 'no_show', 'aguardando_proposta', 'proposta'];
 
 export function etapasAbertas() {
   return all("SELECT id, name, position, role, color FROM stages WHERE kind = 'open' ORDER BY position, id");
@@ -41,16 +42,17 @@ export function ehPdfDeProposta({ type, media_name, media_mime, body }) {
 
 /**
  * Sinais do lead que saem do banco, sem gastar IA.
- * Devolve { contato, proposta, reuniao, reuniao_feita } — cada um { motivo } ou null.
+ * Devolve { contato, proposta, reuniao, reuniao_feita, no_show } — cada um { motivo } ou null.
  */
 export function sinaisFixos(leadId, agoraMs = Date.now()) {
-  const s = { contato: null, proposta: null, reuniao: null, reuniao_feita: null };
+  const s = { contato: null, proposta: null, reuniao: null, reuniao_feita: null, no_show: null };
   const nossa = get(
     `SELECT id FROM wa_messages WHERE lead_id = ? AND from_me = 1 AND type <> 'chamada' AND deleted_at IS NULL
        AND chat_jid NOT LIKE '%@g.us' LIMIT 1`, [leadId]
   );
-  const lead = get('SELECT first_contact_at FROM leads WHERE id = ?', [leadId]);
+  const lead = get('SELECT first_contact_at, noshow_since FROM leads WHERE id = ?', [leadId]);
   if (nossa || lead?.first_contact_at) s.contato = { motivo: 'Já houve mensagem enviada para o lead' };
+  if (lead?.noshow_since) s.no_show = { motivo: 'Marcado como no-show: não compareceu à reunião' };
 
   const docs = all(
     `SELECT type, media_name, media_mime, body, timestamp FROM wa_messages
@@ -61,10 +63,12 @@ export function sinaisFixos(leadId, agoraMs = Date.now()) {
 
   let eventos = [];
   try {
-    eventos = all("SELECT start_time, end_time FROM calendly_events WHERE lead_id = ? AND status = 'active' ORDER BY start_time", [leadId]);
+    eventos = all("SELECT start_time, end_time, no_show FROM calendly_events WHERE lead_id = ? AND status = 'active' ORDER BY start_time", [leadId]);
   } catch { /* sem Calendly */ }
   if (eventos.length) s.reuniao = { motivo: 'Reunião agendada pelo Calendly' };
+  // Reunião em que o lead não apareceu (botão "Não compareceu") não conta como feita
   const feita = eventos.find((e) => {
+    if (e.no_show) return false;
     const fim = e.end_time ? Date.parse(e.end_time) : Date.parse(e.start_time) + DURACAO_PADRAO_MS;
     return Number.isFinite(fim) && fim + MARGEM_REUNIAO_MS < agoraMs;
   });
@@ -85,6 +89,7 @@ export function marcosAlcancados({ fixos, ia, criterios, etapas = etapasAbertas(
 
   if (fixos.contato) add(papel('contato'), fixos.contato.motivo, 'regra');
   if (fixos.reuniao) add(papel('reuniao'), fixos.reuniao.motivo, 'regra');
+  if (fixos.no_show) add(papel('no_show'), fixos.no_show.motivo, 'regra');
   if (fixos.reuniao_feita) add(papel('aguardando_proposta'), fixos.reuniao_feita.motivo, 'regra');
   if (fixos.proposta) add(papel('proposta'), fixos.proposta.motivo, 'regra');
 

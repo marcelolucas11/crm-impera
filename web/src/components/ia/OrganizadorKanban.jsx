@@ -8,6 +8,7 @@ import { api } from '../../api.js';
 import { useEvento } from '../../tempoReal.js';
 import { tempoDesde } from '../../utils.js';
 import { useAviso, Interruptor } from '../disparos/comum.jsx';
+import { useT } from '../../i18n/index.jsx';
 
 const usd = (v) => `US$ ${Number(v || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: v < 0.1 && v > 0 ? 4 : 2 })}`;
 const ROTULO_PAPEL = {
@@ -17,6 +18,7 @@ const ROTULO_PAPEL = {
 const rotuloModelo = (m) => `${m.nome} — ${m.nivel}${m.preco ? ` (${m.preco})` : ''}`;
 
 export default function OrganizadorKanban({ admin }) {
+  const tr = useT();
   const aviso = useAviso();
   const [dados, setDados] = useState(null);
   const [cfg, setCfg] = useState(null);
@@ -98,7 +100,7 @@ export default function OrganizadorKanban({ admin }) {
 
       {faltando.length > 0 && (
         <div className="dp-dica-admin">
-          Sem etapa para: <b>{faltando.map((p) => ROTULO_PAPEL[p.papel]).join(', ')}</b>. O organizador não leva leads para esses pontos até você escolher a etapa em
+          Sem etapa para: <b>{faltando.map((p) => ROTULO_PAPEL[p.papel] || tr(`ia.organizador.papel.${p.papel}`)).join(', ')}</b>. O organizador não leva leads para esses pontos até você escolher a etapa em
           {' '}<b>Kanban → Editar etapas</b> (coluna de automação).
         </div>
       )}

@@ -13,6 +13,7 @@ export const BASE_LEADS = `
     l.last_contact_at, l.first_contact_at, l.stage_changed_at, l.created_at, l.updated_at, l.form_started_at,
     l.waiting_since, l.waiting_note, wu.name AS waiting_by_name,
     l.closing_since, l.closing_note, cu.name AS closing_by_name,
+    l.noshow_since, nu.name AS noshow_by_name,
     l.ia_temperatura, l.ia_resumo, l.ia_objecao, l.ia_avaliado_em,
     (SELECT 1 FROM ia_conversas ic WHERE ic.lead_id = l.id AND ic.status = 'aguardando_humano' LIMIT 1) AS ia_aguardando,
     json_extract(l.extra, '$.formulario') AS form_name,
@@ -39,7 +40,8 @@ export const BASE_LEADS = `
   JOIN stages s ON s.id = l.stage_id
   LEFT JOIN users u ON u.id = l.owner_id
   LEFT JOIN users wu ON wu.id = l.waiting_by
-  LEFT JOIN users cu ON cu.id = l.closing_by`;
+  LEFT JOIN users cu ON cu.id = l.closing_by
+  LEFT JOIN users nu ON nu.id = l.noshow_by`;
 
 // Tabelas que mudam o que aparece nos cartões do kanban (para o cache da lista saber quando recalcular)
 export const TABELAS_DO_KANBAN = ['leads', 'stages', 'users', 'wa_messages', 'calendly_events', 'ia_conversas'];
@@ -164,6 +166,66 @@ export function avancarEtapa(leadId, etapaId, userId = null) {
   const agoraIso = new Date().toISOString();
   run('UPDATE leads SET stage_id = ?, stage_changed_at = ?, updated_at = ? WHERE id = ?', [alvo.id, agoraIso, agoraIso, leadId]);
   registrarEvento({ leadId, userId, type: 'stage_changed', data: { de: lead.name, para: alvo.name } });
+  return true;
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// No-show: o lead agendou a reunião e não apareceu. O botão da ficha leva o lead para a coluna "No-show" (papel no_show)
+// e marca as reuniões do Calendly que já passaram como perdidas, para o organizador não achar que a reunião foi feita.
+// Chame dentro de uma transação.
+
+function etapaNoShow() {
+  return get("SELECT id, name FROM stages WHERE role = 'no_show' AND kind = 'open' LIMIT 1");
+}
+
+function moverParaEtapa(leadId, de, para, userId, motivo) {
+  const momento = new Date().toISOString();
+  run('UPDATE leads SET stage_id = ?, stage_changed_at = ?, updated_at = ? WHERE id = ?', [para.id, momento, momento, leadId]);
+  registrarEvento({ leadId, userId, type: 'stage_changed', data: { de: de.name, para: para.name, motivo } });
+}
+
+/** Marca o no-show. Devolve false se o lead não existe. */
+export function marcarNoShow(leadId, userId = null) {
+  const lead = get('SELECT l.stage_id, l.noshow_since, s.name, s.kind FROM leads l JOIN stages s ON s.id = l.stage_id WHERE l.id = ?', [leadId]);
+  if (!lead) return false;
+  if (lead.noshow_since) return true;
+  const momento = new Date().toISOString();
+  const perdida = get(
+    "SELECT event_name, start_time FROM calendly_events WHERE lead_id = ? AND status = 'active' AND start_time <= ? ORDER BY start_time DESC LIMIT 1",
+    [leadId, momento]
+  );
+  run("UPDATE calendly_events SET no_show = 1 WHERE lead_id = ? AND status = 'active' AND start_time <= ?", [leadId, momento]);
+  run('UPDATE leads SET noshow_since = ?, noshow_by = ?, noshow_from_stage_id = ?, updated_at = ? WHERE id = ?', [
+    momento, userId, lead.kind === 'open' ? lead.stage_id : null, momento, leadId,
+  ]);
+  registrarEvento({ leadId, userId, type: 'no_show_on', data: perdida ? { evento: perdida.event_name, inicio: perdida.start_time } : {} });
+  const alvo = etapaNoShow();
+  if (alvo && lead.kind === 'open' && lead.stage_id !== alvo.id) moverParaEtapa(leadId, lead, alvo, userId, 'não compareceu à reunião');
+  return true;
+}
+
+/**
+ * Tira o lead do no-show.
+ *  motivo 'desfeito': marcado por engano — a reunião volta a contar e o lead volta para a etapa de onde saiu.
+ *  motivo 'reagendou': agendou de novo — o lead vai para a etapa de reuniões (as reuniões perdidas continuam perdidas).
+ */
+export function sairDoNoShow(leadId, { userId = null, motivo = 'desfeito', etapaReuniaoId = null, dados = {} } = {}) {
+  const lead = get(
+    'SELECT l.stage_id, l.noshow_since, l.noshow_from_stage_id, s.name, s.kind, s.role FROM leads l JOIN stages s ON s.id = l.stage_id WHERE l.id = ?',
+    [leadId]
+  );
+  if (!lead) return false;
+  if (!lead.noshow_since) return true;
+  if (motivo === 'desfeito') run('UPDATE calendly_events SET no_show = 0 WHERE lead_id = ?', [leadId]);
+  run('UPDATE leads SET noshow_since = NULL, noshow_by = NULL, noshow_from_stage_id = NULL, updated_at = ? WHERE id = ?', [new Date().toISOString(), leadId]);
+  registrarEvento({ leadId, userId, type: 'no_show_off', data: { motivo, ...dados } });
+  // Só mexe na etapa se o lead ainda estiver na coluna de no-show (se alguém já o moveu, fica onde está)
+  if (lead.kind !== 'open' || lead.role !== 'no_show') return true;
+  const destinoId = motivo === 'reagendou' ? etapaReuniaoId : lead.noshow_from_stage_id;
+  const destino = destinoId ? get("SELECT id, name FROM stages WHERE id = ? AND kind = 'open'", [destinoId]) : null;
+  if (destino && destino.id !== lead.stage_id) {
+    moverParaEtapa(leadId, lead, destino, userId, motivo === 'reagendou' ? 'reagendou depois do no-show' : 'no-show desfeito');
+  }
   return true;
 }
 

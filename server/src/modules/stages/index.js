@@ -9,7 +9,8 @@ import { idValido, texto, ErroHttp } from '../../util.js';
 const TIPOS = new Set(['open', 'won', 'lost']);
 // entrada: leads novos entram aqui · reuniao: o Calendly move para cá · os demais dizem ao organizador por IA
 // o que a etapa significa (lead contactado, qualificado, reunião feita/aguardando proposta, proposta enviada)
-const PAPEIS = new Set(['entrada', 'contato', 'qualificado', 'reuniao', 'aguardando_proposta', 'proposta']);
+// no_show: o botão "Não compareceu" da ficha leva o lead para cá
+const PAPEIS = new Set(['entrada', 'contato', 'qualificado', 'reuniao', 'no_show', 'aguardando_proposta', 'proposta']);
 const corValida = (c) => (typeof c === 'string' && /^#[0-9a-fA-F]{6}$/.test(c) ? c : null);
 
 function listar() {

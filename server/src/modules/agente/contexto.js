@@ -59,8 +59,8 @@ function blocoLeads({ desde, fuso, usuarioId, novasDesde = null, maxLeads = 90, 
     const extra = lerJson(l.extra);
     const respostas = (Array.isArray(extra.respostas) ? extra.respostas : []).slice(0, 15)
       .map((r) => `${rotuloPergunta(r.pergunta ?? r.titulo, r.id)}: ${String(r.resposta ?? r.valor ?? '').slice(0, 120)}`).join(' | ');
-    const reunioes = all("SELECT start_time, status FROM calendly_events WHERE lead_id = ? ORDER BY start_time DESC LIMIT 3", [l.id])
-      .map((r) => `${dataHora(r.start_time, fuso)} (${r.status === 'active' ? 'ativa' : 'cancelada'})`).join(', ');
+    const reunioes = all("SELECT start_time, status, no_show FROM calendly_events WHERE lead_id = ? ORDER BY start_time DESC LIMIT 3", [l.id])
+      .map((r) => `${dataHora(r.start_time, fuso)} (${r.status !== 'active' ? 'cancelada' : r.no_show ? 'não compareceu' : 'ativa'})`).join(', ');
     const { mensagens } = mensagensDaConversa({ tipo: 'lead', leadId: l.id }, { desde, limite: 35 });
     const cab = [`### Lead ${l.id}: ${l.name || 'sem nome'} — etapa "${l.etapa}"${l.kind !== 'open' ? ` (${l.kind === 'won' ? 'GANHO' : 'perdido'})` : ''} · origem ${l.source}`];
     if (extra.form_id || extra.formulario) cab.push(`Formulário: ${rotuloFormulario(extra.form_id, extra.formulario)}${extra.parcial ? ' (PARCIAL)' : ''}${respostas ? ` — ${respostas}` : ''}`);

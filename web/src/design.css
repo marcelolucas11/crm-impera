@@ -88,6 +88,8 @@ body {
 }
 .btn-verde-leve { color: var(--led-verde); border-color: rgba(52, 209, 123, .35); align-self: flex-start; }
 .btn-verde-leve:hover:not(:disabled) { border-color: rgba(52, 209, 123, .65); background: linear-gradient(180deg, rgba(52, 209, 123, .14), rgba(52, 209, 123, .04)); }
+.btn-noshow-leve { color: var(--led-vermelho); border-color: rgba(255, 90, 71, .35); align-self: flex-start; }
+.btn-noshow-leve:hover:not(:disabled) { border-color: rgba(255, 90, 71, .65); background: linear-gradient(180deg, rgba(255, 90, 71, .14), rgba(255, 90, 71, .04)); }
 
 .btn-aviso {
   background: linear-gradient(180deg, #ffc76e 0%, #f2a53a 50%, #c47d1c 100%); color: #1a1002; border-color: rgba(255, 220, 160, .5);
@@ -307,7 +309,11 @@ input[type='checkbox'], input[type='radio'], input[type='range'], input[type='co
   display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 10px 12px; font-size: 13px; color: #a6f5c8;
   background: linear-gradient(180deg, rgba(52, 209, 123, .13), rgba(52, 209, 123, .05)); border: 1px solid rgba(52, 209, 123, .35);
 }
-.aviso-aguardando .led, .aviso-fechando .led { margin-right: 4px; }
+.aviso-noshow {
+  display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 10px 12px; font-size: 13px; color: #ffb3a8; border-radius: 12px;
+  background: linear-gradient(180deg, rgba(255, 90, 71, .13), rgba(255, 90, 71, .05)); border: 1px solid rgba(255, 90, 71, .35);
+}
+.aviso-aguardando .led, .aviso-fechando .led, .aviso-noshow .led { margin-right: 4px; }
 .com-icone { display: inline-flex; align-items: center; gap: 5px; }
 .linha-tempo { border-left-color: rgba(255, 255, 255, .08); }
 .linha-tempo li::before { box-shadow: 0 0 0 3px var(--fundo); }
@@ -348,6 +354,7 @@ input[type='checkbox'], input[type='radio'], input[type='range'], input[type='co
 .wa-tela[data-tema='claro'] input, .wa-tela[data-tema='claro'] select, .wa-tela[data-tema='claro'] textarea { box-shadow: none; }
 .wa-tela[data-tema='claro'] .painel, .wa-tela[data-tema='claro'] .modal, .wa-tela[data-tema='claro'] .cartao-secao { background: #fff; }
 .wa-tela[data-tema='claro'] .aviso-fechando { color: #13784a; }
+.wa-tela[data-tema='claro'] .aviso-noshow { color: #b3261e; }
 .wa-tela[data-tema='claro'] .aviso-aguardando { color: #9a5b00; }
 
 @media (max-width: 720px) {

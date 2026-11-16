@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { api } from '../api.js';
 import Modal from './Modal.jsx';
+import { useT } from '../i18n/index.jsx';
 
 const TIPOS = [
   ['open', 'Em andamento'],
@@ -10,6 +11,7 @@ const TIPOS = [
 
 // Edita as colunas do kanban: nome, cor, tipo, ordem, papel automático, criar e apagar (movendo os leads)
 export default function EditorEtapas({ stages, aoMudar, onFechar }) {
+  const t = useT();
   const [etapas, setEtapas] = useState(stages);
   const [nomes, setNomes] = useState(() => Object.fromEntries(stages.map((s) => [s.id, s.name])));
   const [erro, setErro] = useState('');
@@ -109,6 +111,7 @@ export default function EditorEtapas({ stages, aoMudar, onFechar }) {
                 <option value="contato">IA: lead já contactado</option>
                 <option value="qualificado">IA: lead qualificado</option>
                 <option value="reuniao">Reunião agendada (Calendly e IA)</option>
+                <option value="no_show">{t('kanban.etapas.papel.noShow')}</option>
                 <option value="aguardando_proposta">IA: reunião feita, aguardando proposta</option>
                 <option value="proposta">IA: proposta enviada</option>
               </select>
