@@ -116,7 +116,7 @@ test('critério "qualificado" leva para Qualificado só com trecho que prova; gr
   assert.equal(get('SELECT ia_pendente_desde FROM leads WHERE id = ?', [id]).ia_pendente_desde, null);
 });
 
-test('reunião combinada fora do Calendly e reunião feita → Aguardando proposta', async () => {
+test('reunião combinada fora do Calendly: só vai para Aguardando proposta com link do Meet ou ligação atendida', async () => {
   await preparar();
   const id = lead('Ana', 'qualificado');
   msg(id, 'Combinado, falamos amanhã às 10h pelo Meet');
@@ -125,18 +125,107 @@ test('reunião combinada fora do Calendly e reunião feita → Aguardando propos
     reuniao_realizada: { sim: true, trecho: 'como falamos na call' },
   };
   await motor.varrer();
+  assert.notEqual(etapaDoLead(id), 'Aguardando proposta', 'a IA sozinha não basta');
+
+  msg(id, 'Segue o link: https://meet.google.com/abc-defg-hij', { deMim: true });
+  await motor.varrer();
   assert.equal(etapaDoLead(id), 'Aguardando proposta');
 });
 
-test('reunião do Calendly encerrada → Aguardando proposta, sem IA', async () => {
-  await preparar();
-  const id = lead('Carla', 'reuniao');
+function chamada(leadId, resultado, { deMim = true, duracao = null } = {}) {
+  seq++;
+  run(
+    `INSERT INTO wa_messages (instance_id, lead_id, chat_jid, wa_id, from_me, type, body, timestamp, extra)
+     VALUES (NULL, ?, ?, ?, ?, 'chamada', '📞 Chamada', ?, ?)`,
+    [leadId, `55119${String(leadId).padStart(8, '0')}@s.whatsapp.net`, `C${seq}`, deMim ? 1 : 0,
+      new Date(Date.now() - 1000 + seq).toISOString(), JSON.stringify({ video: false, resultado, duracao })]
+  );
+}
+
+function reuniaoPassada(id, uri) {
   const inicio = new Date(Date.now() - 3 * 3600000).toISOString();
   const fim = new Date(Date.now() - 2 * 3600000).toISOString();
-  run("INSERT INTO calendly_events (uri, lead_id, start_time, end_time, status) VALUES ('ev1', ?, ?, ?, 'active')", [id, inicio, fim]);
+  run("INSERT INTO calendly_events (uri, lead_id, start_time, end_time, status) VALUES (?, ?, ?, ?, 'active')", [uri, id, inicio, fim]);
+}
+
+test('reunião do Calendly encerrada sem link do Meet nem ligação → No-show automático, sem IA', async () => {
+  await preparar();
+  const id = lead('Carla', 'reuniao');
+  reuniaoPassada(id, 'ev1');
   await motor.varrer();
   assert.equal(chamadas, 0);
+  assert.equal(etapaDoLead(id), 'No-show');
+  const l = get('SELECT noshow_since FROM leads WHERE id = ?', [id]);
+  assert.ok(l.noshow_since);
+  assert.match(get("SELECT data FROM lead_events WHERE lead_id = ? AND type = 'no_show_on'", [id]).data, /"auto":true/);
+  // Varrer de novo não muda nada
+  await motor.varrer();
+  assert.equal(etapaDoLead(id), 'No-show');
+});
+
+test('ligação NÃO atendida não conta: continua No-show', async () => {
+  await preparar();
+  const id = lead('Carla', 'reuniao');
+  reuniaoPassada(id, 'ev2');
+  chamada(id, 'perdida');
+  chamada(id, 'recusada', { deMim: false });
+  await motor.varrer();
+  assert.equal(etapaDoLead(id), 'No-show');
+});
+
+test('ligação atendida no WhatsApp → Aguardando proposta', async () => {
+  await preparar();
+  const id = lead('Carla', 'reuniao');
+  reuniaoPassada(id, 'ev3');
+  chamada(id, 'atendida_em_outro_aparelho', { duracao: 1500 });
+  await motor.varrer();
   assert.equal(etapaDoLead(id), 'Aguardando proposta');
+  assert.match(get('SELECT motivo FROM organizador_movimentos WHERE lead_id = ?', [id]).motivo, /Ligação atendida/);
+});
+
+test('ligação atendida que chega depois do no-show automático tira do No-show', async () => {
+  await preparar();
+  const id = lead('Carla', 'reuniao');
+  reuniaoPassada(id, 'ev4');
+  await motor.varrer();
+  assert.equal(etapaDoLead(id), 'No-show');
+  // Ligação longa: só é gravada quando termina, com o horário de início (durante a reunião)
+  seq++;
+  run(
+    `INSERT INTO wa_messages (instance_id, lead_id, chat_jid, wa_id, from_me, type, body, timestamp, extra)
+     VALUES (NULL, ?, 'x@s.whatsapp.net', ?, 1, 'chamada', '📞', ?, ?)`,
+    [id, `C${seq}`, new Date(Date.now() - 2.5 * 3600000).toISOString(), JSON.stringify({ resultado: 'atendida', duracao: 5400 })]
+  );
+  await motor.varrer();
+  assert.equal(etapaDoLead(id), 'Aguardando proposta');
+});
+
+test('link do Meet ou ligação de antes do agendamento não contam como reunião feita', async () => {
+  await preparar();
+  const id = lead('Carla', 'contato');
+  chamada(id, 'atendida', { duracao: 300 });
+  run('UPDATE wa_messages SET timestamp = ? WHERE lead_id = ?', [new Date(Date.now() - 5 * 86400000).toISOString(), id]);
+  run('UPDATE leads SET stage_id = ? WHERE id = ?', [etapa('reuniao').id, id]);
+  reuniaoPassada(id, 'ev5');
+  await motor.varrer();
+  assert.equal(etapaDoLead(id), 'No-show');
+});
+
+test('ligação atendida sem reunião marcada não leva para Aguardando proposta', async () => {
+  await preparar();
+  const id = lead('Bruno', 'contato');
+  chamada(id, 'atendida', { duracao: 200 });
+  await motor.varrer();
+  assert.equal(etapaDoLead(id), 'Em contato');
+});
+
+test('no-show automático não mexe em quem já foi levado adiante à mão', async () => {
+  await preparar();
+  const id = lead('Carla', 'proposta');
+  reuniaoPassada(id, 'ev6');
+  await motor.varrer();
+  assert.equal(etapaDoLead(id), 'Proposta enviada');
+  assert.equal(get('SELECT noshow_since FROM leads WHERE id = ?', [id]).noshow_since, null);
 });
 
 test('varredura nunca volta etapa e nunca mexe em Fechado/Perdido', async () => {

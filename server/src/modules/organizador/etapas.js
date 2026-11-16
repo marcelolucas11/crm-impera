@@ -5,7 +5,8 @@ import { get, all, run, tx } from '../../db.js';
 import { registrarEvento, lerJson } from '../../events.js';
 
 // Marcos do funil, na ordem natural. O "qualificado" e os critérios personalizados vêm da leitura da IA.
-// no_show só vem do botão "Não compareceu" da ficha (a IA não marca no-show sozinha).
+// no_show: botão "Não compareceu", arrastar para a coluna ou automático quando a reunião passa sem prova
+// (link do Google Meet ou ligação atendida no WhatsApp). A IA nunca marca no-show pela leitura da conversa.
 export const PAPEIS = ['entrada', 'contato', 'qualificado', 'reuniao', 'no_show', 'aguardando_proposta', 'proposta'];
 
 export function etapasAbertas() {
@@ -19,7 +20,7 @@ export function etapaPorPapel(papel, etapas = etapasAbertas()) {
 const MIN = 60000;
 // Quanto depois do início a reunião do Calendly é considerada feita, quando o evento não tem horário de fim
 const DURACAO_PADRAO_MS = 60 * MIN;
-// Margem depois do fim antes de mover para "Aguardando proposta"
+// Margem depois do fim da reunião antes de marcar no-show (sem prova)
 const MARGEM_REUNIAO_MS = 15 * MIN;
 
 // Nome do arquivo sem acento, minúsculo e com separadores virando espaço
@@ -40,17 +41,79 @@ export function ehPdfDeProposta({ type, media_name, media_mime, body }) {
   return type === 'documento' && pdf && normalizarNome(nome).startsWith('proposta comercial');
 }
 
+// Prova de que a reunião aconteceu de verdade: link do Google Meet na conversa do lead ou ligação ATENDIDA no WhatsApp
+// (chamada perdida, recusada ou não atendida não conta). Sem prova, o horário da reunião passar = no-show.
+const LINK_MEET = '%meet.google.com/%';
+const CHAMADA_ATENDIDA = new Set(['atendida', 'atendida_em_outro_aparelho']);
+// A prova vale a partir de 2 h antes do início da reunião (link mandado um pouco antes, ligação adiantada)
+export const ANTES_DA_REUNIAO_MS = 2 * 60 * MIN;
+
+export function fimDaReuniao(e) {
+  return e.end_time ? Date.parse(e.end_time) : Date.parse(e.start_time) + DURACAO_PADRAO_MS;
+}
+export const MARGEM_NO_SHOW_MS = MARGEM_REUNIAO_MS;
+
+/** Link do Meet ou ligação atendida com o lead (conversa individual) a partir de `desde` (ISO). Devolve { motivo, quando } ou null. */
+export function provaDeReuniao(leadId, desde = null) {
+  const filtro = desde ? ' AND timestamp >= ?' : '';
+  const base = `FROM wa_messages WHERE lead_id = ? AND deleted_at IS NULL AND chat_jid NOT LIKE '%@g.us'${filtro}`;
+  const params = desde ? [leadId, desde] : [leadId];
+  const link = get(
+    `SELECT timestamp ${base} AND type <> 'chamada'
+       AND (lower(COALESCE(body, '')) LIKE ? OR lower(COALESCE(legenda, '')) LIKE ?) ORDER BY timestamp LIMIT 1`,
+    [...params, LINK_MEET, LINK_MEET]
+  );
+  const chamadas = all(`SELECT timestamp, extra ${base} AND type = 'chamada' ORDER BY timestamp`, params);
+  const atendida = chamadas.find((c) => CHAMADA_ATENDIDA.has(lerJson(c.extra, {})?.resultado));
+  const provas = [];
+  if (link) provas.push({ motivo: 'Link do Google Meet enviado na conversa', quando: link.timestamp });
+  if (atendida) {
+    const d = Number(lerJson(atendida.extra, {})?.duracao) || 0;
+    provas.push({ motivo: `Ligação atendida no WhatsApp${d ? ` (${Math.max(1, Math.round(d / 60))} min)` : ''}`, quando: atendida.timestamp });
+  }
+  return provas.sort((a, b) => a.quando.localeCompare(b.quando))[0] || null;
+}
+
+/**
+ * A partir de quando uma prova conta para este lead:
+ *  - em no-show marcado à mão: só o que veio depois de marcar (o link mandado antes da reunião perdida não tira do no-show);
+ *  - no-show automático: desde 2 h antes da reunião perdida (ligação longa que só é registrada quando termina);
+ *  - lead arrastado para a coluna No-show: desde que entrou nela;
+ *  - reunião do Calendly marcada: desde 2 h antes da reunião (ligação ou link de antes do agendamento não contam).
+ */
+export function corteDaProva(leadId, lead = null) {
+  lead = lead || get('SELECT l.noshow_since, l.stage_changed_at, s.role FROM leads l LEFT JOIN stages s ON s.id = l.stage_id WHERE l.id = ?', [leadId]);
+  if (!lead) return null;
+  if (lead.noshow_since) {
+    const ev = get("SELECT data FROM lead_events WHERE lead_id = ? AND type = 'no_show_on' ORDER BY id DESC LIMIT 1", [leadId]);
+    const d = lerJson(ev?.data, {}) || {};
+    if (d.auto && d.inicio && Number.isFinite(Date.parse(d.inicio))) return new Date(Date.parse(d.inicio) - ANTES_DA_REUNIAO_MS).toISOString();
+    return lead.noshow_since;
+  }
+  if (lead.role === 'no_show') return lead.stage_changed_at || new Date().toISOString();
+  let r = null;
+  try {
+    r = get("SELECT min(start_time) AS t FROM calendly_events WHERE lead_id = ? AND status = 'active' AND no_show = 0", [leadId]);
+  } catch { /* sem Calendly */ }
+  return r?.t && Number.isFinite(Date.parse(r.t)) ? new Date(Date.parse(r.t) - ANTES_DA_REUNIAO_MS).toISOString() : null;
+}
+
 /**
  * Sinais do lead que saem do banco, sem gastar IA.
- * Devolve { contato, proposta, reuniao, reuniao_feita, no_show } — cada um { motivo } ou null.
+ * Devolve { contato, proposta, reuniao, reuniao_feita, no_show, prova } — cada um { motivo } ou null.
+ *  reuniao_feita só existe com prova (link do Meet ou ligação atendida) E reunião marcada (Calendly, coluna de reunião
+ *  ou no-show). prova sozinha (sem reunião marcada) só conta se a IA também ler que houve reunião combinada.
  */
-export function sinaisFixos(leadId, agoraMs = Date.now()) {
-  const s = { contato: null, proposta: null, reuniao: null, reuniao_feita: null, no_show: null };
+export function sinaisFixos(leadId) {
+  const s = { contato: null, proposta: null, reuniao: null, reuniao_feita: null, no_show: null, prova: null };
   const nossa = get(
     `SELECT id FROM wa_messages WHERE lead_id = ? AND from_me = 1 AND type <> 'chamada' AND deleted_at IS NULL
        AND chat_jid NOT LIKE '%@g.us' LIMIT 1`, [leadId]
   );
-  const lead = get('SELECT first_contact_at, noshow_since FROM leads WHERE id = ?', [leadId]);
+  const lead = get(
+    'SELECT l.first_contact_at, l.noshow_since, l.stage_changed_at, s.role FROM leads l LEFT JOIN stages s ON s.id = l.stage_id WHERE l.id = ?',
+    [leadId]
+  );
   if (nossa || lead?.first_contact_at) s.contato = { motivo: 'Já houve mensagem enviada para o lead' };
   if (lead?.noshow_since) s.no_show = { motivo: 'Marcado como no-show: não compareceu à reunião' };
 
@@ -66,13 +129,14 @@ export function sinaisFixos(leadId, agoraMs = Date.now()) {
     eventos = all("SELECT start_time, end_time, no_show FROM calendly_events WHERE lead_id = ? AND status = 'active' ORDER BY start_time", [leadId]);
   } catch { /* sem Calendly */ }
   if (eventos.length) s.reuniao = { motivo: 'Reunião agendada pelo Calendly' };
-  // Reunião em que o lead não apareceu (botão "Não compareceu") não conta como feita
-  const feita = eventos.find((e) => {
-    if (e.no_show) return false;
-    const fim = e.end_time ? Date.parse(e.end_time) : Date.parse(e.start_time) + DURACAO_PADRAO_MS;
-    return Number.isFinite(fim) && fim + MARGEM_REUNIAO_MS < agoraMs;
-  });
-  if (feita) s.reuniao_feita = { motivo: 'O horário da reunião do Calendly já passou (sem cancelamento)' };
+
+  // Reunião feita = prova de verdade (Meet ou ligação atendida). O horário do Calendly passar sozinho não conta mais.
+  const prova = lead ? provaDeReuniao(leadId, corteDaProva(leadId, lead)) : null;
+  if (prova) {
+    const temReuniao = eventos.length > 0 || Boolean(lead.noshow_since) || ['reuniao', 'no_show'].includes(lead.role);
+    if (temReuniao) s.reuniao_feita = { motivo: prova.motivo };
+    else s.prova = { motivo: prova.motivo };
+  }
   return s;
 }
 
@@ -97,7 +161,11 @@ export function marcosAlcancados({ fixos, ia, criterios, etapas = etapasAbertas(
     const sinal = (x) => (x?.sim && String(x.trecho || '').trim() ? x : null);
     let x;
     if ((x = sinal(ia.reuniao_agendada))) add(papel('reuniao'), `IA: ${x.motivo || 'reunião combinada na conversa'}`, 'ia', x.trecho);
-    if ((x = sinal(ia.reuniao_realizada))) add(papel('aguardando_proposta'), `IA: ${x.motivo || 'reunião já aconteceu'}`, 'ia', x.trecho);
+    // A IA sozinha não leva para "Aguardando proposta": precisa de prova (link do Meet ou ligação atendida).
+    // Ela só serve para dizer que houve reunião combinada fora do Calendly, quando a prova veio sem reunião marcada.
+    if (fixos.prova && !fixos.reuniao_feita && (sinal(ia.reuniao_agendada) || sinal(ia.reuniao_realizada))) {
+      add(papel('aguardando_proposta'), fixos.prova.motivo, 'regra');
+    }
     if ((x = sinal(ia.proposta_escrita))) add(papel('proposta'), `IA: ${x.motivo || 'proposta enviada por escrito'}`, 'ia', x.trecho);
     for (const r of ia.criterios || []) {
       if (!r?.atende || !String(r.trecho || '').trim()) continue;

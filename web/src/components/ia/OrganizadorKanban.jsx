@@ -131,8 +131,9 @@ export default function OrganizadorKanban({ admin }) {
             </div>
             <div className="org-regras suave pequeno">
               <b>Sem IA (custo zero):</b> primeira mensagem enviada → contactado · PDF com nome começando em <b>"Proposta comercial"</b> → proposta enviada (outros PDFs são ignorados) ·
-              reunião do Calendly → agendada; horário passou sem cancelamento → aguardando proposta.<br />
-              <b>Com IA:</b> critérios abaixo, reunião combinada fora do Calendly, reunião feita e proposta mandada por escrito. Cada movimentação guarda o trecho da conversa que a justifica.
+              reunião do Calendly → agendada · <b>link do Google Meet ou ligação atendida no WhatsApp</b> → aguardando proposta;
+              reunião que passou sem nenhum dos dois → <b>no-show</b>. Lead em no-show só sai de lá com link ou ligação depois de marcado.<br />
+              <b>Com IA:</b> critérios abaixo, reunião combinada fora do Calendly e proposta mandada por escrito. Cada movimentação guarda o trecho da conversa que a justifica.
             </div>
           </section>
 

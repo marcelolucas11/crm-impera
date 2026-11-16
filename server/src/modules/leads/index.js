@@ -5,7 +5,7 @@ import { config } from '../../config.js';
 import { registrarEvento, lerJson } from '../../events.js';
 import { exigirLogin, exigirPermissao } from '../auth/middleware.js';
 import { normalizarTelefone, normalizarEmail, texto, idValido, ErroHttp } from '../../util.js';
-import { buscarLead, listarLeads, criarLead, registrarContatoLead, vincularConversasExistentes, alterarLeadsEmMassa, marcarNoShow, sairDoNoShow, TABELAS_DO_KANBAN } from './service.js';
+import { buscarLead, listarLeads, criarLead, registrarContatoLead, vincularConversasExistentes, alterarLeadsEmMassa, marcarNoShow, sairDoNoShow, noShowAoMoverAMao, TABELAS_DO_KANBAN } from './service.js';
 import { responderJson } from '../../cache.js';
 
 const ROTULOS = { name: 'nome', phone: 'telefone', email: 'e-mail', company: 'empresa', notes: 'observações' };
@@ -157,6 +157,9 @@ export default {
           add('updated_at', agora());
           run(`UPDATE leads SET ${sets.join(', ')} WHERE id = ?`, [...vals, id]);
         }
+        // Arrastou para a coluna No-show (ou tirou dela): marca ou desmarca o no-show
+        const etapaNova = body.stage_id !== undefined ? idValido(body.stage_id) : null;
+        if (etapaNova && etapaNova !== atual.stage_id) noShowAoMoverAMao(id, atual.stage_id, etapaNova, req.user.id);
         if (alterados.includes('phone') && campos.phone) vincularConversasExistentes(id, campos.phone);
       });
 

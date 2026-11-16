@@ -184,8 +184,12 @@ function moverParaEtapa(leadId, de, para, userId, motivo) {
   registrarEvento({ leadId, userId, type: 'stage_changed', data: { de: de.name, para: para.name, motivo } });
 }
 
-/** Marca o no-show. Devolve false se o lead não existe. */
-export function marcarNoShow(leadId, userId = null) {
+/**
+ * Marca o no-show. Devolve false se o lead não existe.
+ *  auto: marcado pelo organizador (a reunião passou sem link do Meet nem ligação atendida)
+ *  deEtapaId: etapa de onde o lead saiu, quando ele foi arrastado para a coluna No-show (para o "Desfazer")
+ */
+export function marcarNoShow(leadId, userId = null, { auto = false, deEtapaId = null } = {}) {
   const lead = get('SELECT l.stage_id, l.noshow_since, s.name, s.kind FROM leads l JOIN stages s ON s.id = l.stage_id WHERE l.id = ?', [leadId]);
   if (!lead) return false;
   if (lead.noshow_since) return true;
@@ -196,11 +200,14 @@ export function marcarNoShow(leadId, userId = null) {
   );
   run("UPDATE calendly_events SET no_show = 1 WHERE lead_id = ? AND status = 'active' AND start_time <= ?", [leadId, momento]);
   run('UPDATE leads SET noshow_since = ?, noshow_by = ?, noshow_from_stage_id = ?, updated_at = ? WHERE id = ?', [
-    momento, userId, lead.kind === 'open' ? lead.stage_id : null, momento, leadId,
+    momento, userId, deEtapaId || (lead.kind === 'open' ? lead.stage_id : null), momento, leadId,
   ]);
-  registrarEvento({ leadId, userId, type: 'no_show_on', data: perdida ? { evento: perdida.event_name, inicio: perdida.start_time } : {} });
+  const dados = perdida ? { evento: perdida.event_name, inicio: perdida.start_time } : {};
+  if (auto) dados.auto = true;
+  registrarEvento({ leadId, userId, type: 'no_show_on', data: dados });
   const alvo = etapaNoShow();
-  if (alvo && lead.kind === 'open' && lead.stage_id !== alvo.id) moverParaEtapa(leadId, lead, alvo, userId, 'não compareceu à reunião');
+  const motivo = auto ? 'não compareceu à reunião (sem link do Meet nem ligação atendida)' : 'não compareceu à reunião';
+  if (alvo && lead.kind === 'open' && lead.stage_id !== alvo.id) moverParaEtapa(leadId, lead, alvo, userId, motivo);
   return true;
 }
 
@@ -226,6 +233,19 @@ export function sairDoNoShow(leadId, { userId = null, motivo = 'desfeito', etapa
   if (destino && destino.id !== lead.stage_id) {
     moverParaEtapa(leadId, lead, destino, userId, motivo === 'reagendou' ? 'reagendou depois do no-show' : 'no-show desfeito');
   }
+  return true;
+}
+
+/**
+ * Lead movido à mão (arrastar ou em massa). Chame depois de gravar a etapa nova, dentro da transação.
+ *  - entrou na coluna No-show: vira no-show de verdade (a reunião perdida não conta e o organizador não tira ele de lá
+ *    sem link do Meet ou ligação atendida depois disso);
+ *  - saiu da coluna No-show para outra: deixa de ser no-show (a reunião perdida continua perdida).
+ */
+export function noShowAoMoverAMao(leadId, deEtapaId, paraEtapaId, userId = null) {
+  const papel = (id) => get('SELECT role FROM stages WHERE id = ?', [id])?.role || null;
+  if (papel(paraEtapaId) === 'no_show') return marcarNoShow(leadId, userId, { deEtapaId });
+  if (papel(deEtapaId) === 'no_show') return sairDoNoShow(leadId, { userId, motivo: 'movido' });
   return true;
 }
 
@@ -272,6 +292,7 @@ export function alterarLeadsEmMassa(ids, { stage_id, owner_id } = {}, userId = n
     if (mudarEtapa && atual.stage_id !== etapa.id) {
       run('UPDATE leads SET stage_id = ?, stage_changed_at = ?, updated_at = ? WHERE id = ?', [etapa.id, agoraIso, agoraIso, id]);
       registrarEvento({ leadId: id, userId, type: 'stage_changed', data: { de: atual.etapa, para: etapa.name } });
+      noShowAoMoverAMao(id, atual.stage_id, etapa.id, userId);
       mudou = true;
     }
     const novoDono = dono ? dono.id : null;

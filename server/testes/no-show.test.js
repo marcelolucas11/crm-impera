@@ -78,7 +78,16 @@ test('organizador: reunião perdida não conta como feita — o lead fica em No-
   assert.equal(destino, null);
 });
 
-test('organizador: depois do no-show, reunião feita de verdade (lida pela IA) leva para Aguardando proposta', async () => {
+function linkMeet(leadId, quando = new Date().toISOString()) {
+  n++;
+  run(
+    `INSERT INTO wa_messages (instance_id, lead_id, chat_jid, wa_id, from_me, type, body, timestamp)
+     VALUES (NULL, ?, '5511988887777@s.whatsapp.net', ?, 1, 'texto', ?, ?)`,
+    [leadId, `M${n}`, 'Entra aqui: https://meet.google.com/abc-defg-hij', quando]
+  );
+}
+
+test('organizador: depois do no-show, a IA dizer que a reunião aconteceu NÃO tira do No-show', async () => {
   await preparar();
   const id = novoLead('Carlos');
   reuniao(id);
@@ -87,11 +96,58 @@ test('organizador: depois do no-show, reunião feita de verdade (lida pela IA) l
     fixos: etapas.sinaisFixos(id), criterios: [],
     ia: { reuniao_realizada: { sim: true, motivo: 'fizeram chamada no WhatsApp', trecho: 'como falamos na chamada' } },
   });
-  const destino = etapas.decidirDestino({ lead: get('SELECT * FROM leads WHERE id = ?', [id]), marcos });
-  assert.equal(destino.etapa.name, 'Aguardando proposta');
+  assert.equal(etapas.decidirDestino({ lead: get('SELECT * FROM leads WHERE id = ?', [id]), marcos }), null);
 });
 
-test('desfazer no-show devolve o lead para a etapa de antes e a reunião volta a contar', async () => {
+test('organizador: link do Meet mandado ANTES de marcar no-show não tira do No-show; depois tira', async () => {
+  await preparar();
+  const id = novoLead('Carlos');
+  reuniao(id);
+  linkMeet(id, horas(-3));
+  tx(() => leads.marcarNoShow(id, null));
+  await motor.varrer();
+  assert.equal(etapaDoLead(id), 'No-show');
+  linkMeet(id, new Date(Date.now() + 1000).toISOString());
+  await motor.varrer();
+  assert.equal(etapaDoLead(id), 'Aguardando proposta');
+});
+
+test('arrastar para a coluna No-show vale como no-show: a varredura não devolve para Aguardando proposta', async () => {
+  await preparar();
+  const id = novoLead('Carlos');
+  reuniao(id);
+  const de = etapa('reuniao').id;
+  run('UPDATE leads SET stage_id = ?, stage_changed_at = ? WHERE id = ?', [etapa('no_show').id, new Date().toISOString(), id]);
+  tx(() => leads.noShowAoMoverAMao(id, de, etapa('no_show').id, null));
+  assert.ok(leads.buscarLead(id).noshow_since);
+  await motor.varrer();
+  assert.equal(etapaDoLead(id), 'No-show');
+  // Desfazer devolve para onde estava antes de arrastar
+  tx(() => leads.sairDoNoShow(id, { motivo: 'desfeito' }));
+  assert.equal(etapaDoLead(id), 'Reunião agendada');
+});
+
+test('lead que já estava na coluna No-show (sem marcação) também não volta sem prova', async () => {
+  await preparar();
+  const id = novoLead('Carlos', 'no_show');
+  reuniao(id);
+  await motor.varrer();
+  assert.equal(etapaDoLead(id), 'No-show');
+});
+
+test('arrastar para fora da coluna No-show tira o no-show e a varredura não remarca', async () => {
+  await preparar();
+  const id = novoLead('Carlos');
+  reuniao(id);
+  tx(() => leads.marcarNoShow(id, null));
+  run('UPDATE leads SET stage_id = ? WHERE id = ?', [etapa('reuniao').id, id]);
+  tx(() => leads.noShowAoMoverAMao(id, etapa('no_show').id, etapa('reuniao').id, null));
+  assert.equal(leads.buscarLead(id).noshow_since, null);
+  await motor.varrer();
+  assert.equal(etapaDoLead(id), 'Reunião agendada');
+});
+
+test('desfazer no-show devolve o lead para a etapa de antes', async () => {
   await preparar();
   const id = novoLead('Carlos');
   const uri = reuniao(id);
@@ -100,7 +156,10 @@ test('desfazer no-show devolve o lead para a etapa de antes e a reunião volta a
   assert.equal(etapaDoLead(id), 'Reunião agendada');
   assert.equal(leads.buscarLead(id).noshow_since, null);
   assert.equal(get('SELECT no_show FROM calendly_events WHERE uri = ?', [uri]).no_show, 0);
-  assert.ok(etapas.sinaisFixos(id).reuniao_feita);
+  // Sem link do Meet nem ligação a reunião não conta como feita, mas a varredura não remarca o no-show desfeito à mão
+  assert.equal(etapas.sinaisFixos(id).reuniao_feita, null);
+  await motor.varrer();
+  assert.equal(etapaDoLead(id), 'Reunião agendada');
 });
 
 test('desfazer não puxa de volta um lead que alguém já moveu para outra coluna', async () => {

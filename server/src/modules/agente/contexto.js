@@ -96,7 +96,7 @@ async function coletar({ userId, dias, novasDesde = null }) {
   const etapasPorId = Object.fromEntries(all('SELECT id, name FROM stages').map((s) => [s.id, s.name]));
   const partes = [
     `## Panorama\n${panorama}`,
-    `## Organizador do kanban (IA que move leads) — ${org.ativo ? 'ligado' : 'desligado'}\nRegras sem IA: primeira mensagem enviada → contato; PDF "Proposta comercial…" → proposta enviada; reunião do Calendly → agendada; horário passou sem cancelamento → aguardando proposta.\n${org.criterios.map((c) => `- Critério "${c.titulo}" → ${c.etapa_id ? etapasPorId[c.etapa_id] : `papel ${c.papel}`} (${c.ativo ? 'ativo' : 'desligado'}): ${cortar(c.prompt, 1500)}`).join('\n')}`,
+    `## Organizador do kanban (IA que move leads) — ${org.ativo ? 'ligado' : 'desligado'}\nRegras sem IA: primeira mensagem enviada → contato; PDF "Proposta comercial…" → proposta enviada; reunião do Calendly → agendada; link do Google Meet ou ligação atendida no WhatsApp → aguardando proposta; reunião passou sem link nem ligação atendida → no-show.\n${org.criterios.map((c) => `- Critério "${c.titulo}" → ${c.etapa_id ? etapasPorId[c.etapa_id] : `papel ${c.papel}`} (${c.ativo ? 'ativo' : 'desligado'}): ${cortar(c.prompt, 1500)}`).join('\n')}`,
     `## IA de primeiro contato (atende leads novos) — ${ia.ativo ? 'ligada' : 'desligada'}, atendente "${ia.nome_atendente}"\nSobre a empresa: ${ia.sobre_empresa}\nPlaybook (como a equipe atende):\n${cortar(ia.playbook, 9000)}\nDiretrizes ativas: ${diretrizesDaIa().map((d) => `"${d.titulo}": ${cortar(d.conteudo, 1200)}`).join('\n') || '(nenhuma)'}`,
     `## Formulários do Yay! Forms e respostas\n${cortar(formularios, 25000)}`,
     `## Estatísticas dos últimos ${dias} dias\n${cortar(estatisticas, 9000)}`,

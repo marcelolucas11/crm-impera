@@ -1,15 +1,20 @@
 // Motor do organizador do kanban:
 //  - Varredura a cada X minutos: só olha leads do kanban (em andamento) com mensagem nova desde a última varredura.
-//    Sinais sem IA (mensagem enviada, PDF "Proposta comercial…", Calendly) rodam sempre; a IA só é chamada quando há
+//    Sinais sem IA (mensagem enviada, PDF "Proposta comercial…", Calendly, link do Meet/ligação atendida) rodam sempre;
+//    reunião que passou sem link do Meet nem ligação atendida vira No-show; a IA só é chamada quando há
 //    mensagem nova que não seja da própria Alice ou da saudação automática. Só avança: nunca volta etapa.
 //  - "Organizar tudo": lê os leads dos últimos X dias (antigos e novos), monta uma prévia e você aplica.
 //    Depois disso a varredura continua normal, só com as conversas novas.
 //  - Limite de gasto por dia: ao bater, a varredura para até a meia-noite (fuso da IA).
-import { get, all, run } from '../../db.js';
+import { get, all, run, tx } from '../../db.js';
 import { emitir } from '../../tempoReal.js';
 import { meiaNoiteNoFuso } from '../ia/protecao.js';
 import { lerConfig, salvarInterno, fusoDoDia } from './config.js';
-import { sinaisFixos, marcosAlcancados, decidirDestino, moverLead, etapasAbertas } from './etapas.js';
+import {
+  sinaisFixos, marcosAlcancados, decidirDestino, moverLead, etapasAbertas, etapaPorPapel,
+  provaDeReuniao, fimDaReuniao, ANTES_DA_REUNIAO_MS, MARGEM_NO_SHOW_MS,
+} from './etapas.js';
+import { marcarNoShow } from '../leads/service.js';
 import { avaliarLead, temDadosParaLer } from './avaliacao.js';
 
 const MIN = 60000;
@@ -41,10 +46,11 @@ export function marcarPendentes(cfg = lerConfig()) {
   const desde = Math.max(cfg.cursor_msg_id || 0, cfg.inicio_msg_id || 0);
   // Teto lido antes: mensagens que chegarem durante a leitura ficam para a próxima varredura
   const teto = maxMsgId();
+  // Chamadas não vão para a IA, mas passam pelas regras (ligação atendida = reunião feita)
   const novas = all(
-    `SELECT m.id, m.lead_id, (${RELEVANTE_PARA_IA}) AS relevante FROM wa_messages m
+    `SELECT m.id, m.lead_id, (m.type <> 'chamada' AND ${RELEVANTE_PARA_IA}) AS relevante FROM wa_messages m
        JOIN leads l ON l.id = m.lead_id JOIN stages s ON s.id = l.stage_id
-      WHERE m.id > ? AND m.id <= ? AND s.kind = 'open' AND m.chat_jid NOT LIKE '%@g.us' AND m.type <> 'chamada'`, [desde, teto]
+      WHERE m.id > ? AND m.id <= ? AND s.kind = 'open' AND m.chat_jid NOT LIKE '%@g.us'`, [desde, teto]
   );
   const soRegras = new Set();
   const agora = new Date().toISOString();
@@ -79,6 +85,46 @@ function leadsComReuniaoPassada() {
   } catch { return []; }
 }
 
+/**
+ * No-show automático: a reunião do Calendly terminou (com margem) e não houve link do Google Meet nem ligação atendida
+ * desde 2 h antes dela. Só mexe em quem ainda está em "Reunião agendada" (ou antes) — se alguém já levou o lead adiante,
+ * fica onde está — e nunca remarca quem teve o no-show desfeito à mão depois daquela reunião.
+ */
+export function marcarNoShowsAutomaticos(agoraMs = Date.now()) {
+  const etapas = etapasAbertas();
+  const reuniao = etapaPorPapel('reuniao', etapas);
+  if (!reuniao || !etapaPorPapel('no_show', etapas)) return 0;
+  let eventos = [];
+  try {
+    eventos = all(
+      `SELECT c.lead_id, c.start_time, c.end_time, s.position FROM calendly_events c
+         JOIN leads l ON l.id = c.lead_id JOIN stages s ON s.id = l.stage_id
+        WHERE c.status = 'active' AND c.no_show = 0 AND s.kind = 'open' AND l.noshow_since IS NULL
+          AND c.start_time > ? AND c.start_time < ?
+        ORDER BY c.start_time`,
+      [new Date(agoraMs - 30 * 86400000).toISOString(), new Date(agoraMs).toISOString()]
+    );
+  } catch { return 0; }
+  let marcados = 0;
+  const vistos = new Set();
+  for (const e of eventos) {
+    if (vistos.has(e.lead_id)) continue;
+    const fim = fimDaReuniao(e);
+    if (!Number.isFinite(fim) || fim + MARGEM_NO_SHOW_MS > agoraMs) continue;
+    vistos.add(e.lead_id);
+    if (e.position > reuniao.position) continue;
+    const desde = new Date(Date.parse(e.start_time) - ANTES_DA_REUNIAO_MS).toISOString();
+    if (provaDeReuniao(e.lead_id, desde)) continue;
+    const desfeito = get(
+      "SELECT 1 AS ok FROM lead_events WHERE lead_id = ? AND type = 'no_show_off' AND created_at >= ? AND json_extract(data, '$.motivo') IN ('desfeito', 'movido') LIMIT 1",
+      [e.lead_id, e.start_time]
+    );
+    if (desfeito) continue;
+    if (tx(() => marcarNoShow(e.lead_id, null, { auto: true }))) marcados++;
+  }
+  return marcados;
+}
+
 /** Aplica no lead o que os sinais (e a leitura da IA, se houver) indicam. Devolve a movimentação ou null. */
 export function aplicarAoLead(leadId, { ia = null, cfg, modo = 'varredura' }) {
   const lead = get('SELECT id, stage_id, ia_vetos FROM leads WHERE id = ?', [leadId]);
@@ -105,6 +151,8 @@ export async function varrer() {
     for (const id of new Set([...soRegras, ...leadsComReuniaoPassada()])) {
       if (aplicarAoLead(id, { cfg })) resultado.movidos++;
     }
+    // Reunião que passou sem link do Meet nem ligação atendida → No-show
+    resultado.movidos += marcarNoShowsAutomaticos();
     // 2) IA para quem teve conversa nova, dentro do limite do dia
     const pendentes = all(
       `SELECT l.id FROM leads l JOIN stages s ON s.id = l.stage_id
