@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '../api.js';
+import { useEvento } from '../tempoReal.js';
 import { formatarTelefone, linkWhatsApp, tempoDesde, dataHora, dataCurta } from '../utils.js';
 import Conversa from './Conversa.jsx';
-import { Hourglass, Handshake, Check, TriangleAlert, CalendarDays, CircleDashed, PhoneCall, Camera as IconeInstagram, ExternalLink, CalendarX2, Undo2 } from 'lucide-react';
+import { Hourglass, Handshake, TriangleAlert, CalendarDays, CircleDashed, PhoneCall, Camera as IconeInstagram, ExternalLink, CalendarX2, Repeat, BellRing, CircleX } from 'lucide-react';
 import Avatar from './Avatar.jsx';
 import { useT } from '../i18n/index.jsx';
 import { pode } from '../permissoes.js';
@@ -37,6 +38,10 @@ const DESCRICAO = {
   },
   instagram_ligado: (d, t) => t('kanban.ficha.evento.instagramLigado', { username: d.username ? `@${d.username}` : t('kanban.ficha.instagram.semUsername'), perfil: d.perfil || '' }),
   ia_handoff: (d, t) => t(d.canal === 'instagram' ? 'kanban.ficha.evento.iaHandoffInstagram' : 'kanban.ficha.evento.iaHandoff', { motivo: d.motivo || '' }),
+  followup_on: (d, t) => t(d.reinicio ? 'kanban.ficha.evento.followupReinicio' : 'kanban.ficha.evento.followupOn'),
+  followup_toque: (d, t) => t('kanban.ficha.evento.followupToque', { toque: d.toque, total: d.total, texto: d.texto || '' }),
+  followup_off: (d, t) => t(`kanban.ficha.evento.followupOff.${d.status}`, { motivo: d.motivo || '' }),
+  lembrete_reuniao: (d, t) => t('kanban.ficha.evento.lembrete', { marco: t(`ia.lembretes.marco.${d.marco}`), quando: dataHora(d.inicio) }),
 };
 
 // Bloco do Instagram na ficha: @ da pessoa, perfil da Impera com quem ela falou, entrevista da Alice e "Abrir no Direct"
@@ -166,6 +171,7 @@ export default function LeadFicha({
   const [marcandoFechando, setMarcandoFechando] = useState(false);
   const [erro, setErro] = useState('');
   const [salvando, setSalvando] = useState(false);
+  const [followup, setFollowup] = useState(null);
 
   // Edições ainda não salvas nos campos de dados são mantidas ao recarregar, a não ser que resetarForm seja pedido
   const leadAtual = useRef(null);
@@ -182,6 +188,7 @@ export default function LeadFicha({
       setEventos(d.eventos);
       if (resetarForm || !sujo) setForm(valoresIniciais(d.lead));
       api(`/leads/${leadId}/reunioes`).then((r) => setReunioes(r.reunioes)).catch(() => {});
+      api(`/leads/${leadId}/followup`).then((r) => setFollowup(r.followup)).catch(() => {});
     } catch (e) {
       setErro(e.message);
     }
@@ -190,8 +197,13 @@ export default function LeadFicha({
   useEffect(() => {
     setMarcandoAguardando(false);
     setMarcandoFechando(false);
+    setFollowup(null);
     carregar({ resetarForm: true });
   }, [carregar]);
+  // Toque do follow-up enviado, lead respondeu ou alguém tirou da lista: atualiza a linha do follow-up
+  useEvento('ia', (d) => {
+    if (d?.followup) api(`/leads/${leadId}/followup`).then((r) => setFollowup(r.followup)).catch(() => {});
+  });
 
   const aplicar = async (caminho, opcoes, { resetarForm = false } = {}) => {
     setErro('');
@@ -234,6 +246,7 @@ export default function LeadFicha({
     }
   };
   const alternarNoShow = (ativo) => aplicar(`/leads/${leadId}/noshow`, { method: 'POST', body: { ativo } });
+  const alternarFollowup = (ativo) => aplicar(`/leads/${leadId}/followup`, { method: 'POST', body: { ativo } });
   const alternarFechando = async (ativo) => {
     if (await aplicar(`/leads/${leadId}/fechando`, { method: 'POST', body: { ativo, nota: notaFechando } })) {
       setMarcandoFechando(false);
@@ -267,59 +280,100 @@ export default function LeadFicha({
 
       {lead && (
         <div className="painel-corpo">
-          {lead.waiting_since ? (
-            <div className="aviso-aguardando">
-              <div>
-                <i className="led led-ambar" /> <b>Aguardando sua resposta</b> há {tempoDesde(lead.waiting_since).replace('há ', '')}
-                {lead.waiting_note && <> — {lead.waiting_note}</>}
-                <small className="suave"> · marcado por {lead.waiting_by_name || '—'}</small>
-              </div>
-              <button className="btn btn-pequeno" onClick={() => alternarAguardando(false)} disabled={salvando}><Check size={14} /> Resolvido</button>
-            </div>
-          ) : marcandoAguardando ? (
+          {/* Marcadores do lead em uma faixa só (o detalhe aparece embaixo só quando está ligado) */}
+          <div className="ficha-marcadores">
+            <button
+              type="button"
+              className={`btn btn-aviso-leve btn-marcador ${lead.waiting_since ? 'ligado' : ''}`}
+              aria-pressed={Boolean(lead.waiting_since)}
+              disabled={salvando}
+              title={lead.waiting_since ? t('kanban.ficha.marcador.aguardandoDesligar') : t('kanban.ficha.marcador.aguardandoDica')}
+              onClick={() => (lead.waiting_since ? alternarAguardando(false) : setMarcandoAguardando((v) => !v))}
+            >
+              <Hourglass size={14} /> <span>{t('kanban.ficha.marcador.aguardando')}</span>
+            </button>
+            <button
+              type="button"
+              className={`btn btn-verde-leve btn-marcador ${lead.closing_since ? 'ligado' : ''}`}
+              aria-pressed={Boolean(lead.closing_since)}
+              disabled={salvando}
+              title={lead.closing_since ? t('kanban.ficha.marcador.fechandoDesligar') : t('kanban.ficha.marcador.fechandoDica')}
+              onClick={() => (lead.closing_since ? alternarFechando(false) : setMarcandoFechando((v) => !v))}
+            >
+              <Handshake size={14} /> <span>{t('kanban.ficha.marcador.fechando')}</span>
+            </button>
+            <button
+              type="button"
+              className={`btn btn-noshow-leve btn-marcador ${lead.noshow_since ? 'ligado' : ''}`}
+              aria-pressed={Boolean(lead.noshow_since)}
+              disabled={salvando}
+              title={lead.noshow_since ? t('kanban.ficha.noShow.desfazerDica') : t('kanban.ficha.noShow.botaoDica')}
+              onClick={() => alternarNoShow(!lead.noshow_since)}
+            >
+              <CalendarX2 size={14} /> <span>{t('kanban.ficha.marcador.noShow')}</span>
+            </button>
+          </div>
+
+          {marcandoAguardando && !lead.waiting_since && (
             <form className="marcar-aguardando" onSubmit={(e) => { e.preventDefault(); alternarAguardando(true); }}>
               <input autoFocus placeholder="O que ele está esperando? (opcional)" value={notaAguardando} onChange={(e) => setNotaAguardando(e.target.value)} maxLength={300} />
               <button className="btn btn-aviso" disabled={salvando}>Marcar</button>
               <button type="button" className="btn" onClick={() => setMarcandoAguardando(false)}>Cancelar</button>
             </form>
-          ) : (
-            <button className="btn btn-aviso-leve" onClick={() => setMarcandoAguardando(true)}><Hourglass size={15} /> Está aguardando minha resposta</button>
           )}
-
-          {lead.closing_since ? (
-            <div className="aviso-fechando">
-              <div>
-                <i className="led led-verde" /> <b>Aguardando para fechar</b> há {tempoDesde(lead.closing_since).replace('há ', '')}
-                {lead.closing_note && <> — {lead.closing_note}</>}
-                <small className="suave"> · marcado por {lead.closing_by_name || '—'}</small>
-              </div>
-              <button className="btn btn-pequeno" onClick={() => alternarFechando(false)} disabled={salvando}><Check size={14} /> Desmarcar</button>
-            </div>
-          ) : marcandoFechando ? (
+          {marcandoFechando && !lead.closing_since && (
             <form className="marcar-aguardando" onSubmit={(e) => { e.preventDefault(); alternarFechando(true); }}>
               <input autoFocus placeholder="O que falta para ele decidir? (opcional)" value={notaFechando} onChange={(e) => setNotaFechando(e.target.value)} maxLength={300} />
               <button className="btn btn-verde" disabled={salvando}>Marcar</button>
               <button type="button" className="btn" onClick={() => setMarcandoFechando(false)}>Cancelar</button>
             </form>
-          ) : (
-            <button className="btn btn-verde-leve" onClick={() => setMarcandoFechando(true)}><Handshake size={15} /> Aguardando para fechar</button>
           )}
 
-          {lead.noshow_since ? (
-            <div className="aviso-noshow">
-              <div>
-                <i className="led led-vermelho" /> <b>{t('kanban.ficha.noShow.titulo')}</b> {t('kanban.ficha.noShow.ha', { tempo: tempoDesde(lead.noshow_since).replace('há ', '') })}
-                <small className="suave"> · {t('kanban.ficha.noShow.marcadoPor', { nome: lead.noshow_by_name || '—' })}</small>
-                <div><small className="suave">{t('kanban.ficha.noShow.reagendar')}</small></div>
-              </div>
-              <button className="btn btn-pequeno" onClick={() => alternarNoShow(false)} disabled={salvando} title={t('kanban.ficha.noShow.desfazerDica')}>
-                <Undo2 size={14} /> {t('kanban.ficha.noShow.desfazer')}
-              </button>
+          {(lead.waiting_since || lead.closing_since || lead.noshow_since) && (
+            <div className="marcadores-info">
+              {lead.waiting_since && (
+                <div className="marcador-info marcador-info-ambar">
+                  <i className="led led-ambar" /> <b>Aguardando sua resposta</b> há {tempoDesde(lead.waiting_since).replace('há ', '')}
+                  {lead.waiting_note && <> — {lead.waiting_note}</>}
+                  <small className="suave"> · {lead.waiting_by_name || '—'}</small>
+                </div>
+              )}
+              {lead.closing_since && (
+                <div className="marcador-info marcador-info-verde">
+                  <i className="led led-verde" /> <b>Aguardando para fechar</b> há {tempoDesde(lead.closing_since).replace('há ', '')}
+                  {lead.closing_note && <> — {lead.closing_note}</>}
+                  <small className="suave"> · {lead.closing_by_name || '—'}</small>
+                </div>
+              )}
+              {lead.noshow_since && (
+                <div className="marcador-info marcador-info-vermelho" title={t('kanban.ficha.noShow.reagendar')}>
+                  <i className="led led-vermelho" /> <b>{t('kanban.ficha.noShow.titulo')}</b> {t('kanban.ficha.noShow.ha', { tempo: tempoDesde(lead.noshow_since).replace('há ', '') })}
+                  <small className="suave"> · {lead.noshow_by_name || '—'}</small>
+                </div>
+              )}
             </div>
-          ) : (
-            <button className="btn btn-noshow-leve" onClick={() => alternarNoShow(true)} disabled={salvando} title={t('kanban.ficha.noShow.botaoDica')}>
-              <CalendarX2 size={15} /> {t('kanban.ficha.noShow.botao')}
+          )}
+
+          {/* Follow-up da Alice: dois botões lado a lado logo abaixo de "Não compareceu" */}
+          <div className="ficha-followup">
+            <button type="button" className="btn btn-pequeno btn-followup" disabled={salvando || Boolean(followup?.ativo) || !lead.phone}
+              title={!lead.phone ? t('kanban.ficha.followup.semTelefone') : t('kanban.ficha.followup.colocarDica', { total: followup?.total ?? 11 })}
+              onClick={() => alternarFollowup(true)}>
+              <Repeat size={14} /> {t('kanban.ficha.followup.colocar')}
             </button>
+            <button type="button" className="btn btn-pequeno" disabled={salvando || !followup?.ativo} title={t('kanban.ficha.followup.tirarDica')} onClick={() => alternarFollowup(false)}>
+              <CircleX size={14} /> {t('kanban.ficha.followup.tirar')}
+            </button>
+          </div>
+          {followup?.ativo ? (
+            <div className="marcador-info marcador-info-azul">
+              <BellRing size={13} /> <b>{t('kanban.ficha.followup.ativo', { toque: followup.ativo.etapa, total: followup.total })}</b>
+              {followup.ativo.proximo_em && <> · {t('kanban.ficha.followup.proximo', { n: followup.ativo.proximo_toque, quando: dataHoraLonga(followup.ativo.proximo_em) })}</>}
+              {followup.ativo.motivo && <small className="suave"> · {followup.ativo.motivo}</small>}
+              {!followup.ligado && <div><small className="aviso-texto">{t('kanban.ficha.followup.desligado')}</small></div>}
+            </div>
+          ) : followup?.ultimo && (
+            <small className="suave pequeno">{t(`kanban.ficha.followup.ultimo.${followup.ultimo.status}`, { toques: followup.ultimo.etapa, quando: tempoDesde(followup.ultimo.encerrado_em) })}</small>
           )}
 
           {lead.followup_overdue && (

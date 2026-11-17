@@ -194,7 +194,7 @@ export function mensagensDaConversa(c, { desde = null, ate = null, limite = 300,
   if (desde) { filtros.push('m.timestamp >= ?'); valores.push(desde); }
   if (ate) { filtros.push('m.timestamp <= ?'); valores.push(ate); }
   if (soMinhas) {
-    filtros.push(`m.from_me = 1 AND (m.sent_by = ? OR (m.sent_by IS NULL AND COALESCE(CASE WHEN json_valid(m.extra) THEN json_extract(m.extra, '$.origem') END, '') NOT IN ('ia', 'disparo', 'alice')))`);
+    filtros.push(`m.from_me = 1 AND (m.sent_by = ? OR (m.sent_by IS NULL AND COALESCE(CASE WHEN json_valid(m.extra) THEN json_extract(m.extra, '$.origem') END, '') NOT IN ('ia', 'disparo', 'alice', 'followup', 'lembrete')))`);
     valores.push(usuarioId);
   }
   const linhas = all(

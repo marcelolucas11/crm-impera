@@ -11,6 +11,7 @@ import './styles.css';
 import './whatsapp.css';
 import './design.css';
 import './liquid-glass.css';
+import './followup.css'; // ficha do lead (marcadores e follow-up) e a tela IA → Follow-up e lembretes
 import './modo-live.css';
 import './celular.css'; // app no celular/tablet (PWA), lista de reuniões e notificações
 import './modoLive.js'; // liga o Modo Live antes do 1º desenho, se ficou ligado

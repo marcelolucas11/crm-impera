@@ -25,7 +25,7 @@ import { textoDoSistema, montarPedido, primeiroNome } from './prompt.js';
 import { diretrizesAtivas } from './diretrizes.js';
 import { dadosDoFormulario } from './formulario.js';
 import { perguntarModelo, lerJsonDaResposta, registrar, ErroIA, perguntarNoFormato, explicarFalha } from './cliente.js';
-import { bloqueioAgora, depoisDeEnviar, falhaDeEnvio } from './protecao.js';
+import { bloqueioAgora, depoisDeEnviar, falhaDeEnvio, envioOcupado } from './protecao.js';
 import { prepararMidias, guardarDescricoes, resumoDasMidias } from './midias.js';
 
 // Dependências do WhatsApp (trocadas nos testes)
@@ -106,7 +106,7 @@ function filtro({ leadId, jids }) {
 
 // Mensagem nossa que NÃO é da IA nem da saudação automática = alguém da equipe falou com o lead
 const EH_HUMANA = `m.from_me = 1 AND m.type <> 'chamada' AND m.deleted_at IS NULL
-  AND COALESCE(CASE WHEN json_valid(m.extra) THEN json_extract(m.extra, '$.origem') END, '') NOT IN ('ia', 'disparo')`;
+  AND COALESCE(CASE WHEN json_valid(m.extra) THEN json_extract(m.extra, '$.origem') END, '') NOT IN ('ia', 'disparo', 'followup', 'lembrete')`;
 
 export function teveContatoHumano(contato, desde = null) {
   const f = filtro(contato);
@@ -800,6 +800,8 @@ export async function verificarPendentes() {
   // Um lead por vez: enquanto uma conversa está sendo atendida (inclusive "digitando…" e enviando), as outras esperam
   const umPorVez = lerConfig().um_por_vez;
   if (umPorVez && emAndamento.size) return;
+  // O follow-up ou um lembrete de reunião está escrevendo agora no mesmo número: espera a vez
+  if (envioOcupado()) return;
   const vencidas = all(`SELECT id FROM ia_conversas WHERE status = 'ativa' AND proxima_em IS NOT NULL AND proxima_em <= ? ORDER BY proxima_em LIMIT ${umPorVez ? 1 : 10}`, [agora()]);
   for (const { id } of vencidas) {
     if (emAndamento.has(id)) continue;

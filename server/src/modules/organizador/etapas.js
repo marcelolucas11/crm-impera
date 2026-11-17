@@ -58,8 +58,10 @@ export function provaDeReuniao(leadId, desde = null) {
   const filtro = desde ? ' AND timestamp >= ?' : '';
   const base = `FROM wa_messages WHERE lead_id = ? AND deleted_at IS NULL AND chat_jid NOT LIKE '%@g.us'${filtro}`;
   const params = desde ? [leadId, desde] : [leadId];
+  // O link que vai no lembrete automático da reunião (Alice) não prova nada: ele sai antes de a reunião acontecer
   const link = get(
     `SELECT timestamp ${base} AND type <> 'chamada'
+       AND COALESCE(CASE WHEN json_valid(extra) THEN json_extract(extra, '$.origem') END, '') <> 'lembrete'
        AND (lower(COALESCE(body, '')) LIKE ? OR lower(COALESCE(legenda, '')) LIKE ?) ORDER BY timestamp LIMIT 1`,
     [...params, LINK_MEET, LINK_MEET]
   );

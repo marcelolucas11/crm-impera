@@ -205,8 +205,13 @@ const Cartao = memo(function Cartao({ lead, onAbrir, onLimparNotificacao, oculto
           </button>
         </div>
       )}
-      {(lead.noshow_since || lead.closing_since || lead.waiting_since || lead.followup_overdue || !lead.first_contact_at) && (
+      {(lead.noshow_since || lead.closing_since || lead.waiting_since || lead.followup_overdue || !lead.first_contact_at || lead.fu_etapa != null) && (
         <div className="cartao-status">
+          {lead.fu_etapa != null && (
+            <span className="selo selo-azul" title={lead.fu_proximo_em ? tr('kanban.cartao.followupDica', { quando: dataHora(lead.fu_proximo_em) }) : tr('kanban.cartao.followupDicaSem')}>
+              <BellRing size={11} /> {tr('kanban.cartao.followup', { toque: lead.fu_etapa })}
+            </span>
+          )}
           {lead.noshow_since && (
             <span className="selo selo-vermelho" title={tr('kanban.cartao.noShowDica')}>
               <i className="led led-vermelho" /> {tr('kanban.cartao.noShow')} · {tempoDesde(lead.noshow_since).replace('há ', '')}

@@ -247,6 +247,21 @@ export default {
       res.json({ lead: buscarLead(id) });
     });
 
+    // Follow-up da Alice SDR: colocar na lista (recomeça do toque 1) ou tirar. GET mostra o estado para a ficha.
+    r.get('/:id/followup', async (req, res) => {
+      const id = idValido(req.params.id);
+      if (!get('SELECT 1 AS ok FROM leads WHERE id = ?', [id])) return res.status(404).json({ erro: 'Lead não encontrado' });
+      const { estadoDoLead } = await import('../ia/followup.js');
+      res.json({ followup: estadoDoLead(id) });
+    });
+
+    r.post('/:id/followup', async (req, res) => {
+      const id = idValido(req.params.id);
+      const { colocarNoFollowup, tirarDoFollowup } = await import('../ia/followup.js');
+      const followup = req.body?.ativo ? colocarNoFollowup(id, { userId: req.user.id }) : tirarDoFollowup(id, { userId: req.user.id });
+      res.json({ followup, lead: buscarLead(id) });
+    });
+
     r.post('/:id/notas', (req, res) => {
       const id = idValido(req.params.id);
       const conteudo = texto(req.body?.texto, 5000);

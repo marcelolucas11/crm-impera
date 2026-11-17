@@ -16,6 +16,8 @@ export const BASE_LEADS = `
     l.noshow_since, nu.name AS noshow_by_name,
     l.ia_temperatura, l.ia_resumo, l.ia_objecao, l.ia_avaliado_em,
     (SELECT 1 FROM ia_conversas ic WHERE ic.lead_id = l.id AND ic.status = 'aguardando_humano' LIMIT 1) AS ia_aguardando,
+    (SELECT f.etapa FROM ia_followups f WHERE f.lead_id = l.id AND f.status = 'ativo') AS fu_etapa,
+    (SELECT f.proximo_em FROM ia_followups f WHERE f.lead_id = l.id AND f.status = 'ativo') AS fu_proximo_em,
     json_extract(l.extra, '$.formulario') AS form_name,
     json_extract(l.extra, '$.form_id') AS form_id,
     json_extract(l.extra, '$.respostas') AS form_answers,
@@ -44,7 +46,7 @@ export const BASE_LEADS = `
   LEFT JOIN users nu ON nu.id = l.noshow_by`;
 
 // Tabelas que mudam o que aparece nos cartões do kanban (para o cache da lista saber quando recalcular)
-export const TABELAS_DO_KANBAN = ['leads', 'stages', 'users', 'wa_messages', 'calendly_events', 'ia_conversas'];
+export const TABELAS_DO_KANBAN = ['leads', 'stages', 'users', 'wa_messages', 'calendly_events', 'ia_conversas', 'ia_followups'];
 
 // Notificação do cartão: o lead mandou mensagem depois da nossa última resposta
 // e depois da última vez que alguém limpou o aviso à mão. Responder pelo WhatsApp apaga sozinho.

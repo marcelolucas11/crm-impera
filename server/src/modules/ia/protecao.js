@@ -172,8 +172,21 @@ export function statusProtecao(cfg, agoraMs = Date.now()) {
   };
 }
 
+// ------------------------------------------------------------------ um envio por vez (número compartilhado)
+// A Alice (primeiro contato), o follow-up e os lembretes de reunião usam o mesmo número. Enquanto um deles está
+// "digitando…"/enviando, os outros esperam a vez — nunca duas conversas sendo escritas ao mesmo tempo.
+const ocupantes = new Set();
+export const envioOcupado = () => ocupantes.size > 0;
+export function ocuparEnvio(quem) {
+  if (ocupantes.size && !ocupantes.has(quem)) return false;
+  ocupantes.add(quem);
+  return true;
+}
+export const liberarEnvio = (quem) => ocupantes.delete(quem);
+
 // Para os testes
 export function zerarProtecao() {
+  ocupantes.clear();
   salvarEstado(ESTADO, {
     descanso_ate: null, pausa_falhas_ate: null, falhas_envio: 0, enviadas_desde_descanso: 0, ultima_conversa_id: null, proximo_lead_em: null, novos_zerado_em: null,
   });

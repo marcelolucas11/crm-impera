@@ -22,8 +22,9 @@ let relogio = null;
 let rodando = false;
 let tarefa = null; // "Organizar tudo"
 
-// Mensagem que mexe na leitura da IA: qualquer uma, menos as da própria IA e da saudação automática
-const RELEVANTE_PARA_IA = `NOT (m.from_me = 1 AND COALESCE(CASE WHEN json_valid(m.extra) THEN json_extract(m.extra, '$.origem') END, '') IN ('ia', 'disparo'))`;
+// Mensagem que mexe na leitura da IA: qualquer uma, menos as da própria IA, da saudação automática, do follow-up e dos
+// lembretes de reunião (mensagens automáticas não mudam a etapa do lead)
+const RELEVANTE_PARA_IA = `NOT (m.from_me = 1 AND COALESCE(CASE WHEN json_valid(m.extra) THEN json_extract(m.extra, '$.origem') END, '') IN ('ia', 'disparo', 'followup', 'lembrete'))`;
 
 const EVENTOS_QUE_PEDEM_LEITURA = ['form_submitted', 'form_partial', 'form_completed', 'form_resubmitted', 'meeting_scheduled', 'meeting_rescheduled', 'meeting_canceled'];
 export const maxEventoId = () => get('SELECT COALESCE(max(id), 0) AS n FROM lead_events')?.n || 0;

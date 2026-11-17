@@ -31,6 +31,8 @@ import { estudarEsperaFormulario } from './estudoFormulario.js';
 import { estadoRevisao, revisarAtendimentos, iniciarRevisao, pararRevisao } from './revisao.js';
 import { transcricaoPronta } from './midias.js';
 import { instalada as transcricaoInstalada } from '../agente/transcricao.js';
+import * as followup from './followup.js';
+import * as lembretes from './lembretes.js';
 
 // Converte erros da IA em respostas HTTP
 const rota = criarRota('ia', [ErroIA], { mensagemSimples: false });
@@ -110,6 +112,9 @@ export default {
     aoAcontecer('whatsapp:recebida', (d) => aoReceberMensagem(d));
     aoAcontecer('whatsapp:humana', (d) => aoMensagemHumana(d));
     aoAcontecer('calendly:agendou', (d) => aoAgendarReuniao(d));
+    // Follow-up da Alice: o lead respondeu → quebra; a equipe falou → o próximo toque espera
+    aoAcontecer('whatsapp:recebida', (d) => followup.aoReceberMensagem(d));
+    aoAcontecer('whatsapp:humana', (d) => followup.aoMensagemHumana(d));
     aoAcontecer('yayforms:lead', async (d) => {
       let saudacaoDisparosAtiva = false;
       try {
@@ -423,12 +428,31 @@ export default {
       res.json({ ok: descartarSugestao(idValido(req.params.id), req.user.id) });
     }));
 
+    // ------------------------------------------------------------ follow-up da Alice e lembretes de reunião
+    const painel = () => ({ followup: followup.painelFollowup(), lembretes: lembretes.painelLembretes() });
+    r.get('/followup', rota((req, res) => res.json(painel())));
+
+    r.put('/followup/config', exigirAdmin, rota((req, res) => {
+      if (req.body?.followup) followup.salvarConfigFollowup(req.body.followup);
+      if (req.body?.lembretes) lembretes.salvarConfigLembretes(req.body.lembretes);
+      res.json(painel());
+    }));
+
+    // Escreve a mensagem do próximo toque de um lead sem enviar (para ajustar o prompt e as orientações)
+    r.post('/followup/testar', exigirAdmin, rota(async (req, res) => {
+      const leadId = idValido(req.body?.lead_id);
+      if (!get('SELECT 1 AS ok FROM leads WHERE id = ?', [leadId])) throw new ErroHttp(404, 'Lead não encontrado');
+      res.json(await followup.simularToque(leadId));
+    }));
+
     app.use('/api/ia', r);
   },
   start() {
     iniciarRelogio();
     iniciarRevisao();
     iniciarRelogioPlaybook();
+    followup.iniciarRelogioFollowup();
+    lembretes.iniciarRelogioLembretes();
     const cfg = lerConfig();
     console.log(`[ia] primeiro contato ${cfg.ativo ? `ligado (modo ${cfg.modo === 'automatico' ? 'automático' : 'copiloto'})` : 'desligado'}`);
   },
@@ -436,5 +460,7 @@ export default {
     pararRelogio();
     pararRevisao();
     pararRelogioPlaybook();
+    followup.pararRelogioFollowup();
+    lembretes.pararRelogioLembretes();
   },
 };
