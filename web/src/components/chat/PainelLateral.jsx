@@ -4,7 +4,7 @@ import { X, Search, Star, Timer, ExternalLink, Users, Play } from 'lucide-react'
 import { api } from '../../api.js';
 import { rota } from '../../base.js';
 import { formatarTelefone, dataHora } from '../../utils.js';
-import { useEvento } from '../../tempoReal.js';
+import { useEvento, itensDoAviso } from '../../tempoReal.js';
 import LeadFicha from '../LeadFicha.jsx';
 import Avatar from '../Avatar.jsx';
 import { realcar } from './formatacao.jsx';
@@ -120,11 +120,19 @@ function BuscaNaConversa({ chave, onIr }) {
   );
 }
 
-function Favoritas({ chave, onIr }) {
+function Favoritas({ chave, onIr, jidsConversa }) {
   const [lista, setLista] = useState(null);
   const carregar = () => api(chave ? `/whatsapp/conversas/${encodeURIComponent(chave)}/favoritas` : '/whatsapp/favoritas').then((d) => setLista(d.mensagens)).catch(() => {});
   useEffect(() => { carregar(); }, [chave]); // eslint-disable-line react-hooks/exhaustive-deps
-  useEvento('whatsapp', () => carregar());
+  // Só recarrega com aviso que pode mexer nas favoritas: desta conversa (ou de qualquer uma, na lista geral)
+  useEvento('whatsapp', (d) => {
+    if (d?.reconectou) { carregar(); return; }
+    const itens = itensDoAviso(d);
+    if (!chave) { if (itens.some((x) => x?.chat || x?.chats)) carregar(); return; }
+    const jids = new Set((lista || []).map((m) => m.chat_jid).filter(Boolean));
+    if (jidsConversa) for (const j of jidsConversa) jids.add(j);
+    if (!jids.size || itens.some((x) => x?.chat && jids.has(x.chat))) carregar();
+  });
   return (
     <div className="busca-conversa">
       {!lista && <span className="girando" />}
@@ -140,7 +148,7 @@ function Favoritas({ chave, onIr }) {
 }
 
 export default function PainelLateral({
-  modo, conversa, onFechar, stages, users, user, horas, onAtualizado, onTransformar, transformando, numeroId, onIrPara, onAbrirMidia,
+  modo, conversa, onFechar, stages, users, user, horas, onAtualizado, onTransformar, transformando, numeroId, onIrPara, onAbrirMidia, jids = [],
 }) {
   const titulos = { ficha: conversa?.lead_id ? 'Ficha do lead' : conversa?.grupo ? 'Dados do grupo' : 'Dados do contato', busca: 'Pesquisar mensagens', favoritas: 'Mensagens favoritas', contato: conversa?.grupo ? 'Dados do grupo' : 'Dados do contato' };
   return (
@@ -160,7 +168,7 @@ export default function PainelLateral({
           <DadosContato conversa={conversa} numeroId={numeroId} onTransformar={onTransformar} transformando={transformando} onAbrirMidia={onAbrirMidia} />
         )}
         {modo === 'busca' && conversa && <BuscaNaConversa chave={conversa.chave} onIr={onIrPara} />}
-        {modo === 'favoritas' && <Favoritas chave={conversa?.chave || null} onIr={onIrPara} />}
+        {modo === 'favoritas' && <Favoritas chave={conversa?.chave || null} onIr={onIrPara} jidsConversa={jids} />}
       </div>
     </aside>
   );
