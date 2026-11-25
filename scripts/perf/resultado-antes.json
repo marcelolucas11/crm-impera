@@ -1,0 +1,198 @@
+{
+  "data": "2026-11-25T20:40:20.506Z",
+  "url": "http://127.0.0.1:3999",
+  "segundos_por_cenario": 30,
+  "dpr": 1,
+  "headless": true,
+  "referencia_cpu_chrome_pct": 0.9,
+  "telas": {
+    "kanban": [
+      {
+        "cenario": "parado",
+        "segundos": 31.1,
+        "cpu_chrome_pct": 38.3,
+        "task_ms_s": 162,
+        "script_ms_s": 2.3,
+        "layout_ms_s": 0,
+        "estilo_ms_s": 1,
+        "quadros_s": 3,
+        "vidros": 8,
+        "vidros_svg": 0,
+        "animacoes_infinitas": 0,
+        "req_min": 5.8,
+        "sse_min": 0,
+        "endpoints": {
+          "GET /api/instagram/resumo": 1,
+          "GET /api/leads": 1,
+          "GET /api/followup/resumo": 1
+        }
+      },
+      {
+        "cenario": "mouse",
+        "segundos": 36.3,
+        "cpu_chrome_pct": 161.3,
+        "task_ms_s": 674.7,
+        "script_ms_s": 12.9,
+        "layout_ms_s": 0,
+        "estilo_ms_s": 10.8,
+        "quadros_s": 12.9,
+        "vidros": 8,
+        "vidros_svg": 0,
+        "animacoes_infinitas": 2,
+        "req_min": 5,
+        "sse_min": 0,
+        "endpoints": {
+          "GET /api/instagram/resumo": 1,
+          "GET /api/leads": 1,
+          "GET /api/followup/resumo": 1
+        }
+      },
+      {
+        "cenario": "rolando",
+        "segundos": 35.5,
+        "cpu_chrome_pct": 165.6,
+        "task_ms_s": 699.3,
+        "script_ms_s": 7.4,
+        "layout_ms_s": 0,
+        "estilo_ms_s": 3.3,
+        "quadros_s": 13.5,
+        "vidros": 8,
+        "vidros_svg": 0,
+        "animacoes_infinitas": 1,
+        "req_min": 28.8,
+        "sse_min": 0,
+        "endpoints": {
+          "POST /api/whatsapp/fotos/consultar": 14,
+          "GET /api/instagram/resumo": 1,
+          "GET /api/leads": 1,
+          "GET /api/followup/resumo": 1
+        }
+      }
+    ],
+    "whatsapp": [
+      {
+        "cenario": "parado",
+        "segundos": 30.5,
+        "cpu_chrome_pct": 27.3,
+        "task_ms_s": 2.5,
+        "script_ms_s": 0.5,
+        "layout_ms_s": 0,
+        "estilo_ms_s": 0.3,
+        "quadros_s": 4.7,
+        "vidros": 9,
+        "vidros_svg": 0,
+        "animacoes_infinitas": 0,
+        "req_min": 9.8,
+        "sse_min": 0,
+        "endpoints": {
+          "GET /api/whatsapp/conversas/l%3A1/mensagens": 2,
+          "GET /api/whatsapp/conversas": 1,
+          "GET /api/instagram/resumo": 1,
+          "GET /api/followup/resumo": 1
+        }
+      },
+      {
+        "cenario": "mouse",
+        "segundos": 33,
+        "cpu_chrome_pct": 112.2,
+        "task_ms_s": 82,
+        "script_ms_s": 7.6,
+        "layout_ms_s": 3,
+        "estilo_ms_s": 7.9,
+        "quadros_s": 15.6,
+        "vidros": 9,
+        "vidros_svg": 0,
+        "animacoes_infinitas": 0,
+        "req_min": 12.7,
+        "sse_min": 1.8,
+        "endpoints": {
+          "GET /api/whatsapp/conversas": 2,
+          "GET /api/whatsapp/conversas/l%3A1/mensagens": 2,
+          "GET /api/instagram/resumo": 1,
+          "GET /api/followup/resumo": 1,
+          "GET /api/whatsapp/conversas/l%3A1/presenca": 1
+        }
+      },
+      {
+        "cenario": "rolando",
+        "segundos": 32.1,
+        "cpu_chrome_pct": 105.6,
+        "task_ms_s": 24.9,
+        "script_ms_s": 1.9,
+        "layout_ms_s": 0.2,
+        "estilo_ms_s": 2.2,
+        "quadros_s": 15.6,
+        "vidros": 9,
+        "vidros_svg": 0,
+        "animacoes_infinitas": 0,
+        "req_min": 11.2,
+        "sse_min": 0,
+        "endpoints": {
+          "GET /api/whatsapp/conversas/l%3A1/mensagens": 2,
+          "GET /api/whatsapp/conversas": 2,
+          "GET /api/instagram/resumo": 1,
+          "GET /api/followup/resumo": 1
+        }
+      }
+    ],
+    "ia": [
+      {
+        "cenario": "parado",
+        "segundos": 30.1,
+        "cpu_chrome_pct": 2.4,
+        "task_ms_s": 7.8,
+        "script_ms_s": 1.1,
+        "layout_ms_s": 0.5,
+        "estilo_ms_s": 0.2,
+        "quadros_s": 0,
+        "vidros": 6,
+        "vidros_svg": 0,
+        "animacoes_infinitas": 0,
+        "req_min": 4,
+        "sse_min": 0,
+        "endpoints": {
+          "GET /api/instagram/resumo": 1,
+          "GET /api/followup/resumo": 1
+        }
+      },
+      {
+        "cenario": "mouse",
+        "segundos": 32,
+        "cpu_chrome_pct": 29.6,
+        "task_ms_s": 27.8,
+        "script_ms_s": 5,
+        "layout_ms_s": 0.5,
+        "estilo_ms_s": 0.8,
+        "quadros_s": 4.5,
+        "vidros": 6,
+        "vidros_svg": 0,
+        "animacoes_infinitas": 0,
+        "req_min": 3.7,
+        "sse_min": 0,
+        "endpoints": {
+          "GET /api/instagram/resumo": 1,
+          "GET /api/followup/resumo": 1
+        }
+      },
+      {
+        "cenario": "rolando",
+        "segundos": 32.1,
+        "cpu_chrome_pct": 60.5,
+        "task_ms_s": 32.3,
+        "script_ms_s": 3.3,
+        "layout_ms_s": 0.5,
+        "estilo_ms_s": 0.2,
+        "quadros_s": 8.3,
+        "vidros": 6,
+        "vidros_svg": 0,
+        "animacoes_infinitas": 0,
+        "req_min": 3.7,
+        "sse_min": 0,
+        "endpoints": {
+          "GET /api/instagram/resumo": 1,
+          "GET /api/followup/resumo": 1
+        }
+      }
+    ]
+  }
+}
