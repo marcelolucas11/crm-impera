@@ -74,3 +74,11 @@ html.lg-refrata .menu.menu-conta {
 .modo-live-mensagens .texto-previa,
 .modo-live-mensagens .autor-previa,
 .modo-live-mensagens .citacao { filter: blur(6px); user-select: none; }
+
+/* Aparência e desempenho (Equipe e integrações) */
+.aparencia-opcoes { display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; border-radius: 12px; background: rgba(255, 255, 255, .035); border: 1px solid rgba(255, 255, 255, .06); }
+.live-secao label.aparencia-opcao { align-items: flex-start; white-space: normal; }
+.aparencia-opcao input[type='checkbox'] { margin-top: 2px; }
+.aparencia-opcao span { display: flex; flex-direction: column; gap: 2px; }
+.aparencia-opcao b { font-weight: 600; }
+.aparencia-opcao small { font-size: 12px; line-height: 1.4; }

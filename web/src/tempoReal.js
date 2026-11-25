@@ -8,6 +8,7 @@ let fonte = null;
 const ouvintes = new Map(); // tipo → Set(funções)
 const anexados = new Set();
 let caiu = false;
+let conectadoDesde = 0;
 
 function despachar(tipo, dados) {
   coletarSensiveis(dados); // Modo Live: avisos também podem trazer nome/telefone de lead
@@ -35,13 +36,15 @@ function garantirConexao() {
     // Voltou depois de cair: pode ter perdido avisos, então todo mundo recarrega
     if (caiu) for (const tipo of ouvintes.keys()) despachar(tipo, { reconectou: true });
     caiu = false;
+    conectadoDesde = Date.now();
   };
-  fonte.onerror = () => { caiu = true; };
+  fonte.onerror = () => { caiu = true; conectadoDesde = 0; };
 }
 
 export function encerrarTempoReal() {
   fonte?.close();
   fonte = null;
+  conectadoDesde = 0;
   anexados.clear();
 }
 
@@ -71,4 +74,32 @@ export function useEvento(tipo, fn) {
     anexar(tipo);
     return () => ouvintes.get(tipo)?.delete(ouvinte);
   }, [tipo]);
+}
+
+// O tempo real está de pé? (conexão aberta e sem queda desde então)
+export const tempoRealConectado = () => Boolean(fonte && fonte.readyState === 1 && !caiu && conectadoDesde);
+
+// Atualização de segurança (polling) que respeita o tempo real e a aba escondida:
+//  - aba escondida: não busca nada (ao voltar para a aba, busca na hora se já passou do prazo);
+//  - tempo real conectado: os avisos já trazem as mudanças, então só confere a cada `comTempoReal` ms (padrão 3 min);
+//  - tempo real caído: volta a conferir a cada `semTempoReal` ms.
+// Antes cada tela tinha o seu setInterval de 10–30 s rodando o dia todo, mesmo com o tempo real funcionando.
+export function useAtualizacaoPeriodica(fn, { semTempoReal = 30000, comTempoReal = 180000, ligado = true } = {}) {
+  const ref = useRef(fn);
+  ref.current = fn;
+  useEffect(() => {
+    if (!ligado) return undefined;
+    let ultima = Date.now();
+    const conferir = () => {
+      if (document.hidden) return;
+      const prazo = tempoRealConectado() ? comTempoReal : semTempoReal;
+      if (Date.now() - ultima < prazo) return;
+      ultima = Date.now();
+      ref.current();
+    };
+    const id = setInterval(conferir, Math.min(semTempoReal, 30000));
+    const aoVoltar = () => { if (!document.hidden) conferir(); };
+    document.addEventListener('visibilitychange', aoVoltar);
+    return () => { clearInterval(id); document.removeEventListener('visibilitychange', aoVoltar); };
+  }, [semTempoReal, comTempoReal, ligado]);
 }

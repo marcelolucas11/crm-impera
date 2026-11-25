@@ -591,3 +591,35 @@ html.lg-pausado *::after { animation-play-state: paused !important; }
 .segredo-campo { position: relative; display: flex; align-items: center; flex: 1; min-width: 0; }
 .segredo-campo input { flex: 1; width: 100%; min-width: 0; padding-right: 36px; }
 .segredo-campo .segredo-olho { position: absolute; right: 6px; }
+
+/* ============================================================
+   v0.34 — desempenho (mesmo visual, bem menos trabalho para o computador)
+   ============================================================ */
+/* Vidro só onde há algo atrás para desfocar. Nas telas sem o logo 3D (WhatsApp, IA, Disparos, Estatísticas...)
+   o que fica atrás dos painéis é só o degradê parado do fundo: desfocar um degradê liso não muda nada na tela, mas
+   custava uma passada extra de desenho por painel a cada quadro (o maior gasto medido na tela de WhatsApp).
+   Janelas, painéis laterais e menus que abrem por cima de outros conteúdos continuam com desfoque.
+   "Efeitos de vidro avançados" (Equipe e integrações → Aparência) traz de volta o desfoque em tudo. */
+html:not(.com-fundo-3d):not(.lg-vidro-avancado) :is(.coluna, .cartao-secao, .indicador, .topo, .abas, .seletor-ordem,
+  .whatsapp-tela > .lista-conversas, .whatsapp-tela > .chat, .whatsapp-tela > .ficha-lateral) {
+  -webkit-backdrop-filter: none; backdrop-filter: none;
+}
+/* Vidro dentro de vidro (barras e avisos dentro de um painel que já é de vidro): o de dentro só desfocava o de fora */
+html:not(.lg-vidro-avancado) :is(.chat-topo, .compositor, .painel-lateral-topo,
+  .aviso-aguardando, .aviso-fechando, .aviso-noshow, .aviso-followup, .aviso-reuniao, .aviso-parcial) {
+  -webkit-backdrop-filter: none; backdrop-filter: none;
+}
+
+/* Cartões do kanban: o navegador pula o desenho dos que estão fora da área visível da coluna (com ~150 leads
+   eram mais de 11 mil elementos na tela). A margem deixa os selos de notificação/reunião (que saem 9 px para
+   fora do cartão) aparecerem inteiros. */
+.cartao {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 118px;
+  overflow-clip-margin: 24px;
+  transform-style: flat;
+}
+/* O modo 3D (preserve-3d) só no cartão que está sob o mouse, não em todos */
+.cartao:hover { transform-style: preserve-3d; }
+/* Arrastando: o cartão precisa estar sempre desenhado */
+.cartao[draggable='true']:active, .cartao.arrastando { content-visibility: visible; }
