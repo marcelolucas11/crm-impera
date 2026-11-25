@@ -3,7 +3,7 @@ import IaConversa from './ia/IaConversa.jsx';
 import { Virtuoso } from 'react-virtuoso';
 import { X, Forward, Star, EyeOff, Copy, ChevronDown, Music, FileText, Video, Lock } from 'lucide-react';
 import { api } from '../api.js';
-import { useEvento, itensDoAviso } from '../tempoReal.js';
+import { useEvento, itensDoAviso, useAtualizacaoPeriodica } from '../tempoReal.js';
 import Avatar from './Avatar.jsx';
 import Mensagem, { tamanhoArquivo } from './chat/Mensagem.jsx';
 import Compositor from './chat/Compositor.jsx';
@@ -204,9 +204,8 @@ export default function Conversa({ chave, nome = '', onEnviado, cheia = false, p
     ultimoId.current = null;
     carregar();
     carregarNumeros();
-    const t = setInterval(() => { if (!document.hidden) carregar(); }, RESERVA_MS);
-    return () => clearInterval(t);
   }, [carregar, carregarNumeros]);
+  useAtualizacaoPeriodica(carregar, { semTempoReal: RESERVA_MS, comTempoReal: 180000 });
 
   // Participantes do grupo (para @menções)
   useEffect(() => {

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../api.js';
-import { useEvento } from '../tempoReal.js';
+import { useEvento, useAtualizacaoPeriodica, itensDoAviso } from '../tempoReal.js';
 import { SlidersHorizontal, Eye, Plus, Columns3, BellRing, ArrowDownWideNarrow, SquareCheckBig, Bot, CalendarDays } from 'lucide-react';
 import Kanban, { ORDENS } from './Kanban.jsx';
 import FundoLogo3D from './FundoLogo3D.jsx';
@@ -130,16 +130,19 @@ export default function KanbanPagina({ user, stages, users, carregarEtapas, aoMu
     return () => clearTimeout(t);
   }, [busca, carregarLeads]);
 
-  useEffect(() => {
-    const id = setInterval(() => { if (!document.hidden) carregarLeads(); }, ATUALIZAR_A_CADA_MS);
-    return () => clearInterval(id);
-  }, [carregarLeads]);
+  // Rede de segurança: o tempo real já avisa as mudanças (a cada 3 min com ele de pé, 30 s se ele cair)
+  useAtualizacaoPeriodica(carregarLeads, { semTempoReal: ATUALIZAR_A_CADA_MS, comTempoReal: 180000 });
 
   // Mensagem nova no WhatsApp: atualiza os cartões (contador de mensagens), no máximo a cada 3 s
   const ultimaAtualizacao = useRef(0);
   const agendada = useRef(null);
+  const pendente = useRef(false);
   useEvento('whatsapp', (d) => {
     if (!d?.chat && !d?.historico && !d?.reconectou) return;
+    // Mensagem de grupo nunca é de lead: não mexe no kanban (grupos movimentados recarregavam tudo a cada 3 s)
+    if (!d?.historico && !d?.reconectou && itensDoAviso(d).every((x) => !x?.chat || String(x.chat).endsWith('@g.us'))) return;
+    // Aba escondida: recarrega uma vez só, quando a pessoa voltar
+    if (document.hidden) { pendente.current = true; return; }
     if (agendada.current) return;
     const espera = Math.max(0, 3000 - (Date.now() - ultimaAtualizacao.current));
     agendada.current = setTimeout(() => {
@@ -149,6 +152,11 @@ export default function KanbanPagina({ user, stages, users, carregarEtapas, aoMu
     }, espera);
   });
   useEffect(() => () => clearTimeout(agendada.current), []);
+  useEffect(() => {
+    const aoVoltar = () => { if (!document.hidden && pendente.current) { pendente.current = false; carregarLeads(); } };
+    document.addEventListener('visibilitychange', aoVoltar);
+    return () => document.removeEventListener('visibilitychange', aoVoltar);
+  }, [carregarLeads]);
   // O organizador por IA moveu leads (ou alguém desfez): recarrega o kanban
   useEvento('organizador', (d) => { if (d?.varredura || d?.movidos) carregarLeads(); });
 

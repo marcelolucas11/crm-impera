@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '../api.js';
+import { useAtualizacaoPeriodica } from '../tempoReal.js';
 import { dataHora, tempoDesde } from '../utils.js';
 import { TextoSecreto, CampoSecreto } from './Segredo.jsx';
 
@@ -16,9 +17,9 @@ export default function CalendlyStatus({ aoMensagem, aoErro }) {
 
   useEffect(() => {
     carregar();
-    const id = setInterval(carregar, 30000);
-    return () => clearInterval(id);
   }, [carregar]);
+  // Status da integração: muda raramente (o CRM consulta o Calendly a cada 5 min). Antes: a cada 30 s, até com a aba escondida
+  useAtualizacaoPeriodica(carregar, { semTempoReal: 60000, comTempoReal: 300000 });
 
   const sincronizar = async (dias) => {
     setSincronizando(true);

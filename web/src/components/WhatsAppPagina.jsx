@@ -5,7 +5,7 @@ import {
 } from 'lucide-react';
 import { api } from '../api.js';
 import { formatarTelefone } from '../utils.js';
-import { useEvento } from '../tempoReal.js';
+import { useEvento, useAtualizacaoPeriodica, itensDoAviso } from '../tempoReal.js';
 import Conversa from './Conversa.jsx';
 import Avatar from './Avatar.jsx';
 import Modal from './Modal.jsx';
@@ -68,6 +68,9 @@ function GerenciarEtiquetas({ etiquetas, onFechar, onMudou }) {
   );
 }
 
+// O servidor considera "digitando…" válido por 25 s sem novo aviso (presenca.js); aqui vale o mesmo
+const VALIDADE_DIGITANDO_MS = 25000;
+
 // Tela de WhatsApp no estilo do WhatsApp Web: conversas à esquerda, chat no meio e painel recolhível à direita
 export default function WhatsAppPagina({ user, stages, users, horas, aoMudarAlgo, setErro }) {
   const [conversas, setConversas] = useState([]);
@@ -118,9 +121,9 @@ export default function WhatsAppPagina({ user, stages, users, horas, aoMudarAlgo
 
   useEffect(() => {
     const t = setTimeout(carregar, busca ? 250 : 0);
-    const id = setInterval(() => { if (!document.hidden) carregar(); }, 20000);
-    return () => { clearTimeout(t); clearInterval(id); };
+    return () => clearTimeout(t);
   }, [carregar, busca]);
+  useAtualizacaoPeriodica(carregar, { semTempoReal: 20000, comTempoReal: 180000 });
 
   const carregarNumeros = useCallback(() => {
     api('/whatsapp/numeros').then((d) => setNumeros(d.numeros)).catch(() => setNumeros([]));
@@ -133,18 +136,56 @@ export default function WhatsAppPagina({ user, stages, users, horas, aoMudarAlgo
   // Atualizações em tempo real (agrupadas para não recarregar a lista a cada mensagem do histórico)
   const recarga = useRef(null);
   useEvento('whatsapp', (d) => {
-    clearTimeout(recarga.current);
-    recarga.current = setTimeout(carregar, d?.historico ? 1500 : 150);
     if (d?.numeros) carregarNumeros();
     if (d?.chat || d?.historico) aoMudarAlgo();
+    // Avisos só de números conectados ou figurinhas não mudam a lista de conversas
+    const soOutros = !d?.reconectou && itensDoAviso(d).every((x) => (x?.numeros || x?.figurinhas) && !x?.chat && !x?.chats && !x?.historico);
+    if (soOutros) return;
+    clearTimeout(recarga.current);
+    recarga.current = setTimeout(carregar, d?.historico ? 1500 : 150);
   });
+
+  // "digitando…" / "gravando áudio…" na lista: atualizado aqui mesmo, sem buscar a lista inteira de novo.
+  // Antes, cada aviso de presença (inclusive de grupos movimentados) recarregava todas as conversas do servidor.
+  const conversasRef = useRef(conversas);
+  conversasRef.current = conversas;
+  const [digitandoLocal, setDigitandoLocal] = useState({}); // jid → { estado, em }
+  const [tiqueDigitando, setTiqueDigitando] = useState(0);
+  // A lista nova do servidor já vem com o estado certo; o "digitando…" dela vale 25 s (depois some sozinho)
+  const listaEm = useRef(Date.now());
+  useEffect(() => {
+    setDigitandoLocal({});
+    listaEm.current = Date.now();
+    if (!conversas.some((c) => c.digitando)) return undefined;
+    const t = setTimeout(() => setTiqueDigitando((n) => n + 1), VALIDADE_DIGITANDO_MS + 100);
+    return () => clearTimeout(t);
+  }, [conversas]);
   useEvento('presenca', (p) => {
     if (jidsAbertos.includes(p.jid)) setPresenca(p);
-    if (p.estado === 'composing' || p.estado === 'recording' || p.estado === 'paused' || p.estado === 'available') {
+    const estado = p.estado === 'composing' || p.estado === 'recording' ? p.estado : null;
+    const naLista = conversasRef.current.some((c) => c.jid_ultima === p.jid);
+    if (naLista) {
+      setDigitandoLocal((m) => (!estado && !m[p.jid] && !conversasRef.current.some((c) => c.jid_ultima === p.jid && c.digitando)
+        ? m : { ...m, [p.jid]: { estado, em: Date.now() } }));
+      if (estado) setTimeout(() => setTiqueDigitando((n) => n + 1), VALIDADE_DIGITANDO_MS + 100);
+    } else if (estado && !p.jid?.endsWith('@g.us')) {
+      // Contato que a lista conhece por outro número/identificador (ex.: LID): aí sim confere com o servidor (raro).
+      // Grupo fora da lista é grupo escondido pelo filtro: nada a fazer.
       clearTimeout(recarga.current);
-      recarga.current = setTimeout(carregar, 300);
+      recarga.current = setTimeout(carregar, 1500);
     }
   });
+  const conversasNaTela = useMemo(() => {
+    const agora = Date.now();
+    const listaVelha = agora - listaEm.current >= VALIDADE_DIGITANDO_MS;
+    if (!Object.keys(digitandoLocal).length && !(listaVelha && conversas.some((c) => c.digitando))) return conversas;
+    return conversas.map((c) => {
+      const p = digitandoLocal[c.jid_ultima];
+      if (!p && !(listaVelha && c.digitando)) return c;
+      const digitando = p?.estado && agora - p.em < VALIDADE_DIGITANDO_MS ? p.estado : null;
+      return digitando === c.digitando ? c : { ...c, digitando };
+    });
+  }, [conversas, digitandoLocal, tiqueDigitando]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Mantém a conversa aberta mesmo se o filtro da lista deixar de mostrá-la
   const [ultimaAberta, setUltimaAberta] = useState(null);
@@ -309,7 +350,7 @@ export default function WhatsAppPagina({ user, stages, users, horas, aoMudarAlgo
   return (
     <div className={`whatsapp-tela wa-tela ${conversa ? 'com-conversa' : ''} ${painel && (conversa || painel === 'favoritas') ? 'com-painel' : ''}`} data-tema={tema}>
       <ListaConversas
-        conversas={conversas}
+        conversas={conversasNaTela}
         arquivadas={arquivadas}
         mensagensBusca={mensagensBusca}
         carregou={carregou}
@@ -408,6 +449,7 @@ export default function WhatsAppPagina({ user, stages, users, horas, aoMudarAlgo
           onTransformar={transformar}
           onAtualizado={() => { carregar(); aoMudarAlgo(); }}
           onAbrirMidia={setVisualizar}
+          jids={jidsAbertos}
           onIrPara={(id, chave) => {
             if (chave && chave !== aberta) abrir(conversas.find((c) => c.chave === chave) || { chave }, id);
             else setPularPara({ id, t: Date.now() });

@@ -85,7 +85,9 @@ export default function WhatsAppNumeros({ aoMensagem, aoErro }) {
   const andamento = numeros.some((n) => EM_ANDAMENTO.has(n.status));
   useEffect(() => {
     carregar();
-    const id = setInterval(carregar, andamento ? 2000 : 10000);
+    // Conectando / mostrando QR code: rápido (2 s). Parado: o tempo real avisa as mudanças dos números,
+    // então só confere a cada 10 s se a aba estiver visível (antes conferia mesmo com a aba escondida)
+    const id = setInterval(() => { if (andamento || !document.hidden) carregar(); }, andamento ? 2000 : 10000);
     return () => clearInterval(id);
   }, [carregar, andamento]);
 
