@@ -5,7 +5,7 @@ import { Bot, Send, X, Pause, Play, Sparkles, Smile, Paperclip, SendHorizontal, 
 import { api } from '../../api.js';
 import { rota } from '../../base.js';
 import { useT } from '../../i18n/index.jsx';
-import { useEvento, avisoTem } from '../../tempoReal.js';
+import { useEvento, avisoTem, useAtualizacaoPeriodica } from '../../tempoReal.js';
 import { pode } from '../../permissoes.js';
 import { tempoDesde, dataHora } from '../../utils.js';
 import { TextoFormatado } from '../chat/formatacao.jsx';
@@ -373,9 +373,8 @@ export default function ChatIg({ conversa, perfil, user, onEnviado }) {
 
   useEffect(() => {
     carregar();
-    const id = setInterval(() => { if (!document.hidden) carregar(); }, RESERVA_MS);
-    return () => clearInterval(id);
   }, [carregar]);
+  useAtualizacaoPeriodica(carregar, { semTempoReal: RESERVA_MS, comTempoReal: 180000 });
   useEvento('instagram', (d) => { if (avisoTem(d, 'conversa', conversa.id) || d?.conversas) carregar(); });
 
   // Rolagem: começa no fim, acompanha mensagens novas quando já está no fim e mantém a posição ao carregar as antigas

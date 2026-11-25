@@ -3,7 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Search, X, ArrowLeft, PanelRightOpen, PanelRightClose, MoreVertical, Archive, ArchiveRestore, Pin, PinOff, MailOpen, Mail, Hourglass, Bot, Megaphone, Camera as IconeInstagram, Sun, Moon, ExternalLink } from 'lucide-react';
 import { api } from '../../api.js';
 import { useT } from '../../i18n/index.jsx';
-import { useEvento } from '../../tempoReal.js';
+import { useEvento, useAtualizacaoPeriodica } from '../../tempoReal.js';
 import { quando } from '../chat/ListaConversas.jsx';
 import ChatIg from './ChatIg.jsx';
 import PainelIg from './PainelIg.jsx';
@@ -116,9 +116,9 @@ export default function Direct({ user, stages, users, horas, perfis, aoMudarAlgo
 
   useEffect(() => {
     const tm = setTimeout(carregar, busca ? 250 : 0);
-    const id = setInterval(() => { if (!document.hidden) carregar(); }, 30000);
-    return () => { clearTimeout(tm); clearInterval(id); };
+    return () => clearTimeout(tm);
   }, [carregar, busca]);
+  useAtualizacaoPeriodica(carregar, { semTempoReal: 30000, comTempoReal: 180000 });
 
   useEvento('instagram', (d) => {
     if (!d?.conversa && !d?.conversas && !d?.contato && !d?.reconectou && !d?.ia) return;
