@@ -33,6 +33,12 @@ export default {
   'live.selo': 'AO VIVO',
   'live.seloDica': 'Modo Live ligado: dados dos leads cobertos. Clique para desligar.',
   'live.segredoTravado': 'Travado no Modo Live',
+  'aparencia.titulo': 'Aparência e desempenho',
+  'aparencia.descricao': 'Efeitos que deixam o computador mais quente e gastam bateria. Vêm desligados; o visual continua o mesmo. A escolha fica salva neste navegador.',
+  'aparencia.fundoAnimado': 'Fundo animado',
+  'aparencia.fundoAnimadoDica': 'O logo 3D do kanban flutua e segue o mouse. Desligado, ele aparece parado (na tela de entrada continua animado).',
+  'aparencia.vidroAvancado': 'Efeitos de vidro avançados',
+  'aparencia.vidroAvancadoDica': 'Refração da luz nas bordas do vidro (Chrome e Edge) e desfoque em todos os painéis de todas as telas.',
 
   'estatisticas.sim': 'Sim',
   'estatisticas.nao': 'Não',
