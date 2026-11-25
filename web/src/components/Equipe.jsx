@@ -12,6 +12,7 @@ import TrocarSenha from './TrocarSenha.jsx';
 import Permissoes from './Permissoes.jsx';
 import InstagramConexao from './instagram/InstagramConexao.jsx';
 import { ConfigModoLive } from './ModoLive.jsx';
+import { ConfigAparencia } from './ConfigAparencia.jsx';
 import { useT } from '../i18n/index.jsx';
 import { Camera, Trash2, KeyRound, ShieldCheck, Settings, BellRing } from 'lucide-react';
 import NotificacoesApp from './notificacoes/NotificacoesApp.jsx';
@@ -171,6 +172,7 @@ function EquipeGeral({ user, aoMudarUsuarios, aoMudarMinhaFoto }) {
         <MinhaConta user={user} aoMudarFoto={(u) => { aoMudarMinhaFoto?.(u); carregar(); }} aoMensagem={setMsg} aoErro={setErro} />
 
         {!admin && <ConfigModoLive />}
+        {!admin && <ConfigAparencia />}
 
         {admin && <>
         <Atualizacao />
@@ -228,6 +230,7 @@ function EquipeGeral({ user, aoMudarUsuarios, aoMudarMinhaFoto }) {
         </section>
 
         <ConfigModoLive />
+        <ConfigAparencia />
 
         <WhatsAppNumeros aoMensagem={setMsg} aoErro={setErro} />
         <InstagramConexao aoMensagem={setMsg} aoErro={setErro} />

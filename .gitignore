@@ -12,3 +12,4 @@ server/public.novo/
 .DS_Store
 server/.instalando/
 server/node_modules.antigo/
+scripts/perf/prints/

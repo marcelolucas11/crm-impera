@@ -1,6 +1,6 @@
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { api, definirAoDeslogar } from './api.js';
-import { useEvento, encerrarTempoReal } from './tempoReal.js';
+import { useEvento, encerrarTempoReal, useAtualizacaoPeriodica } from './tempoReal.js';
 import Login from './components/Login.jsx';
 import Topo from './components/Topo.jsx';
 import KanbanPagina from './components/KanbanPagina.jsx';
@@ -61,10 +61,10 @@ function Sistema({ user, aoMudarUser, aoSair }) {
     carregarEtapas();
     carregarUsuarios();
     carregarResumo();
-    // O tempo real já avisa das mensagens novas; esta conferência é só a rede de segurança (e para o follow-up que vence com o tempo)
-    const id = setInterval(() => { if (!document.hidden) carregarResumo(); }, 30000);
-    return () => clearInterval(id);
   }, [carregarEtapas, carregarResumo, carregarUsuarios]);
+  // O tempo real já avisa das mensagens novas; esta conferência é só a rede de segurança (e para o follow-up que vence
+  // com o tempo): a cada 2 min com o tempo real de pé, 30 s se ele cair, nada com a aba escondida
+  useAtualizacaoPeriodica(carregarResumo, { semTempoReal: 30000, comTempoReal: 120000 });
 
   // Mensagem nova: atualiza o contador da aba WhatsApp (no máximo a cada 3 s, mesmo com muitas mensagens chegando)
   const resumoAgendado = useRef(null);

@@ -7,7 +7,7 @@ import { SeloModoLive } from './ModoLive.jsx';
 import { useModoLive, alternarModoLive } from '../modoLive.js';
 import { useT } from '../i18n/index.jsx';
 import { api } from '../api.js';
-import { useEvento } from '../tempoReal.js';
+import { useEvento, useAtualizacaoPeriodica } from '../tempoReal.js';
 import { ORDEM_TELAS, podeVer, pode } from '../permissoes.js';
 import SeletorIdioma from './SeletorIdioma.jsx';
 
@@ -30,9 +30,8 @@ export default function Topo({ user, pagina, setPagina, resumo, sair }) {
   }, [veInstagram]);
   useEffect(() => {
     carregarInstagram();
-    const id = setInterval(() => { if (!document.hidden) carregarInstagram(); }, 30000);
-    return () => clearInterval(id);
   }, [carregarInstagram]);
+  useAtualizacaoPeriodica(carregarInstagram, { semTempoReal: 30000, comTempoReal: 180000, ligado: veInstagram });
   useEvento('instagram', (d) => { if (d?.conversa || d?.comentarios || d?.reconectou) carregarInstagram(); });
 
   const contador = (id) => {

@@ -1,7 +1,9 @@
 import { useEffect } from 'react';
+import { useAparencia } from '../aparencia.js';
+import { aoMudarAtividade, aoMoverPonteiro, estaAtivo } from '../atividade.js';
 
 // Efeitos do visual "Liquid Glass" que o CSS sozinho não consegue fazer:
-//  1) filtros SVG de refração (a luz do fundo "dobra" nas bordas do vidro, com dispersão em cores);
+//  1) filtros SVG de refração (a luz do fundo "dobra" nas bordas do vidro) — só com "Efeitos de vidro avançados" ligado;
 //  2) leve inclinação 3D nos cartões e indicadores quando o mouse passa por cima.
 // Só estético: não lê nem altera dados, não recebe cliques e não toca em nenhuma regra do CRM.
 // Sem este componente (ou sem suporte do navegador) o CRM continua igual, só sem a distorção e o brilho animado.
@@ -43,56 +45,38 @@ function detectarRefracao() {
 function useAnimacoesEconomicas() {
   useEffect(() => {
     const raiz = document.documentElement;
-    let t = 0;
-    const pausar = () => { clearTimeout(t); raiz.classList.add('lg-pausado'); };
-    const acordar = () => {
-      raiz.classList.remove('lg-pausado');
-      clearTimeout(t);
-      t = setTimeout(pausar, 10000);
-    };
-    const aoVisibilidade = () => (document.hidden ? pausar() : acordar());
-    const eventos = ['pointermove', 'pointerdown', 'keydown', 'wheel'];
-    eventos.forEach((e) => window.addEventListener(e, acordar, { passive: true }));
-    window.addEventListener('focus', acordar);
-    window.addEventListener('blur', pausar);
-    document.addEventListener('visibilitychange', aoVisibilidade);
-    if (document.hasFocus() && !document.hidden) acordar(); else pausar();
-    return () => {
-      clearTimeout(t);
-      eventos.forEach((e) => window.removeEventListener(e, acordar));
-      window.removeEventListener('focus', acordar);
-      window.removeEventListener('blur', pausar);
-      document.removeEventListener('visibilitychange', aoVisibilidade);
-      raiz.classList.remove('lg-pausado');
-    };
+    const parar = aoMudarAtividade((ativo) => raiz.classList.toggle('lg-pausado', !ativo));
+    raiz.classList.toggle('lg-pausado', !estaAtivo());
+    return () => { parar(); raiz.classList.remove('lg-pausado'); };
   }, []);
 }
 
 export default function LiquidGlassFx() {
   useAnimacoesEconomicas();
+  const { vidroAvancado } = useAparencia();
+
+  // Refração (filtro SVG no fundo do vidro): só com "Efeitos de vidro avançados" ligado — é dos efeitos mais caros do Chrome
   useEffect(() => {
     const raiz = document.documentElement;
-    const refrata = detectarRefracao();
-    if (refrata) raiz.classList.add('lg-refrata');
+    raiz.classList.toggle('lg-refrata', vidroAvancado && detectarRefracao());
+    return () => raiz.classList.remove('lg-refrata');
+  }, [vidroAvancado]);
 
+  // Inclinação 3D dos cartões e indicadores sob o mouse (o movimento chega no máximo uma vez por quadro)
+  useEffect(() => {
     const reduzir = matchMedia('(prefers-reduced-motion: reduce)').matches;
     const comMouse = matchMedia('(hover: hover) and (pointer: fine)').matches;
-    if (reduzir || !comMouse) return () => raiz.classList.remove('lg-refrata');
+    if (reduzir || !comMouse) return undefined;
 
-    let quadro = 0;
     let ultimo = null;
-    let evento = null;
-
     const limpar = (el) => {
       if (!el) return;
       el.style.removeProperty('--rx');
       el.style.removeProperty('--ry');
     };
 
-    const aplicar = () => {
-      quadro = 0;
-      const e = evento;
-      if (!e) return;
+    const parar = aoMoverPonteiro((e) => {
+      if (!e) { limpar(ultimo); ultimo = null; return; }
       if (e.buttons) return; // arrastando um cartão: não mexe na inclinação
       const alvo = e.target instanceof Element ? e.target.closest(SUPERFICIES) : null;
       if (alvo !== ultimo) { limpar(ultimo); ultimo = alvo; }
@@ -105,45 +89,21 @@ export default function LiquidGlassFx() {
         alvo.style.setProperty('--rx', `${(((py - 50) / 50) * -4.5).toFixed(2)}deg`);
         alvo.style.setProperty('--ry', `${(((px - 50) / 50) * 5.5).toFixed(2)}deg`);
       }
-    };
-
-    const aoMover = (e) => {
-      evento = e;
-      if (!quadro) quadro = requestAnimationFrame(aplicar);
-    };
-    const aoSair = () => { limpar(ultimo); ultimo = null; evento = null; };
-
-    window.addEventListener('pointermove', aoMover, { passive: true });
-    document.addEventListener('pointerleave', aoSair);
-    window.addEventListener('blur', aoSair);
-    return () => {
-      cancelAnimationFrame(quadro);
-      window.removeEventListener('pointermove', aoMover);
-      document.removeEventListener('pointerleave', aoSair);
-      window.removeEventListener('blur', aoSair);
-      limpar(ultimo);
-      raiz.classList.remove('lg-refrata');
-    };
+    });
+    return () => { parar(); limpar(ultimo); };
   }, []);
 
   return (
     <svg width="0" height="0" aria-hidden="true" focusable="false" style={{ position: 'absolute', pointerEvents: 'none' }}>
       <defs>
-        {/* Lente completa: deslocamento + dispersão cromática (vermelho, verde e azul dobram em graus ligeiramente diferentes) */}
+        {/* Lente: um deslocamento só (antes eram 3, um por canal de cor, para a dispersão cromática — 3× mais caro a cada quadro) */}
         <filter id="lg-refracao" x="0" y="0" width="1" height="1" filterUnits="objectBoundingBox" primitiveUnits="objectBoundingBox" colorInterpolationFilters="sRGB">
           <feImage href={MAPA_X} x="0" y="0" width="1" height="1" preserveAspectRatio="none" result="mx" />
           <feImage href={MAPA_Y} x="0" y="0" width="1" height="1" preserveAspectRatio="none" result="my" />
           <feColorMatrix in="mx" type="matrix" values="1 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0 1" result="mr" />
           <feColorMatrix in="my" type="matrix" values="0 0 0 0 0  1 0 0 0 0  0 0 0 0 0  0 0 0 0 1" result="mg" />
           <feBlend in="mr" in2="mg" mode="screen" result="mapa" />
-          <feDisplacementMap in="SourceGraphic" in2="mapa" scale="0.13" xChannelSelector="R" yChannelSelector="G" result="d1" />
-          <feDisplacementMap in="SourceGraphic" in2="mapa" scale="0.11" xChannelSelector="R" yChannelSelector="G" result="d2" />
-          <feDisplacementMap in="SourceGraphic" in2="mapa" scale="0.09" xChannelSelector="R" yChannelSelector="G" result="d3" />
-          <feColorMatrix in="d1" type="matrix" values="1 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 1 0" result="cr" />
-          <feColorMatrix in="d2" type="matrix" values="0 0 0 0 0  0 1 0 0 0  0 0 0 0 0  0 0 0 1 0" result="cg" />
-          <feColorMatrix in="d3" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 1 0 0  0 0 0 1 0" result="cb" />
-          <feBlend in="cr" in2="cg" mode="screen" result="rg" />
-          <feBlend in="rg" in2="cb" mode="screen" />
+          <feDisplacementMap in="SourceGraphic" in2="mapa" scale="0.11" xChannelSelector="R" yChannelSelector="G" />
         </filter>
         {/* Versão leve para botões, chips e abas: um deslocamento só, mais discreto */}
         <filter id="lg-refracao-leve" x="0" y="0" width="1" height="1" filterUnits="objectBoundingBox" primitiveUnits="objectBoundingBox" colorInterpolationFilters="sRGB">
