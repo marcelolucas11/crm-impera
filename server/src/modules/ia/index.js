@@ -10,6 +10,7 @@ import { respostasProntas, configPublica, salvarConfig, guardarChave, guardarWor
 import { dentroDoHorario, saudacaoDoMomento } from './horario.js';
 import { tentativaDeComando, pedeHumano, validarSaida } from './seguranca.js';
 import { textoDoSistema, montarPedido } from './prompt.js';
+import { frasesUsadas, tirarRepeticoes } from './repeticao.js';
 import { perguntarModelo, perguntarNoFormato, registrar, ErroIA, explicarFalha } from './cliente.js';
 import { iniciarTarefa, estadoTarefa, dispensarTarefa, iniciarRelogioPlaybook, pararRelogioPlaybook } from './playbook.js';
 import { statusProtecao, retomarAgora, zerarLeadsNovos, bloqueioAgora, reavaliarEspera } from './protecao.js';
@@ -319,14 +320,18 @@ export default {
       const foraDoHorario = req.body?.fora_do_horario === undefined ? !dentroDoHorario(cfg) : Boolean(req.body.fora_do_horario);
       if (ultimaDoLead && tentativaDeComando(ultimaDoLead)) return res.json({ mensagens: [respostasProntas(cfg).soDuvidas], acao: 'responder', via: 'filtro de segurança (não chamou o modelo)' });
       if (ultimaDoLead && pedeHumano(ultimaDoLead)) return res.json({ mensagens: [respostasProntas(cfg).pediuPessoa], acao: 'passar_humano', motivo: 'Lead pediu para falar com uma pessoa', via: 'regra fixa (não chamou o modelo)' });
+      // No simulador a conversa é toda "de agora": se a equipe já falou, o lead já foi cumprimentado
+      const nossas = lista.filter((m) => m.from_me).map((m) => ({ texto: m.body }));
+      const repeticao = { jaCumprimentou: nossas.length > 0, frases: frasesUsadas(nossas), anteriores: nossas.map((m) => m.texto), nome: req.body?.nome || null };
       const { resposta, texto, uso, parada, tentativas } = await perguntarNoFormato({
         sistema: textoDoSistema(cfg, diretrizesAtivas()),
         mensagens: montarPedido({
           cfg, lead: { primeiroNome: req.body?.nome || null }, historico: lista, foraDoHorario, saudacao: saudacaoDoMomento(cfg),
           primeiroContato: !lista.some((m) => m.from_me), origem: formulario ? 'yayforms' : req.body?.origem === 'yayforms' ? 'yayforms' : 'whatsapp',
-          jaAvisouForaHorario: false, formulario,
+          jaAvisouForaHorario: false, formulario, repeticao,
         }),
       });
+      if (resposta) resposta.mensagens = tirarRepeticoes(Array.isArray(resposta.mensagens) ? resposta.mensagens : [resposta.mensagens], repeticao).mensagens;
       registrar(null, 'simulacao', tentativas > 1 ? '2ª tentativa' : null, uso);
       if (!resposta) {
         return res.json({

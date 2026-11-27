@@ -7,6 +7,9 @@
 //  - Textos com variáveis e várias versões separadas por "---" (sorteia uma: o texto varia, menos risco de ban).
 //  - Prioridade sobre descanso e intervalo entre leads (hora marcada), mas para com o freio de falhas do número.
 //  - As mensagens saem com origem "lembrete": o link do Meet que vai nelas não conta como prova de reunião feita.
+//  - Nunca fora do horário comercial (padrão: o mesmo horário da aba Primeiro contato; dá para usar uma janela própria).
+//    Um lembrete que cairia de madrugada ou à noite (ex.: "12 h antes" de uma reunião às 15h = 3h da manhã) é
+//    adiantado ou atrasado para dentro do horário, sem passar do lembrete seguinte; se não couber, é pulado.
 import { get, all, run, agora } from '../../db.js';
 import { registrarEvento } from '../../events.js';
 import { lerEstado, salvarEstado } from '../../estado.js';
@@ -16,6 +19,8 @@ import { lerConfig as lerConfigIa } from './config.js';
 import { primeiroNome } from './prompt.js';
 import { registrar, ErroIA } from './cliente.js';
 import { depoisDeEnviar, falhaDeEnvio, ocuparEnvio, liberarEnvio, envioOcupado } from './protecao.js';
+import { faixasDaJanela, dentroDasFaixas, primeiroDentro, ultimoDentro } from './horario.js';
+import { variantesTelefone } from '../../util.js';
 import { sortearVersao } from './followup.js';
 
 const ESTADO = 'ia_lembretes';
@@ -38,10 +43,24 @@ const TEXTOS = {
   '30m': '{nome}, falta meia hora para a nossa reunião ({hora}) 🙂 Link: {link}\n---\nJá já começa, {nome}! Às {hora}, neste link: {link}',
 };
 
+// Quanto cada lembrete pode ser adiantado/atrasado para cair dentro do horário (minutos) — mais longe da reunião,
+// mais folga; o de 30 min quase não mexe (senão perde o sentido)
+const DESLOCAMENTO_MAX = { '3d': 12 * 60, '24h': 8 * 60, '12h': 7 * 60, '3h': 90, '30m': 20 };
+// Distância mínima entre dois lembretes da mesma reunião depois do ajuste (minutos)
+const DISTANCIA_MIN = 90;
+
 export const PADRAO = {
   ativo: false,
   marcos: Object.fromEntries(MARCOS.map((m) => [m.id, { ativo: true, texto: TEXTOS[m.id] }])),
+  // Horário em que os lembretes podem sair: 'comercial' = o horário de atendimento da aba Primeiro contato;
+  // 'personalizado' = a janela abaixo (início, fim e dias da semana, 0 = domingo)
+  horario: 'comercial',
+  janela_inicio: '08:00',
+  janela_fim: '19:00',
+  dias: [1, 2, 3, 4, 5, 6],
 };
+
+const HORA_TXT = /^([01]\d|2[0-3]):[0-5]\d$/;
 
 export function lerConfigLembretes() {
   const salvo = lerEstado(ESTADO);
@@ -51,6 +70,7 @@ export function lerConfigLembretes() {
 
 export function salvarConfigLembretes(entrada = {}) {
   const atual = lerConfigLembretes();
+  const v = (campo) => (entrada[campo] === undefined ? atual[campo] : entrada[campo]);
   const marcos = {};
   for (const m of MARCOS) {
     const e = entrada.marcos?.[m.id] || atual.marcos[m.id];
@@ -59,10 +79,67 @@ export function salvarConfigLembretes(entrada = {}) {
     if (ativo && !texto) throw new ErroHttp(400, `Escreva o texto do lembrete de ${m.id} ou desligue esse lembrete`);
     marcos[m.id] = { ativo, texto: texto || TEXTOS[m.id] };
   }
-  const novo = { ativo: entrada.ativo === undefined ? atual.ativo : Boolean(entrada.ativo), marcos };
+  const horario = v('horario') === 'personalizado' ? 'personalizado' : 'comercial';
+  const ini = String(v('janela_inicio') || '').trim();
+  const fim = String(v('janela_fim') || '').trim();
+  const dias = [...new Set((Array.isArray(v('dias')) ? v('dias') : []).map(Number).filter((d) => Number.isInteger(d) && d >= 0 && d <= 6))].sort();
+  if (horario === 'personalizado') {
+    if (!HORA_TXT.test(ini) || !HORA_TXT.test(fim) || ini >= fim) throw new ErroHttp(400, 'Horário dos lembretes inválido: use HH:MM e o fim depois do início');
+    if (!dias.length) throw new ErroHttp(400, 'Escolha ao menos um dia da semana para os lembretes');
+  }
+  const novo = {
+    ativo: entrada.ativo === undefined ? atual.ativo : Boolean(entrada.ativo),
+    marcos,
+    horario,
+    janela_inicio: HORA_TXT.test(ini) ? ini : atual.janela_inicio,
+    janela_fim: HORA_TXT.test(fim) ? fim : atual.janela_fim,
+    dias: dias.length ? dias : atual.dias,
+  };
   salvarEstado(ESTADO, novo);
   emitir('ia', { lembretes: true });
   return lerConfigLembretes();
+}
+
+/** Faixas de horário em que os lembretes podem sair (por dia da semana). */
+export function faixasDosLembretes(cfg = lerConfigLembretes(), ia = lerConfigIa()) {
+  if (cfg.horario === 'personalizado') return faixasDaJanela({ inicio: cfg.janela_inicio, fim: cfg.janela_fim, dias: cfg.dias });
+  return ia.horario || {};
+}
+
+/**
+ * Quando cada lembrete de uma reunião sai, já respeitando o horário permitido.
+ * Vai do lembrete mais próximo da reunião para o mais distante: cada um fica no horário ideal se ele estiver dentro
+ * do horário; senão é adiantado ou atrasado (o que mexer menos, até DESLOCAMENTO_MAX) sem encostar no lembrete
+ * seguinte. Se não couber, fica sem horário (pulado).
+ * Devolve { [marco]: { ideal, em, motivo } } — em = null quando o lembrete não vai sair.
+ */
+export function planoDaReuniao({ inicioMs, agendouMs = 0, ativos, faixas, fuso }) {
+  const plano = {};
+  let seguinte = null; // horário do lembrete mais próximo da reunião que vai sair
+  for (const m of [...ativos].sort((a, b) => a.minutos - b.minutos)) {
+    const ideal = inicioMs - m.minutos * MIN;
+    if (agendouMs > ideal - 5 * MIN) { plano[m.id] = { ideal, em: null, motivo: 'agendou_depois' }; continue; }
+    const piso = agendouMs + 5 * MIN;
+    const teto = Math.min(inicioMs - (m.minutos <= 30 ? 5 : 10) * MIN, seguinte === null ? Infinity : seguinte - DISTANCIA_MIN * MIN);
+    const folga = (DESLOCAMENTO_MAX[m.id] ?? 60) * MIN;
+    const cabe = (t) => t !== null && t >= piso && t <= teto;
+    let em = null;
+    if (cabe(ideal) && dentroDasFaixas(faixas, fuso, ideal)) em = ideal;
+    else {
+      const depois = primeiroDentro(faixas, fuso, ideal, ideal + folga);
+      const antes = ultimoDentro(faixas, fuso, Math.min(ideal, teto), ideal - folga);
+      const opcoes = [depois, antes].filter(cabe).sort((a, b) => Math.abs(a - ideal) - Math.abs(b - ideal));
+      em = opcoes[0] ?? null;
+    }
+    plano[m.id] = { ideal, em, motivo: em === null ? 'fora_horario' : em === ideal ? null : 'ajustado' };
+    if (em !== null) seguinte = em;
+  }
+  return plano;
+}
+
+function bloqueado(phone) {
+  const v = variantesTelefone(phone);
+  return v.length ? Boolean(get(`SELECT 1 AS ok FROM disparo_bloqueio WHERE phone IN (${v.map(() => '?').join(',')})`, v)) : false;
 }
 
 // ------------------------------------------------------------------ dependências (trocadas nos testes)
@@ -143,10 +220,12 @@ function semLink(linha) {
  * Lembretes que deveriam sair agora: [{ evento, marco, lead }]. Os que perderam a vez (agendou depois do marco,
  * marco mais distante passado junto com um mais próximo) são marcados como "pulado" para não voltarem.
  */
-export function lembretesVencidos(cfg = lerConfigLembretes(), agoraMs = deps.agora()) {
+export function lembretesVencidos(cfg = lerConfigLembretes(), agoraMs = deps.agora(), ia = lerConfigIa()) {
   const ativos = MARCOS.filter((m) => cfg.marcos[m.id]?.ativo);
   if (!ativos.length) return [];
-  const maior = Math.max(...ativos.map((m) => m.minutos));
+  const maior = Math.max(...ativos.map((m) => m.minutos + (DESLOCAMENTO_MAX[m.id] ?? 60)));
+  const faixas = faixasDosLembretes(cfg, ia);
+  const agoraDentro = dentroDasFaixas(faixas, ia.fuso, agoraMs);
   const eventos = all(
     `SELECT e.uri, e.lead_id, e.event_name, e.start_time, e.join_url, e.booked_at, e.created_at, l.name, l.phone
        FROM calendly_events e JOIN leads l ON l.id = e.lead_id
@@ -160,20 +239,29 @@ export function lembretesVencidos(cfg = lerConfigLembretes(), agoraMs = deps.ago
     const inicio = Date.parse(ev.start_time);
     const agendouEm = Date.parse(ev.booked_at || ev.created_at) || 0;
     const ja = new Set(all('SELECT marco FROM ia_lembretes WHERE evento_uri = ? AND inicio = ?', [ev.uri, ev.start_time]).map((r) => r.marco));
+    const plano = planoDaReuniao({ inicioMs: inicio, agendouMs: agendouEm, ativos, faixas, fuso: ia.fuso });
+    const numeroBloqueado = bloqueado(ev.phone);
     // Do mais próximo da reunião para o mais distante: só sai o mais próximo que venceu; os anteriores ficam "pulados"
     let escolhido = null;
     for (const m of [...ativos].sort((a, b) => a.minutos - b.minutos)) {
       if (ja.has(m.id)) { if (!escolhido) escolhido = 'feito'; continue; }
-      const momento = inicio - m.minutos * MIN;
-      if (agoraMs < momento) continue;
+      const p = plano[m.id];
       const pular = (detalhe) => {
         run('INSERT INTO ia_lembretes (evento_uri, inicio, marco, lead_id, status, detalhe) VALUES (?, ?, ?, ?, \'pulado\', ?) ON CONFLICT DO NOTHING', [ev.uri, ev.start_time, m.id, ev.lead_id, detalhe]);
       };
+      // Sem horário possível: registra como pulado quando o horário ideal passa (para aparecer na lista)
+      if (p.em === null) {
+        if (agoraMs >= p.ideal) pular(p.motivo === 'agendou_depois' ? 'Agendou depois deste momento' : 'Cairia fora do horário comercial');
+        continue;
+      }
+      if (agoraMs < p.em) continue;
       if (escolhido) { pular('Já saiu um lembrete mais próximo da reunião'); continue; }
-      if (agendouEm > momento - 5 * MIN) { pular('Agendou depois deste momento'); continue; }
-      if (agoraMs > momento + m.tolerancia * MIN || agoraMs > inicio - 3 * MIN) { pular('Passou da hora (servidor fora do ar?)'); continue; }
+      if (numeroBloqueado) { pular('Número na lista de bloqueio'); continue; }
+      if (agoraMs > p.em + m.tolerancia * MIN || agoraMs > inicio - 3 * MIN) { pular('Passou da hora (servidor fora do ar?)'); continue; }
+      // Nunca fora do horário: espera a janela abrir (se ainda estiver dentro da tolerância)
+      if (!agoraDentro) continue;
       escolhido = m;
-      saida.push({ evento: ev, marco: m, lead: { id: ev.lead_id, name: ev.name, phone: ev.phone } });
+      saida.push({ evento: ev, marco: m, lead: { id: ev.lead_id, name: ev.name, phone: ev.phone }, momento: p.em });
     }
   }
   return saida;
@@ -182,16 +270,19 @@ export function lembretesVencidos(cfg = lerConfigLembretes(), agoraMs = deps.ago
 // ------------------------------------------------------------------ envio
 
 /** Envia um lembrete. Devolve { feito, texto? }. */
-export async function enviarLembrete({ evento, marco, lead }, cfg = lerConfigLembretes()) {
+export async function enviarLembrete(item, cfg = lerConfigLembretes()) {
+  const { evento, marco, lead } = item;
   const ia = lerConfigIa();
   const agoraMs = deps.agora();
+  // Última conferência do horário (o item pode ter esperado na fila): fora do horário comercial não sai
+  if (!dentroDasFaixas(faixasDosLembretes(cfg, ia), ia.fuso, agoraMs)) return { feito: 'fora_horario' };
   // Freio de falhas do número ligado: não insiste agora (o lembrete continua valendo até a tolerância)
   const e = lerEstado('ia_protecao');
   if (e.pausa_falhas_ate && Date.parse(e.pausa_falhas_ate) > agoraMs) return { feito: 'pausa_falhas' };
   // Conversa acontecendo neste minuto (mensagem há menos de 60 s): espera um pouco para não cortar ninguém,
   // até metade da tolerância — depois disso manda de qualquer jeito
   const ultima = get('SELECT max(timestamp) AS t FROM wa_messages WHERE lead_id = ? AND type <> \'chamada\'', [lead.id])?.t;
-  const momento = Date.parse(evento.start_time) - marco.minutos * MIN;
+  const momento = item.momento ?? Date.parse(evento.start_time) - marco.minutos * MIN;
   if (ultima && agoraMs - Date.parse(ultima) < 60000 && agoraMs < momento + (marco.tolerancia * MIN) / 2) return { feito: 'conversa_em_andamento' };
 
   const numeroId = await deps.numeroDisponivel(ia.numero_ids || []);
@@ -243,17 +334,24 @@ export function painelLembretes() {
   const cfg = lerConfigLembretes();
   const ia = lerConfigIa();
   const agoraMs = deps.agora();
+  const ativos = MARCOS.filter((m) => cfg.marcos[m.id]?.ativo);
+  const faixas = faixasDosLembretes(cfg, ia);
   const proximas = all(
     `SELECT e.uri, e.lead_id, e.event_name, e.start_time, e.booked_at, e.created_at, l.name FROM calendly_events e JOIN leads l ON l.id = e.lead_id
-      WHERE e.status = 'active' AND COALESCE(e.no_show, 0) = 0 AND e.start_time > ? AND l.phone IS NOT NULL ORDER BY e.start_time LIMIT 30`,
+      WHERE e.status = 'active' AND COALESCE(e.no_show, 0) = 0 AND e.start_time > ? AND l.phone IS NOT NULL AND trim(l.phone) <> '' ORDER BY e.start_time LIMIT 30`,
     [new Date(agoraMs).toISOString()]
   ).map((ev) => {
     const feitos = Object.fromEntries(all('SELECT marco, status FROM ia_lembretes WHERE evento_uri = ? AND inicio = ?', [ev.uri, ev.start_time]).map((r) => [r.marco, r.status]));
     const agendouEm = Date.parse(ev.booked_at || ev.created_at) || 0;
-    const marcos = MARCOS.filter((m) => cfg.marcos[m.id]?.ativo).map((m) => {
-      const momento = Date.parse(ev.start_time) - m.minutos * MIN;
-      const status = feitos[m.id] || (agendouEm > momento - 5 * MIN || agoraMs > momento + m.tolerancia * MIN ? 'nao_vale' : 'agendado');
-      return { id: m.id, em: new Date(momento).toISOString(), status };
+    const plano = planoDaReuniao({ inicioMs: Date.parse(ev.start_time), agendouMs: agendouEm, ativos, faixas, fuso: ia.fuso });
+    const marcos = ativos.map((m) => {
+      const p = plano[m.id];
+      let status = feitos[m.id];
+      if (!status) {
+        if (p.em === null) status = p.motivo === 'fora_horario' ? 'fora_horario' : 'nao_vale';
+        else status = agoraMs > p.em + m.tolerancia * MIN ? 'nao_vale' : 'agendado';
+      }
+      return { id: m.id, em: new Date(p.em ?? p.ideal).toISOString(), ajustado: p.motivo === 'ajustado', status };
     });
     return { lead_id: ev.lead_id, nome: ev.name, evento: ev.event_name, inicio: ev.start_time, marcos };
   });
@@ -261,7 +359,7 @@ export function painelLembretes() {
     `SELECT b.marco, b.status, b.texto, b.detalhe, b.inicio, b.created_at, b.lead_id, l.name AS nome FROM ia_lembretes b LEFT JOIN leads l ON l.id = b.lead_id
       WHERE b.status IN ('enviado', 'erro') ORDER BY b.created_at DESC LIMIT 30`
   );
-  return { config: cfg, marcos: MARCOS, fuso: ia.fuso, proximas, enviados };
+  return { config: cfg, marcos: MARCOS, fuso: ia.fuso, horario_comercial: ia.horario, proximas, enviados };
 }
 
 // ------------------------------------------------------------------ relógio

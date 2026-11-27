@@ -26,3 +26,36 @@ export function saudacaoDoMomento(cfg, data = new Date()) {
   if (h >= 12 && h < 18) return 'Boa tarde';
   return 'Boa noite';
 }
+
+// ------------------------------------------------------------------ janelas de envio (lembretes)
+
+/**
+ * Faixas de horário por dia da semana ({ 0..6: { inicio, fim } | null }) a partir de uma janela simples
+ * (início, fim e dias) — o mesmo formato do horário comercial da IA.
+ */
+export function faixasDaJanela({ inicio, fim, dias }) {
+  return Object.fromEntries([0, 1, 2, 3, 4, 5, 6].map((d) => [d, dias.includes(d) ? { inicio, fim } : null]));
+}
+
+/** O instante (ms) cai dentro das faixas? */
+export function dentroDasFaixas(faixas, fuso, quandoMs) {
+  const { dia, hora } = momentoNoFuso(new Date(quandoMs), fuso);
+  const f = faixas?.[dia];
+  return Boolean(f && hora >= f.inicio && hora < f.fim);
+}
+
+const PASSO = 5 * 60000;
+
+/** Primeiro instante >= desdeMs dentro das faixas, procurando até `ateMs` (de 5 em 5 min). null se não achar. */
+export function primeiroDentro(faixas, fuso, desdeMs, ateMs) {
+  if (dentroDasFaixas(faixas, fuso, desdeMs)) return desdeMs;
+  for (let t = Math.ceil(desdeMs / PASSO) * PASSO; t <= ateMs; t += PASSO) if (dentroDasFaixas(faixas, fuso, t)) return t;
+  return null;
+}
+
+/** Último instante <= ateMs dentro das faixas, procurando até `desdeMs` (de 5 em 5 min). null se não achar. */
+export function ultimoDentro(faixas, fuso, ateMs, desdeMs) {
+  if (dentroDasFaixas(faixas, fuso, ateMs)) return ateMs;
+  for (let t = Math.floor(ateMs / PASSO) * PASSO; t >= desdeMs; t -= PASSO) if (dentroDasFaixas(faixas, fuso, t)) return t;
+  return null;
+}

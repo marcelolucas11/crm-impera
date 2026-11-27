@@ -21,12 +21,13 @@ import { variantesTelefone } from '../../util.js';
 import { lerConfig, respostasProntas } from './config.js';
 import { dentroDoHorario, saudacaoDoMomento } from './horario.js';
 import { tentativaDeComando, pedeHumano, validarSaida } from './seguranca.js';
-import { textoDoSistema, montarPedido, primeiroNome } from './prompt.js';
+import { textoDoSistema, montarPedido, primeiroNome, textoDaMensagem } from './prompt.js';
 import { diretrizesAtivas } from './diretrizes.js';
 import { dadosDoFormulario } from './formulario.js';
 import { perguntarModelo, lerJsonDaResposta, registrar, ErroIA, perguntarNoFormato, explicarFalha } from './cliente.js';
 import { bloqueioAgora, depoisDeEnviar, falhaDeEnvio, envioOcupado } from './protecao.js';
 import { prepararMidias, guardarDescricoes, resumoDasMidias } from './midias.js';
+import { jaCumprimentouHoje, frasesUsadas, tirarRepeticoes, aberturaSemCumprimento } from './repeticao.js';
 
 // Dependências do WhatsApp (trocadas nos testes)
 // Prazo máximo de cada chamada ao WhatsApp: uma chamada que nunca responde (socket meio caído) segurava o atendimento
@@ -624,7 +625,13 @@ export async function processarConversa(id) {
   const saudacao = saudacaoDoMomento(cfg);
   const nome = primeiroNome(nomeDoLead(conversa, contato));
   const precisaAvisoHorario = foraDoHorario && !conversa.aviso_fora_horario_em;
-  const abertura = primeiroContato ? `${saudacao}${nome ? `, ${nome}` : ''}! ${cfg.apresentacao}` : null;
+  // Já cumprimentamos hoje (a Alice, a equipe ou a saudação automática dos Disparos)? Então nada de "boa tarde" de novo
+  const nossas = historico.filter((m) => m.from_me).map((m) => ({ timestamp: m.timestamp, texto: textoDaMensagem(m) }));
+  const jaCumprimentou = jaCumprimentouHoje(nossas, { fuso: cfg.fuso });
+  const repeticao = { jaCumprimentou, frases: frasesUsadas(nossas), anteriores: nossas.slice(-15).map((m) => m.texto), nome };
+  const abertura = primeiroContato
+    ? (jaCumprimentou ? aberturaSemCumprimento(cfg.apresentacao, nome) : `${saudacao}${nome ? `, ${nome}` : ''}! ${cfg.apresentacao}`)
+    : null;
 
   // Resposta pronta (sem gastar chamada ao modelo): junta abertura e aviso de horário quando for o caso
   const comExtras = (texto) => [abertura ? `${abertura} ${texto}` : texto, precisaAvisoHorario ? cfg.aviso_fora_horario : null].filter(Boolean);
@@ -672,7 +679,7 @@ export async function processarConversa(id) {
         origem: conversa.origem, jaAvisouForaHorario: Boolean(conversa.aviso_fora_horario_em),
         atraso: DA_FILA.includes(conversa.origem) ? atrasoDaFila(conversa, contato) : null,
         formulario: dadosDoFormulario(conversa.lead_id || contato.leadId, cfg),
-        anexos,
+        anexos, repeticao,
       }),
     });
     registrar(id, 'chamada_modelo', tentativas > 1 ? `2ª tentativa (a 1ª veio fora do formato)` : null, uso);
@@ -693,6 +700,10 @@ export async function processarConversa(id) {
 
   const acao = resposta.acao === 'passar_humano' ? 'passar_humano' : 'responder';
   let mensagens = Array.isArray(resposta.mensagens) ? resposta.mensagens : [resposta.mensagens].filter(Boolean);
+  // Rede de segurança: sem "boa tarde" repetido e sem balão igual a uma mensagem que já saiu
+  const semRepetir = tirarRepeticoes(mensagens, repeticao);
+  if (semRepetir.alterou) registrar(id, 'repeticao_cortada', JSON.stringify(mensagens).slice(0, 400));
+  mensagens = semRepetir.mensagens;
   // Garante o aviso de fora do horário na primeira resposta fora do horário
   if (precisaAvisoHorario && !mensagens.some((m) => String(m).includes(cfg.aviso_fora_horario.slice(0, 40)))) {
     const jaFalou = mensagens.some((m) => /prontid|algumas horas|fora do (nosso )?hor/i.test(String(m)));
