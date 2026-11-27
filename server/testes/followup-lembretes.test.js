@@ -257,3 +257,77 @@ test('lembretes: reunião cancelada ou no-show não recebe', async () => {
   assert.equal(lb.lembretesVencidos().length, 0);
   assert.equal(all('SELECT * FROM ia_lembretes').length, 0);
 });
+
+// ------------------------------------------------------------------ lembretes só no horário comercial
+
+const COMERCIAL = { 1: { inicio: '07:00', fim: '18:00' }, 2: { inicio: '07:00', fim: '18:00' }, 3: { inicio: '07:00', fim: '18:00' }, 4: { inicio: '07:00', fim: '18:00' }, 5: { inicio: '07:00', fim: '18:00' }, 6: { inicio: '07:00', fim: '16:00' }, 0: null };
+const hora = (ms) => new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', weekday: 'short', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(new Date(ms));
+
+test('lembretes: plano nunca cai de madrugada nem à noite (12 h antes de reunião às 15h = 3h da manhã)', () => {
+  const plano = lb.planoDaReuniao({
+    inicioMs: Date.parse('2026-12-02T15:00:00-03:00'), agendouMs: Date.parse('2026-11-20T10:00:00-03:00'),
+    ativos: lb.MARCOS, faixas: COMERCIAL, fuso: 'America/Sao_Paulo',
+  });
+  assert.equal(hora(plano['12h'].em), 'qua., 07:00'); // atrasou da 3h para a abertura do horário
+  assert.equal(plano['12h'].motivo, 'ajustado');
+  assert.equal(hora(plano['3h'].em), 'qua., 12:00');
+  assert.equal(hora(plano['24h'].em), 'ter., 15:00');
+  // Reunião às 11h: "12 h antes" seria 23h — vai para o fim do expediente da véspera (não encosta no de 3 h, às 8h)
+  const p2 = lb.planoDaReuniao({
+    inicioMs: Date.parse('2026-12-02T11:00:00-03:00'), agendouMs: Date.parse('2026-11-20T10:00:00-03:00'),
+    ativos: lb.MARCOS, faixas: COMERCIAL, fuso: 'America/Sao_Paulo',
+  });
+  assert.equal(hora(p2['12h'].em), 'ter., 17:55');
+  assert.equal(hora(p2['3h'].em), 'qua., 08:00');
+  // Reunião segunda às 8h: o de 24 h cairia no domingo (sem expediente) e é pulado; o de 30 min (7h30) sai
+  const p3 = lb.planoDaReuniao({
+    inicioMs: Date.parse('2026-12-07T08:00:00-03:00'), agendouMs: Date.parse('2026-11-20T10:00:00-03:00'),
+    ativos: lb.MARCOS, faixas: COMERCIAL, fuso: 'America/Sao_Paulo',
+  });
+  assert.equal(p3['24h'].em, null);
+  assert.equal(p3['24h'].motivo, 'fora_horario');
+  assert.equal(hora(p3['30m'].em), 'seg., 07:30');
+  for (const p of [plano, p2, p3]) {
+    for (const m of Object.values(p)) {
+      if (m.em === null) continue;
+      const [, h] = hora(m.em).split(', ');
+      assert.ok(h >= '07:00' && h < '18:00', `lembrete fora do horário: ${hora(m.em)}`);
+    }
+  }
+});
+
+test('lembretes: às 3h da manhã nada sai; sai na abertura do horário comercial', async () => {
+  await preparar();
+  salvarConfig({ horario: COMERCIAL });
+  lb.salvarConfigLembretes({ ativo: true });
+  const leadId = await criarLeadDireto({ nome: 'Gabi', telefone: '5511911114010' });
+  relogio = Date.parse('2026-12-02T03:01:00-03:00');
+  reuniao({ leadId, emHoras: 12 - 1 / 60 }); // quarta 15h
+  assert.equal(lb.lembretesVencidos().length, 0);
+  assert.equal(all("SELECT * FROM ia_lembretes WHERE status = 'enviado'").length, 0);
+  relogio = Date.parse('2026-12-02T07:01:00-03:00');
+  const v = lb.lembretesVencidos();
+  assert.deepEqual(v.map((x) => x.marco.id), ['12h']);
+  // Mesmo chamado direto fora do horário, o envio não sai
+  relogio = Date.parse('2026-12-02T22:00:00-03:00');
+  assert.equal((await lb.enviarLembrete(v[0])).feito, 'fora_horario');
+  relogio = Date.parse('2026-12-02T07:02:00-03:00');
+  assert.equal((await lb.enviarLembrete(v[0])).feito, 'enviado');
+});
+
+test('lembretes: horário personalizado e número na lista de bloqueio', async () => {
+  await preparar();
+  salvarConfig({ horario: SEMPRE });
+  lb.salvarConfigLembretes({ ativo: true, horario: 'personalizado', janela_inicio: '09:00', janela_fim: '18:00', dias: [1, 2, 3, 4, 5] });
+  assert.throws(() => lb.salvarConfigLembretes({ horario: 'personalizado', janela_inicio: '18:00', janela_fim: '09:00' }), /inválido/);
+  const leadId = await criarLeadDireto({ nome: 'Hugo', telefone: '5511911114011' });
+  relogio = Date.parse('2026-12-02T08:30:00-03:00');
+  reuniao({ leadId, emHoras: 2.5 }); // 11h: "3 h antes" = 8h, fora da janela (abre às 9h) → atrasa para as 9h
+  assert.equal(lb.lembretesVencidos().length, 0);
+  relogio = Date.parse('2026-12-02T09:00:30-03:00');
+  assert.deepEqual(lb.lembretesVencidos().map((x) => x.marco.id), ['3h']);
+  relogio = Date.parse('2026-12-02T10:31:00-03:00');
+  run('INSERT INTO disparo_bloqueio (phone) VALUES (?)', ['5511911114011']);
+  assert.equal(lb.lembretesVencidos().length, 0);
+  assert.equal(get("SELECT detalhe FROM ia_lembretes WHERE marco = '30m'")?.detalhe, 'Número na lista de bloqueio');
+});

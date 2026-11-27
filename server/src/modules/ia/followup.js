@@ -20,6 +20,7 @@ import { momentoNoFuso } from './horario.js';
 import { validarSaida } from './seguranca.js';
 import { textoDaMensagem, textoDoFormulario, primeiroNome } from './prompt.js';
 import { diretrizesAtivas } from './diretrizes.js';
+import { jaCumprimentouHoje, tirarRepeticoes } from './repeticao.js';
 import { dadosDoFormulario } from './formulario.js';
 import { perguntarModelo, lerJsonDaResposta, registrar, ErroIA, somarUso } from './cliente.js';
 import { bloqueioAgora, depoisDeEnviar, falhaDeEnvio, meiaNoiteNoFuso, ocuparEnvio, liberarEnvio } from './protecao.js';
@@ -628,7 +629,12 @@ export async function processarFollowup(id) {
   if (escrito.origem === 'ia') {
     const conferida = validarSaida(escrito.mensagens, ia);
     if (!conferida.ok) return falhou(fu, `Mensagem barrada pelo filtro de segurança (${conferida.motivo})`, 30);
-    escrito.mensagens = conferida.mensagens;
+    // Sem "boa tarde" se já houve mensagem nossa hoje (lembrete, equipe) e sem repetir uma mensagem que já saiu
+    const nossas = historicoDoLead(fu.lead_id, jids).filter((m) => m.from_me).map((m) => ({ timestamp: m.timestamp, texto: textoDaMensagem(m) }));
+    escrito.mensagens = tirarRepeticoes(conferida.mensagens, {
+      jaCumprimentou: jaCumprimentouHoje(nossas, { fuso: ia.fuso, agoraMs }), anteriores: nossas.slice(-15).map((m) => m.texto),
+      nome: primeiroNome(get('SELECT name FROM leads WHERE id = ?', [fu.lead_id])?.name),
+    }).mensagens;
   }
 
   // Confere de novo logo antes de enviar: o lead pode ter respondido enquanto a IA escrevia

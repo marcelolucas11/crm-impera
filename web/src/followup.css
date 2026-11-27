@@ -39,54 +39,144 @@
 .wa-tela[data-tema='claro'] .marcador-info-azul { color: #1d5fa8; }
 .wa-tela[data-tema='claro'] .btn.btn-followup { color: #1d5fa8; }
 
-@media (max-width: 380px) {
+/* Celular: ícone em cima e texto embaixo, sem cortar "Aguardando resposta" em "Aguardan…" */
+@media (max-width: 440px) {
+  .btn.btn-marcador { flex-direction: column; gap: 3px; padding: 6px 4px; font-size: 11px; min-height: 46px; }
+  .btn.btn-marcador span { -webkit-line-clamp: unset; display: block; overflow: visible; overflow-wrap: anywhere; }
+  .ficha-followup .btn { font-size: 11.5px; padding: 6px 6px; white-space: normal; }
+}
+@media (max-width: 340px) {
   .ficha-marcadores { grid-template-columns: 1fr 1fr; }
   .ficha-marcadores .btn-marcador:last-child { grid-column: 1 / -1; }
 }
 
-/* ------------------------------------------------------------ IA → Follow-up e lembretes */
-.fu-grade { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 16px; align-items: start; }
-@media (max-width: 1100px) { .fu-grade { grid-template-columns: 1fr; } }
-.fu-campos { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
-.fu-campos label, .fu-toque label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
+/* ------------------------------------------------------------ IA → Follow-up e lembretes
+   Tudo com prefixo .ia-pagina .fu para ganhar do estilo geral dos rótulos da página IA (que empilha tudo em coluna). */
+
+.ia-pagina .fu { display: flex; flex-direction: column; gap: 16px; }
+.ia-pagina .fu.com-barra { padding-bottom: 76px; }
+.ia-pagina .fu .dp-mestre { margin: 0; }
+
+/* Duas colunas: configuração (larga) à esquerda e listas à direita; no celular as listas vêm primeiro */
+.fu-grade { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+.fu-grade > .fu-coluna-config { grid-column: 1; grid-row: 1; }
+.fu-grade > .fu-coluna-listas { grid-column: 2; grid-row: 1; }
+.fu-coluna { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.fu-coluna > .cartao-secao { margin: 0; min-width: 0; }
+@media (max-width: 1100px) {
+  .fu-grade { grid-template-columns: minmax(0, 1fr); }
+  .fu-grade > .fu-coluna-config, .fu-grade > .fu-coluna-listas { grid-column: 1; grid-row: auto; }
+}
+.ia-pagina .fu .fu-titulo { margin: 0 0 8px; }
+
+/* Campos: rótulo em cima, controle embaixo; nada de largura fixa que estoure a coluna */
+.fu-form { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(190px, 100%), 1fr)); gap: 14px 16px; margin-top: 12px; }
+.fu-form .fu-largo { grid-column: 1 / -1; }
+.ia-pagina .fu .fu-campo { display: flex; flex-direction: column; gap: 6px; min-width: 0; font-size: 12.5px; color: var(--suave); margin-top: 12px; }
+.ia-pagina .fu .fu-form .fu-campo { margin-top: 0; }
+.ia-pagina .fu .fu-rotulo { color: var(--suave); font-size: 12.5px; line-height: 1.35; }
+.ia-pagina .fu .fu-rotulo-acao { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.ia-pagina .fu .fu-rotulo-acao .btn { width: auto; flex: 0 0 auto; }
+.fu-linha { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.ia-pagina .fu .fu-num { width: 80px; flex: 0 0 80px; }
+.ia-pagina .fu .fu-linha select { width: auto; flex: 0 0 auto; min-width: 96px; }
+.fu-janela { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.ia-pagina .fu .fu-janela input[type='time'] { width: 130px; flex: 0 0 130px; }
+.ia-pagina .fu label.fu-check { margin-top: 14px; }
+
+/* Dias da semana: pílulas que ligam/desligam */
 .fu-dias { display: flex; flex-wrap: wrap; gap: 6px; }
-.fu-toques { display: flex; flex-direction: column; gap: 6px; }
+.btn.fu-dia, .fu-dia {
+  min-width: 46px; padding: 6px 10px; border-radius: 999px; font-size: 12.5px; cursor: pointer;
+  border: 1px solid rgba(255, 255, 255, .14); background: rgba(255, 255, 255, .03); color: var(--suave);
+}
+.fu-dia.ligado { color: #1b1405; background: linear-gradient(180deg, #f0d593, var(--ouro)); border-color: var(--ouro); font-weight: 600; }
+.fu-dia:disabled { cursor: default; opacity: .6; }
+
+/* Toques e lembretes (acordeão) */
+.fu-toques { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
 .fu-toque { border: 1px solid rgba(255, 255, 255, .08); border-radius: 12px; background: rgba(255, 255, 255, .025); }
-.fu-toque > summary { list-style: none; display: flex; align-items: center; gap: 10px; padding: 9px 12px; cursor: pointer; font-size: 13px; }
+.fu-toque > summary { list-style: none; display: flex; align-items: center; gap: 10px; padding: 8px 10px 8px 12px; cursor: pointer; font-size: 13px; min-width: 0; }
 .fu-toque > summary::-webkit-details-marker { display: none; }
 .fu-toque > summary .fu-numero {
-  flex: 0 0 auto; width: 26px; height: 26px; border-radius: 8px; display: grid; place-items: center; font-weight: 700; font-size: 12px;
-  background: rgba(61, 155, 255, .14); color: #a3d0ff;
+  flex: 0 0 24px; width: 24px; height: 24px; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center;
+  font-size: 12px; font-weight: 700; color: #a3d0ff; background: rgba(61, 155, 255, .12);
 }
-.fu-toque.desligado > summary { opacity: .55; }
-.fu-toque > summary .fu-resumo { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.fu-toque-corpo { display: grid; gap: 10px; padding: 4px 12px 12px; }
-.fu-prazo { display: flex; gap: 6px; align-items: center; }
-.fu-prazo input { width: 90px; }
-.fu-lista { width: 100%; border-collapse: collapse; font-size: 13px; }
-.fu-lista th { text-align: left; font-weight: 600; color: var(--texto-suave, #aaa); padding: 6px 8px; font-size: 12px; }
-.fu-lista td { padding: 7px 8px; border-top: 1px solid rgba(255, 255, 255, .06); vertical-align: top; }
-.fu-lista .fu-msg { max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.fu-teste { border-radius: 12px; padding: 10px 12px; background: rgba(61, 155, 255, .07); border: 1px solid rgba(61, 155, 255, .25); font-size: 13px; }
+.fu-toque > summary b { flex: 0 0 auto; white-space: nowrap; }
+.fu-toque > summary .fu-resumo { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fu-toque-chave { flex: 0 0 auto; display: inline-flex; }
+.fu-toque.desligado > summary .fu-numero, .fu-toque.desligado > summary b, .fu-toque.desligado > summary .fu-resumo { opacity: .5; }
+.fu-toque[open] > summary { border-bottom: 1px solid rgba(255, 255, 255, .06); }
+.fu-toque-corpo { display: flex; flex-direction: column; gap: 4px; padding: 4px 12px 12px; }
+
+/* Opções (rádio) do horário dos lembretes */
+.fu-opcoes { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
+.ia-pagina .fu label.fu-opcao {
+  display: flex; flex-direction: row; align-items: flex-start; gap: 10px; padding: 10px 12px; border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, .09); background: rgba(255, 255, 255, .02); cursor: pointer;
+}
+.ia-pagina .fu label.fu-opcao.ativa { border-color: rgba(224, 190, 108, .55); background: rgba(224, 190, 108, .07); }
+.ia-pagina .fu label.fu-opcao input { width: 16px; height: 16px; flex: 0 0 16px; margin: 2px 0 0; accent-color: var(--ouro); }
+.fu-opcao > span { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.fu-opcao small { font-size: 12px; line-height: 1.35; }
+
+/* Listas (leads em follow-up, saíram, próximas reuniões, lembretes enviados) */
+.fu-itens { list-style: none; margin: 4px 0 0; padding: 0; display: flex; flex-direction: column; }
+.fu-item { display: flex; flex-direction: column; gap: 5px; padding: 11px 0; border-top: 1px solid rgba(255, 255, 255, .07); min-width: 0; }
+.fu-item:first-child { border-top: none; padding-top: 4px; }
+.fu-itens-compactos .fu-item { padding: 8px 0; gap: 3px; }
+.fu-item-topo { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-width: 0; }
+.fu-item-nome { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13.5px; }
+.fu-item-topo .btn { flex: 0 0 auto; width: auto; }
+.fu-item-info { display: flex; flex-wrap: wrap; gap: 4px 14px; align-items: center; }
+.fu-item-info svg { vertical-align: -2px; }
+.fu-item-motivo { color: #ffc77a; overflow-wrap: anywhere; }
+.fu-item-motivo svg { vertical-align: -2px; }
+.fu-item-msg { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.fu-item-acoes { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 2px; }
+.fu-item-acoes .btn { width: auto; flex: 0 0 auto; }
+.btn.fu-btn-tirar { color: #ffb3a8; }
+.fu-selo { flex: 0 0 auto; font-size: 11.5px; padding: 2px 9px; border-radius: 999px; color: #a3d0ff; border: 1px solid rgba(61, 155, 255, .35); background: rgba(61, 155, 255, .08); white-space: nowrap; }
+.fu-selo.fu-status-respondeu { color: #7ff0b0; border-color: rgba(52, 209, 123, .4); background: rgba(52, 209, 123, .08); }
+.fu-selo.fu-status-erro { color: #ff9b8f; border-color: rgba(255, 90, 71, .4); background: rgba(255, 90, 71, .08); }
+.fu-selo.fu-status-removido, .fu-selo.fu-status-pulado, .fu-selo.fu-status-concluido { color: var(--suave); border-color: rgba(255, 255, 255, .15); background: rgba(255, 255, 255, .03); }
+
+.fu-teste { margin-top: 6px; border-radius: 12px; padding: 10px 12px; background: rgba(61, 155, 255, .07); border: 1px solid rgba(61, 155, 255, .25); font-size: 13px; }
 .fu-teste p { margin: 4px 0; white-space: pre-wrap; }
-.fu-marcos { display: flex; flex-wrap: wrap; gap: 4px; }
-.fu-marco { font-size: 11px; padding: 2px 7px; border-radius: 999px; border: 1px solid rgba(255, 255, 255, .12); }
+.fu-teste .btn { width: auto; margin-top: 4px; }
+
+/* Etiquetas dos lembretes de cada reunião: marco + horário em que sai */
+.fu-marcos { display: flex; flex-wrap: wrap; gap: 5px; }
+.fu-marco {
+  display: inline-flex; align-items: center; gap: 5px; font-size: 11px; padding: 2px 8px; border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, .12); white-space: nowrap;
+}
+.fu-marco b { font-weight: 700; }
 .fu-marco.enviado { color: #7ff0b0; border-color: rgba(52, 209, 123, .4); }
 .fu-marco.agendado { color: #a3d0ff; border-color: rgba(61, 155, 255, .4); }
 .fu-marco.pulado, .fu-marco.nao_vale { opacity: .45; text-decoration: line-through; }
+.fu-marco.fora_horario { color: #ffc77a; border-color: rgba(242, 165, 58, .35); opacity: .8; }
 .fu-marco.erro { color: #ff9b8f; border-color: rgba(255, 90, 71, .4); }
-.fu-variaveis code { font-size: 11.5px; padding: 1px 5px; border-radius: 6px; background: rgba(255, 255, 255, .07); margin-right: 4px; }
-.fu-status-linha { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 13px; }
-.fu-toque > summary b { flex: 0 0 auto; white-space: nowrap; }
-.fu-toque > summary input[type='checkbox'], .fu-dias input[type='checkbox'], .fu-campos .com-icone input[type='checkbox'] { width: auto; flex: 0 0 auto; margin: 0; }
-.fu-campos .com-icone { flex-direction: row; align-items: center; gap: 8px; }
-.fu-dias .com-icone { display: inline-flex; flex-direction: row; align-items: center; gap: 4px; font-size: 12.5px; }
-.fu-prompt { display: flex; flex-direction: column; gap: 4px; font-size: 13px; margin-top: 12px; }
-.fu .dp-mestre { margin-bottom: 14px; }
-.fu .fu-grade { margin-bottom: 16px; }
-.fu-salvar { margin-bottom: 12px; }
-.fu-check { display: flex; flex-direction: row; align-items: center; gap: 8px; font-size: 13px; margin-top: 10px; }
-.fu-check input[type='checkbox'] { width: auto; margin: 0; }
-.fu-prazo input[type='time'] { width: 118px; flex: 0 0 auto; }
-.fu-prazo input[type='number'] { flex: 0 0 auto; }
-.btn.fu-restaurar { width: auto; align-self: flex-start; margin-top: 8px; }
+.fu-variaveis { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+.fu-variaveis code { font-size: 11.5px; padding: 1px 5px; border-radius: 6px; background: rgba(255, 255, 255, .07); }
+
+/* Barra "alterações não salvas": presa no rodapé, sempre à vista */
+.fu-barra-salvar {
+  position: sticky; bottom: 12px; z-index: 20; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+  padding: 10px 14px; border-radius: 14px; font-size: 13px; color: var(--texto);
+  background: rgba(16, 17, 26, .98); border: 1px solid rgba(224, 190, 108, .5); box-shadow: 0 12px 30px -10px rgba(0, 0, 0, .8);
+  backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+}
+.fu-barra-acoes { display: flex; gap: 8px; }
+.fu-barra-acoes .btn { width: auto; }
+
+.wa-tela[data-tema='claro'] .fu-barra-salvar { background: rgba(255, 255, 255, .95); }
+
+@media (max-width: 520px) {
+  .ia-pagina .fu .fu-janela input[type='time'] { flex: 1 1 110px; width: auto; }
+  .fu-barra-salvar { bottom: 8px; }
+  .fu-barra-acoes { width: 100%; }
+  .fu-barra-acoes .btn { flex: 1 1 0; }
+  .fu-toque > summary .fu-resumo { display: none; }
+  .fu-toque > summary b { flex: 1 1 auto; }
+}
